@@ -6,6 +6,7 @@
 
 #include "evo/deterministicmns.h"
 #include "evo/mnauth.h"
+#include "llmq/quorums_dkgsessionmgr.h"
 #include "validation.h"
 
 void EvoNotificationInterface::InitializeCurrentBlockTip()
@@ -16,7 +17,8 @@ void EvoNotificationInterface::InitializeCurrentBlockTip()
 
 void EvoNotificationInterface::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload)
 {
-    // !TODO background thread updates
+    // background thread updates
+    llmq::quorumDKGSessionManager->UpdatedBlockTip(pindexNew, fInitialDownload);
 }
 
 void EvoNotificationInterface::NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff)
