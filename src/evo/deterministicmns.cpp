@@ -980,3 +980,15 @@ std::vector<CDeterministicMNCPtr> CDeterministicMNManager::GetAllQuorumMembers(C
     auto modifier = ::SerializeHash(std::make_pair(static_cast<uint8_t>(llmqType), pindexQuorum->GetBlockHash()));
     return allMns.CalculateQuorum(params.size, modifier);
 }
+
+std::set<uint256> CDeterministicMNManager::GetQuorumRelayMembers(Consensus::LLMQType llmqType, const CBlockIndex *pindexQuorum)
+{
+    // !TODO: complete me
+    auto mns = GetAllQuorumMembers(llmqType, pindexQuorum);
+    std::set<uint256> result;
+    for (const auto& dmn : mns) {
+        result.emplace(dmn->proTxHash);
+    }
+    return result;
+}
+

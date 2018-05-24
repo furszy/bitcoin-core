@@ -12,6 +12,7 @@
 #include "evo/deterministicmns.h"
 #include "evo/mnauth.h"
 #include "llmq/quorums_blockprocessor.h"
+#include "llmq/quorums_dkgsessionmgr.h"
 #include "masternodeman.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
@@ -842,8 +843,7 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
     case MSG_QUORUM_COMPLAINT:
     case MSG_QUORUM_JUSTIFICATION:
     case MSG_QUORUM_PREMATURE_COMMITMENT:
-        // !TODO: AlreadyHave
-        return false;
+        return llmq::quorumDKGSessionManager->AlreadyHave(inv);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -910,23 +910,43 @@ bool static PushTierTwoGetDataRequest(const CInv& inv,
     }
 
     if (inv.type == MSG_QUORUM_CONTRIB) {
-        // !TODO
-        return false;
+        // Only respond if v6.0.0 is enforced.
+        if (!deterministicMNManager->IsDIP3Enforced()) return false;
+        llmq::CDKGContribution o;
+        if (llmq::quorumDKGSessionManager->GetContribution(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QCONTRIB, o));
+            return true;
+        }
     }
 
     if (inv.type == MSG_QUORUM_COMPLAINT) {
-        // !TODO
-        return false;
+        // Only respond if v6.0.0 is enforced.
+        if (!deterministicMNManager->IsDIP3Enforced()) return false;
+        llmq::CDKGComplaint o;
+        if (llmq::quorumDKGSessionManager->GetComplaint(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QCOMPLAINT, o));
+            return true;
+        }
     }
 
     if (inv.type == MSG_QUORUM_JUSTIFICATION) {
-        // !TODO
-        return false;
+        // Only respond if v6.0.0 is enforced.
+        if (!deterministicMNManager->IsDIP3Enforced()) return false;
+        llmq::CDKGJustification o;
+        if (llmq::quorumDKGSessionManager->GetJustification(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QJUSTIFICATION, o));
+            return true;
+        }
     }
 
     if (inv.type == MSG_QUORUM_PREMATURE_COMMITMENT) {
-        // !TODO
-        return false;
+        // Only respond if v6.0.0 is enforced.
+        if (!deterministicMNManager->IsDIP3Enforced()) return false;
+        llmq::CDKGPrematureCommitment o;
+        if (llmq::quorumDKGSessionManager->GetPrematureCommitment(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QPCOMMITMENT, o));
+            return true;
+        }
     }
 
     // !TODO: remove when transition to DMN is complete
