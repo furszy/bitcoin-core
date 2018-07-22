@@ -38,6 +38,7 @@ GENERATED_TEST_FILES = $(JSON_TEST_FILES:.json=.json.h) $(RAW_TEST_FILES:.raw=.r
 
 # test_pivx binary #
 BITCOIN_TESTS =\
+  test/zerocoin_zkp_tests.cpp \
   test/zerocoin_implementation_tests.cpp\
   test/zerocoin_denomination_tests.cpp\
   test/zerocoin_transactions_tests.cpp \
