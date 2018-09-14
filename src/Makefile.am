@@ -321,7 +321,6 @@ libzerocoin_libbitcoin_zerocoin_a_SOURCES = \
   libzerocoin/CoinSpend.h \
   libzerocoin/Commitment.h \
   libzerocoin/Denominations.h \
-  libzerocoin/InnerProductArgument.h \
   libzerocoin/ParamGeneration.h \
   libzerocoin/Params.h \
   libzerocoin/PolynomialCommitment.h \
@@ -338,7 +337,6 @@ libzerocoin_libbitcoin_zerocoin_a_SOURCES = \
   libzerocoin/Denominations.cpp \
   libzerocoin/CoinSpend.cpp \
   libzerocoin/Commitment.cpp \
-  libzerocoin/InnerProductArgument.cpp \
   libzerocoin/ParamGeneration.cpp \
   libzerocoin/Params.cpp \
   libzerocoin/PolynomialCommitment.cpp \
