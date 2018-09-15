@@ -11,19 +11,33 @@
 
 using namespace libzerocoin;
 
-#define COLOR_STR_GREEN   "\033[32m"
 #define COLOR_STR_NORMAL  "\033[0m"
+#define COLOR_BOLD        "\033[1m"
+#define COLOR_STR_GREEN   "\033[32m"
 #define COLOR_STR_RED     "\033[31m"
-#define COLOR_CYAN        "\x1b[36m"
+#define COLOR_CYAN        "\033[0;36m"
+#define COLOR_MAGENTA     "\u001b[35m"
 
-std::string colorGreen(COLOR_STR_GREEN);
 std::string colorNormal(COLOR_STR_NORMAL);
+std::string colorBold(COLOR_BOLD);
+std::string colorGreen(COLOR_STR_GREEN);
 std::string colorRed(COLOR_STR_RED);
 std::string colorCyan(COLOR_CYAN);
+std::string colorMagenta(COLOR_MAGENTA);
 
 // Global test counters
 uint32_t    zNumTests        = 0;
 uint32_t    zSuccessfulTests = 0;
+
+std::string Pass(bool fReverseTest = false)
+{
+    return fReverseTest ? "[FAIL (good)]" : "[PASS]";
+}
+
+std::string Fail(bool fReverseTest = false)
+{
+    return fReverseTest ? "[PASS (when it shouldn't!)]" : "[FAIL]";
+}
 
 
 // Parameters ----------------------------------------------------------------------------------------
@@ -34,12 +48,12 @@ bool Test_generators(IntegerGroupParams SoKGroup)
     std::cout << "- Testing generators...";
     for(unsigned int i=0; i<512; i++) {
         if ( SoKGroup.gis[i].pow_mod(SoKGroup.groupOrder,SoKGroup.modulus) != CBigNum(1)) {
-            std::cout << colorRed << "[FAIL]" << std::endl;
+            std::cout << colorRed << Fail() << std::endl;
             std::cout << "gis[" << i << "] ** q != 1" << colorNormal << std::endl;
             return false;
         }
     }
-    std::cout << colorGreen << "[PASS]"  << colorNormal << std::endl;
+    std::cout << colorGreen << Pass() << colorNormal << std::endl;
     zSuccessfulTests++;
     return true;
 }
@@ -47,8 +61,8 @@ bool Test_generators(IntegerGroupParams SoKGroup)
 
 bool parameters_tests()
 {
-    std::cout << "*** parameters_tests ***" << std::endl;
-    std::cout << "------------------------" << std::endl;
+    std::cout << colorBold << "*** parameters_tests ***" << std::endl;
+    std::cout << "------------------------" << colorNormal << std::endl;
 
     bool finalResult = true;
 
@@ -56,7 +70,7 @@ bool parameters_tests()
     ZerocoinParams *ZCParams = Params().Zerocoin_Params(false);
     (void)ZCParams;
 
-    finalResult = finalResult && Test_generators(ZCParams->serialNumberSoKCommitmentGroup);
+    finalResult = finalResult & Test_generators(ZCParams->serialNumberSoKCommitmentGroup);
 
     std::cout << std::endl;
 
@@ -72,13 +86,13 @@ bool Test_multGates(ArithmeticCircuit ac, CBigNum q)
     std::cout << "- Testing A times B equals C...";
     for(unsigned int i=0; i<ZKP_M; i++) for(unsigned int j=0; j<ZKP_N; j++) {
         if(ac.A[i][j].mul_mod(ac.B[i][j], q) != ac.C[i][j]) {
-            std::cout << colorRed << "[FAIL]" << std::endl;
+            std::cout << colorRed << Fail() << std::endl;
             std::cout << "Hadamard Test failed at i=" << i << ", j=" << j << colorNormal << std::endl;
             return false;
         }
     }
 
-    std::cout << colorGreen << "[PASS]"  << colorNormal << std::endl;
+    std::cout << colorGreen << Pass()  << colorNormal << std::endl;
     zSuccessfulTests++;
     return true;
 }
@@ -89,7 +103,7 @@ bool Test_cfinalLog(ArithmeticCircuit ac, CBigNum q, CBigNum a, CBigNum b, bool 
     // If circuit correctly evaluates (a^serial)*(b^randomness) this should be true
     std::cout << "- Testing C_final equals Logarithm";
     if (fReverseTest)
-        std::cout << " with wrong assignment";
+        std::cout << colorMagenta << " with wrong assignment" << colorNormal;
     std::cout << "...";
     CBigNum logarithm =
             a.pow_mod(ac.getSerialNumber(),q).mul_mod(
@@ -97,11 +111,11 @@ bool Test_cfinalLog(ArithmeticCircuit ac, CBigNum q, CBigNum a, CBigNum b, bool 
     CBigNum Cfinal = ac.C[ZKP_M-1][0];
     bool test = (logarithm == Cfinal);
     if (test == fReverseTest) {
-        std::cout << colorRed << "[FAIL]" << colorNormal << std::endl;
+        std::cout << colorRed << Fail(fReverseTest) << colorNormal << std::endl;
         return false;
     }
 
-    std::cout << colorGreen << "[PASS]"  << colorNormal << std::endl;
+    std::cout << colorGreen << Pass(fReverseTest) << colorNormal << std::endl;
     zSuccessfulTests++;
     return true;
 }
@@ -112,7 +126,7 @@ bool Test_arithConstraints(ArithmeticCircuit ac, CBigNum q, bool fReverseTest = 
     // Checking that the expressions in Equation (2) of the paper hold
     std::cout << "- Testing the Arithmetic Constraints (eq. 2)";
     if (fReverseTest)
-        std::cout << " with wrong assignment";
+        std::cout << colorMagenta << " with wrong assignment" << colorNormal;
     std::cout << "...";
     bool test = true;
     unsigned int last_index = 0;
@@ -125,12 +139,12 @@ bool Test_arithConstraints(ArithmeticCircuit ac, CBigNum q, bool fReverseTest = 
     }
 
     if (test == fReverseTest) {
-        std::cout << colorRed << "[FAIL]" << std::endl;
+        std::cout << colorRed << Fail(fReverseTest) << std::endl;
         std::cout << "Arithmetic Constraints Test failed at i=" << last_index << colorNormal << std::endl;
         return false;
     }
 
-    std::cout << colorGreen << "[PASS]"  << colorNormal << std::endl;
+    std::cout << colorGreen << Pass(fReverseTest)  << colorNormal << std::endl;
     zSuccessfulTests++;
     return true;
 }
@@ -138,8 +152,8 @@ bool Test_arithConstraints(ArithmeticCircuit ac, CBigNum q, bool fReverseTest = 
 
 bool arithmetic_circuit_tests()
 {
-    std::cout << "*** arithmetic_circuit_tests ***" << std::endl;
-    std::cout << "--------------------------------" << std::endl;
+    std::cout << colorBold << "*** arithmetic_circuit_tests ***" << std::endl;
+    std::cout << "--------------------------------" << colorNormal << std::endl;
 
     bool finalResult = true;
 
@@ -160,9 +174,9 @@ bool arithmetic_circuit_tests()
     circuit.setWireValues(coin);
     circuit.setYPoly(Y);
 
-    finalResult = finalResult && Test_multGates(circuit, q);
-    finalResult = finalResult && Test_cfinalLog(circuit, q, a, b);
-    finalResult = finalResult && Test_arithConstraints(circuit, q);
+    finalResult = finalResult & Test_multGates(circuit, q);
+    finalResult = finalResult & Test_cfinalLog(circuit, q, a, b);
+    finalResult = finalResult & Test_arithConstraints(circuit, q);
 
     // !TODO: rewrite this test case.
     // Checking that the expressions in Equation (3) of the paper hold
@@ -178,10 +192,10 @@ bool arithmetic_circuit_tests()
     }
 
     // If circuit correctly evaluates (a^serial)*(b^randomness) we have a problem
-    finalResult = finalResult && Test_cfinalLog(newCircuit, q, a, b, true);
+    finalResult = finalResult & Test_cfinalLog(newCircuit, q, a, b, true);
 
     // Checking that the expressions in Equation (2) of the paper does not hold
-    finalResult = finalResult && Test_arithConstraints(newCircuit, q, true);
+    finalResult = finalResult & Test_arithConstraints(newCircuit, q, true);
 
     // !TODO: rewrite this test case.
     // Checking that the expressions in Equation (3) of the does not paper hold
@@ -212,16 +226,16 @@ bool Test_polyVerify1(PolynomialCommitment pc, CBigNum &val, bool fReverseTest =
     // Poly-Verify: For honest prover, verifier should be satisfied
     std::cout << "- Testing PolyVerify";
     if (fReverseTest)
-        std::cout << " for dishonest prover";
+        std::cout << colorMagenta << " for dishonest prover" << colorNormal;
     std::cout << "...";
     // val = t(x) if proofs checks out
     bool test = (pc.Verify(val));
     if (test == fReverseTest) {
-        std::cout << colorRed << "[FAIL]" << colorNormal << std::endl;
+        std::cout << colorRed << Fail(fReverseTest) << colorNormal << std::endl;
         return false;
     }
 
-    std::cout << colorGreen << "[PASS]"  << colorNormal << std::endl;
+    std::cout << colorGreen << Pass(fReverseTest)  << colorNormal << std::endl;
     zSuccessfulTests++;
     return true;
 }
@@ -234,19 +248,19 @@ bool Test_polyVerify2(CBigNum val, CBN_vector tpoly,
     std::cout << "- Testing t(x) == dotProduct(tbar,xPowersPos)...";
     CBigNum tx = eval_tpoly(tpoly, xpos, xneg, q);
     if (val != tx) {
-        std::cout << colorRed << "[FAIL]" << colorNormal << std::endl;
+        std::cout << colorRed << Fail() << colorNormal << std::endl;
         return false;
     }
 
-    std::cout << colorGreen << "[PASS]"  << colorNormal << std::endl;
+    std::cout << colorGreen << Pass()  << colorNormal << std::endl;
     zSuccessfulTests++;
     return true;
 }
 
 bool polynomial_commitment_tests()
 {
-    std::cout << "*** polynomial_commitment_tests ***" << std::endl;
-    std::cout << "-----------------------------------" << std::endl;
+    std::cout << colorBold << "*** polynomial_commitment_tests ***" << std::endl;
+    std::cout << "-----------------------------------" << colorNormal << std::endl;
 
     bool finalResult = true;
     SelectParams(CBaseChainParams::MAIN);
@@ -282,8 +296,8 @@ bool polynomial_commitment_tests()
     // Polynomial  evaluation
     CBigNum val;
 
-    finalResult = finalResult && Test_polyVerify1(polyCommitment, val);
-    finalResult = finalResult && Test_polyVerify2(val, tpoly, xPowersPositive, xPowersNegative, q);
+    finalResult = finalResult & Test_polyVerify1(polyCommitment, val);
+    finalResult = finalResult & Test_polyVerify2(val, tpoly, xPowersPositive, xPowersNegative, q);
 
     // Create copies of the polynomial commitment and mess things up
     PolynomialCommitment newPolyComm1(polyCommitment);
@@ -294,9 +308,9 @@ bool polynomial_commitment_tests()
     random_vector_mod(newPolyComm3.Trho, q);
 
     // Poly-Verify: For dishonest prover, verifier should fail the test
-    finalResult = finalResult && Test_polyVerify1(newPolyComm1, val, true);
-    finalResult = finalResult && Test_polyVerify1(newPolyComm2, val, true);
-    finalResult = finalResult && Test_polyVerify1(newPolyComm3, val, true);
+    finalResult = finalResult & Test_polyVerify1(newPolyComm1, val, true);
+    finalResult = finalResult & Test_polyVerify1(newPolyComm2, val, true);
+    finalResult = finalResult & Test_polyVerify1(newPolyComm3, val, true);
 
     std::cout << std::endl;
 
@@ -386,33 +400,44 @@ void printTime(clock_t start_time)
     std::cout << colorCyan << "\t(" << passed << " msec)"  << colorNormal << std::endl;
 }
 
-bool Test_batchVerify(std::vector<SerialNumberSoKProof> proofs)
+bool Test_batchVerify(std::vector<SerialNumberSoKProof> proofs, bool fReverseTest = false)
 {
     zNumTests++;
     // verify the signature of the received SoKs
-    std::cout << "- Verifying the Signatures of Knowledge...";
+    std::cout << "- Verifying the Signatures of Knowledge";
+    if (fReverseTest)
+        std::cout << colorMagenta << " for dishonest prover" << colorNormal;
+    std::cout << "...";
 
-    if (!SerialNumberSoKProof::BatchVerify(proofs)) {
-        std::cout << colorRed << "[FAIL]" << colorNormal;
+    if (SerialNumberSoKProof::BatchVerify(proofs) == fReverseTest) {
+        std::cout << colorRed << Fail(fReverseTest) << colorNormal;
         return false;
     }
 
-    std::cout << colorGreen << "[PASS]"  << colorNormal;
+    std::cout << colorGreen << Pass(fReverseTest) << colorNormal;
     zSuccessfulTests++;
     return true;
 }
 
-bool batch_signature_of_knowledge_tests()
+bool batch_signature_of_knowledge_tests(unsigned int start, unsigned int end, unsigned int step)
 {
-    std::cout << "*** batch_signature_of_knowledge_tests ***" << std::endl;
-    std::cout << "------------------------------------------" << std::endl;
+    if (end < start || step < 1) {
+        std::cout << "wrong range for batch_signature_of_knowledge_tests";
+        return false;
+    }
+
+    std::cout << colorBold <<  "*** batch_signature_of_knowledge_tests ***" << std::endl;
+    std::cout << "------------------------------------------" << colorNormal <<  std::endl;
+    std::cout << "starting size of the list: " << start << std::endl;
+    std::cout << "ending size of the list: " << end << std::endl;
+    std::cout << "step increment: " << step << std::endl;
 
     bool finalResult = true;
     SelectParams(CBaseChainParams::MAIN);
     ZerocoinParams *ZCParams = Params().Zerocoin_Params(false);
     (void)ZCParams;
 
-    for(unsigned int k=1; k<6; k++) {
+    for(unsigned int k=start; k<=end; k=k+step) {
 
         // create k random message hashes
         std::vector<uint256> msghashList;
@@ -436,6 +461,28 @@ bool batch_signature_of_knowledge_tests()
             commitmentList.push_back(commitment);
         }
 
+        // WRONG (random) assignments
+        // random messages
+        std::vector<uint256> msghashList2;
+        for(unsigned int i=0; i<k; i++) {
+            CBigNum rbn = CBigNum::randBignum(256);
+            msghashList2.push_back(rbn.getuint256());
+        }
+        // random coins
+        std::vector<PrivateCoin> coinList2;
+        for(unsigned int i=0; i<k; i++) {
+            PrivateCoin newCoin(ZCParams, CoinDenomination::ZQ_ONE);
+            coinList2.push_back(newCoin);
+        }
+        // commit to these coins
+        std::vector<Commitment> commitmentList2;
+        for(unsigned int i=0; i<k; i++) {
+            const CBigNum newCoin_value = coinList2[i].getPublicCoin().getValue();
+            Commitment commitment(&(ZCParams->serialNumberSoKCommitmentGroup), newCoin_value);
+            commitmentList2.push_back(commitment);
+        }
+
+
         std::cout << "- Creating array of " << k << " Signatures of Knowledge...";
 
         // create k signatures of knowledge
@@ -452,7 +499,7 @@ bool batch_signature_of_knowledge_tests()
         start_time = clock();
         std::cout << "- Packing and serializing the Signatures..." << std::endl;
 
-        // pack the signatures of knowledge
+        // pack the signatures of knowledge (honest prover)
         std::vector<SerialNumberSoKProof> proofs;
         for(unsigned int i=0; i<k; i++) {
             SerialNumberSoKProof proof(sigList[i], coinList[i].getSerialNumber(),
@@ -460,25 +507,68 @@ bool batch_signature_of_knowledge_tests()
             proofs.push_back(proof);
         }
 
+        // pack the signatures of knowledge (wrong msghash)
+        std::vector<SerialNumberSoKProof> proofs2;
+        for(unsigned int i=0; i<k; i++) {
+            SerialNumberSoKProof proof(sigList[i], coinList[i].getSerialNumber(),
+                    commitmentList[i].getCommitmentValue(), msghashList2[i]);
+            proofs2.push_back(proof);
+        }
+
+        // pack the signatures of knowledge (wrong commitment)
+        std::vector<SerialNumberSoKProof> proofs3;
+        for(unsigned int i=0; i<k; i++) {
+            SerialNumberSoKProof proof(sigList[i], coinList[i].getSerialNumber(),
+                    commitmentList2[i].getCommitmentValue(), msghashList[i]);
+            proofs3.push_back(proof);
+        }
+
+        // pack the signatures of knowledge (wrong coin and commitment)
+        std::vector<SerialNumberSoKProof> proofs4;
+        for(unsigned int i=0; i<k; i++) {
+            SerialNumberSoKProof proof(sigList[i], coinList2[i].getSerialNumber(),
+                    commitmentList2[i].getCommitmentValue(), msghashList[i]);
+            proofs4.push_back(proof);
+        }
+
         // serialize the proofs to a CDataStream object.
         std::vector<CDataStream> serializedProofs(proofs.size(), CDataStream(SER_NETWORK, PROTOCOL_VERSION));
+        std::vector<CDataStream> serializedProofs2(proofs2.size(), CDataStream(SER_NETWORK, PROTOCOL_VERSION));
+        std::vector<CDataStream> serializedProofs3(proofs3.size(), CDataStream(SER_NETWORK, PROTOCOL_VERSION));
+        std::vector<CDataStream> serializedProofs4(proofs4.size(), CDataStream(SER_NETWORK, PROTOCOL_VERSION));
         for(unsigned int i=0; i<serializedProofs.size(); i++) {
             serializedProofs[i] << proofs[i];
+            serializedProofs2[i] << proofs2[i];
+            serializedProofs3[i] << proofs3[i];
+            serializedProofs4[i] << proofs4[i];
         }
 
         std::cout << "- Unserializing the Signatures of Knowledge..." << std::endl;
 
         // unserialize the CDataStream object into a fresh SoK object
         std::vector<SerialNumberSoKProof> newproofs(serializedProofs.size(), SerialNumberSoKProof(ZCParams));
+        std::vector<SerialNumberSoKProof> newproofs2(serializedProofs.size(), SerialNumberSoKProof(ZCParams));
+        std::vector<SerialNumberSoKProof> newproofs3(serializedProofs.size(), SerialNumberSoKProof(ZCParams));
+        std::vector<SerialNumberSoKProof> newproofs4(serializedProofs.size(), SerialNumberSoKProof(ZCParams));
         for(unsigned int i=0; i<serializedProofs.size(); i++) {
             serializedProofs[i] >> newproofs[i];
+            serializedProofs2[i] >> newproofs2[i];
+            serializedProofs3[i] >> newproofs3[i];
+            serializedProofs4[i] >> newproofs4[i];
         }
 
         start_time = clock();
-
-        finalResult = finalResult && Test_batchVerify(newproofs);
+        finalResult = finalResult & Test_batchVerify(newproofs);
         printTime(start_time);
-
+        start_time = clock();
+        finalResult = finalResult & Test_batchVerify(newproofs2, true);
+        printTime(start_time);
+        start_time = clock();
+        finalResult = finalResult & Test_batchVerify(newproofs3, true);
+        printTime(start_time);
+        start_time = clock();
+        finalResult = finalResult & Test_batchVerify(newproofs4, true);
+        printTime(start_time);
     }
     std::cout << std::endl;
     return finalResult;
@@ -493,7 +583,7 @@ BOOST_AUTO_TEST_CASE(bulletproofs_tests)
     BOOST_CHECK(parameters_tests());
     BOOST_CHECK(arithmetic_circuit_tests());
     BOOST_CHECK(polynomial_commitment_tests());
-    BOOST_CHECK(batch_signature_of_knowledge_tests());
+    BOOST_CHECK(batch_signature_of_knowledge_tests(2, 6, 2));
     std::cout << std::endl << zSuccessfulTests << " out of " << zNumTests << " tests passed." << std::endl << std::endl;
 }
 BOOST_AUTO_TEST_SUITE_END()
