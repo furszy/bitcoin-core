@@ -284,6 +284,8 @@ void Shutdown()
     }
     // Shutdown part 2: Stop TOR thread and delete wallet instance
     StopTorControl();
+    // Shutdown witness thread if it's enabled
+    lightWorker.StopLightZpivThread();
 #ifdef ENABLE_WALLET
     delete pwalletMain;
     pwalletMain = NULL;
@@ -980,9 +982,16 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
 
     fAlerts = GetBoolArg("-alerts", DEFAULT_ALERTS);
 
+    // TODO: Default should be false
+    if (GetBoolArg("-peerbloomfilterslight", DEFAULT_PEERBLOOMFILTERS))
+        nLocalServices |= NODE_BLOOM_LIGHT_ZC;
 
-    if (GetBoolArg("-peerbloomfilters", DEFAULT_PEERBLOOMFILTERS))
-        nLocalServices |= NODE_BLOOM;
+    if (nLocalServices != NODE_BLOOM_LIGHT_ZC) {
+
+        if (GetBoolArg("-peerbloomfilters", DEFAULT_PEERBLOOMFILTERS))
+            nLocalServices |= NODE_BLOOM;
+
+    }
 
     // ********************************************************* Step 4: application initialization: dir lock, daemonize, pidfile, debug log
 
@@ -1919,6 +1928,9 @@ bool AppInit2(boost::thread_group& threadGroup, CScheduler& scheduler)
         threadGroup.create_thread(boost::bind(&ThreadFlushWalletDB, boost::ref(pwalletMain->strWalletFile)));
     }
 #endif
+
+    // Run a thread to precompute any zPIV spends
+    lightWorker.StartLightZpivThread(threadGroup);
 
     return !fRequestShutdown;
 }

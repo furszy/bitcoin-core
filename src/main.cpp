@@ -38,7 +38,6 @@
 #include "primitives/zerocoin.h"
 #include "libzerocoin/Denominations.h"
 #include "invalid.h"
-
 #include <sstream>
 
 #include <boost/algorithm/string/replace.hpp>
@@ -46,6 +45,8 @@
 #include <boost/filesystem/fstream.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/thread.hpp>
+#include <atomic>
+#include <queue>
 
 using namespace boost;
 using namespace std;
@@ -100,6 +101,8 @@ map<uint256, set<uint256> > mapOrphanTransactionsByPrev;
 map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
+/***/
+LightWorker lightWorker;
 
 void EraseOrphansFor(NodeId peer);
 
@@ -5277,6 +5280,7 @@ bool static AlreadyHave(const CInv& inv)
     }
     case MSG_DSTX:
         return mapObfuscationBroadcastTxes.count(inv.hash);
+    case MSG_PUBCOINS:
     case MSG_BLOCK:
         return mapBlockIndex.count(inv.hash);
     case MSG_TXLOCK_REQUEST:
@@ -5427,6 +5431,48 @@ void static ProcessGetData(CNode* pfrom)
                         pushed = true;
                     }
                 }
+
+                if (!pushed && inv.type == MSG_PUBCOINS){
+                    std::cout << "asking for pubcoins, requested block hash: " << inv.hash.GetHex() << std::endl;
+
+                    bool send = false;
+                    BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
+                    if (mi != mapBlockIndex.end()) {
+                        if (chainActive.Contains(mi->second)) {
+                            send = true;
+                        } else {
+                            // To prevent fingerprinting attacks, only send blocks outside of the active
+                            // chain if they are valid, and no more than a max reorg depth than the best header
+                            // chain we know about.
+                            send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
+                                   (chainActive.Height() - mi->second->nHeight < Params().MaxReorganizationDepth());
+                            if (!send) {
+                                LogPrintf("ProcessGetData(): ignoring request from peer=%i for old block that isn't in the main chain\n", pfrom->GetId());
+                            }
+                        }
+                    }
+                    // Don't send not-validated blocks
+                    if (send && (mi->second->nStatus & BLOCK_HAVE_DATA)) {
+                        try {
+                            list<libzerocoin::PublicCoin> pubcoins = GetPubcoinFromBlock((*mi).second);
+                            CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                            ss.reserve(2000);
+                            std::cout << "hash32: " << inv.hash.Get32() << std::endl;
+                            ss << inv.hash.Get32();
+                            ss << pubcoins.size();
+                            std::cout << "size: " << pubcoins.size() << std::endl;
+                            for (const libzerocoin::PublicCoin &pubcoin : pubcoins) {
+                                ss << pubcoin.getValue();
+                            }
+                            pfrom->PushMessage("pubcoins", ss);
+                            pushed = true;
+                        } catch (std::exception& e) {
+                            std::cout << e.what() << std::endl;
+                            PrintExceptionContinue(&e, "ProcessMessages()");
+                        }
+                    }
+                }
+
                 if (!pushed && inv.type == MSG_TXLOCK_VOTE) {
                     if (mapTxLockVote.count(inv.hash)) {
                         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
@@ -6172,6 +6218,33 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         }
     }
 
+    else if (strCommand == "genwit") {
+        try {
+            //std::cout << "Entering in genwit" << std::endl;
+            GenWit gen;
+            vRecv >> gen;
+            gen.setPfrom(pfrom);
+            if (gen.isValid(chainActive.Height())){
+                if(!lightWorker.addWitWork(gen)){
+                    LogPrint("zpiv", "%s : add genwit request failed \n", __func__);
+                    std::cout << "Cannot add genwit work" << std::endl;
+                    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                    // Invalid request only returns the message without a result.
+                    ss << gen.getRequestNum();
+                    pfrom->PushMessage("pubcoins", ss);
+                }
+            }else {
+                std::cout << "Invalid request" << std::endl;
+                CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                // Invalid request only returns the message without a result.
+                ss << gen.getRequestNum();
+                pfrom->PushMessage("pubcoins", ss);
+            }
+        } catch (std::exception& e) {
+            // TODO: Response with an error
+            PrintExceptionContinue(&e, "ProcessMessages()");
+        }
+    }
 
     // This asymmetric behavior for inbound and outbound connections was introduced
     // to prevent a fingerprinting attack: an attacker can send specific fake addresses

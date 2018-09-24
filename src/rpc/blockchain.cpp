@@ -16,8 +16,11 @@
 #include "utilmoneystr.h"
 #include "accumulatormap.h"
 #include "accumulators.h"
-
+#include "wallet.h"
+#include "libzerocoin/Coin.h"
 #include <stdint.h>
+#include <fstream>
+#include <iostream>
 #include <univalue.h>
 
 using namespace std;
@@ -962,6 +965,85 @@ UniValue getaccumulatorvalues(const UniValue& params, bool fHelp)
         obj.push_back(Pair(std::to_string(denom), bnValue.GetHex()));
         ret.push_back(obj);
     }
+
+    return ret;
+}
+
+UniValue getaccumulatorwitness(const UniValue& params, bool fHelp)
+{
+    if (fHelp || params.size() != 2)
+        throw runtime_error(
+                "getaccumulatorwitness \"commitmentCoinValue coinDenomination tx_id\"\n"
+                "\nReturns the accumulator values associated with a block height\n"
+
+                "\nArguments:\n"
+                "1. height   (numeric, required) the height of the checkpoint.\n"
+
+                "\nExamples:\n" +
+                HelpExampleCli("getaccumulatorvalues", "\"height\"") + HelpExampleRpc("getaccumulatorvalues", "\"height\""));
+
+    // Params..
+
+    std::cout << "params: " << params[0].get_str() << std::endl;
+
+    CBigNum coinCommitmentValue;
+    coinCommitmentValue.SetDec(params[0].get_str());
+
+    std::cout << "coinCommitmentValue passed" << std::endl;
+
+    std::cout << "params 1: " << params[1].get_str() << std::endl;
+
+
+    int d = std::stoi(params[1].get_str());
+    libzerocoin::CoinDenomination denomination = libzerocoin::IntToZerocoinDenomination(d);
+    // Mint tx id
+    //uint256 txId(params[0].get_str());
+
+    //CBlockIndex* pindex = chainActive[nHeight];
+    //if (!pindex)
+    //    throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid block height");
+    libzerocoin::ZerocoinParams* paramsAccumulator = Params().Zerocoin_Params(false);
+
+    // Public coin
+    libzerocoin::PublicCoin pubCoinSelected(paramsAccumulator, coinCommitmentValue, denomination);
+
+    //Compute Accumulator and Witness
+    libzerocoin::Accumulator accumulator(paramsAccumulator, pubCoinSelected.getDenomination());
+    libzerocoin::AccumulatorWitness witness(paramsAccumulator, accumulator, pubCoinSelected);
+    string strFailReason = "";
+    int nMintsAdded = 0;
+    CZerocoinSpendReceipt receipt;
+    if (!GenerateAccumulatorWitness(pubCoinSelected, accumulator, witness, 100, nMintsAdded, strFailReason)) {
+        receipt.SetStatus(_("Try to spend with a higher security level to include more coins"), ZPIV_FAILED_ACCUMULATOR_INITIALIZATION);
+        throw JSONRPCError(RPC_DATABASE_ERROR, receipt.GetStatusMessage());
+    }
+
+    uint32_t checksum = GetChecksum(accumulator.getValue());
+
+    std::cout << "Checksum: " << checksum << std::endl;
+
+    int blockIndex = 1254190;
+    CBlockIndex* pindex = chainActive[blockIndex];
+    list<libzerocoin::PublicCoin> pubcoins = GetPubcoinFromBlock(pindex);
+
+    for (const libzerocoin::PublicCoin& pubcoin : pubcoins) {
+
+    }
+
+    UniValue ret(UniValue::VARR);
+
+    UniValue obj(UniValue::VOBJ);
+    obj.push_back(Pair("value", accumulator.getValue().GetDec()));
+    obj.push_back(Pair("denomination", accumulator.getDenomination()));
+    obj.push_back(Pair("Checksum",(int64_t) checksum));
+    obj.push_back(Pair("Mints added",nMintsAdded));
+    ret.push_back(obj);
+
+    UniValue obj1(UniValue::VOBJ);
+    obj1.push_back(Pair("witness value", witness.getValue().GetDec()));
+    obj1.push_back(Pair("PublicCoin value", witness.getPublicCoin().getValue().GetDec()));
+    obj1.push_back(Pair("PublicCoin denomination", witness.getPublicCoin().getDenomination()));
+    ret.push_back(obj1);
 
     return ret;
 }

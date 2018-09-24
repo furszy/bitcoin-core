@@ -900,6 +900,7 @@ QString formatServicesStr(quint64 mask)
                 break;
             case NODE_BLOOM:
             case NODE_BLOOM_WITHOUT_MN:
+            case NODE_BLOOM_LIGHT_ZC:
                 strList.append(QObject::tr("BLOOM"));
                 break;
             default:

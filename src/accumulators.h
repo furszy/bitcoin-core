@@ -12,11 +12,25 @@
 #include "accumulatormap.h"
 #include "chain.h"
 #include "uint256.h"
+#include "bloom.h"
 
 class CBlockIndex;
 
 std::map<libzerocoin::CoinDenomination, int> GetMintMaturityHeight();
 bool GenerateAccumulatorWitness(const libzerocoin::PublicCoin &coin, libzerocoin::Accumulator& accumulator, libzerocoin::AccumulatorWitness& witness, int nSecurityLevel, int& nMintsAdded, std::string& strError, CBlockIndex* pindexCheckpoint = nullptr);
+bool GenerateAccumulatorWitnessFor(
+        const libzerocoin::ZerocoinParams* params,
+        const int startingHeight,
+        libzerocoin::CoinDenomination den,
+        const CBloomFilter& filter,
+        libzerocoin::Accumulator& accumulator,
+        libzerocoin::AccumulatorWitness& witness,
+        int nSecurityLevel,
+        int& nMintsAdded,
+        string& strError,
+        list<CBigNum>& ret,
+        CBlockIndex* pindexCheckpoint = nullptr);
+list<libzerocoin::PublicCoin> GetPubcoinFromBlock(const CBlockIndex* pindex);
 bool GetAccumulatorValueFromDB(uint256 nCheckpoint, libzerocoin::CoinDenomination denom, CBigNum& bnAccValue);
 bool GetAccumulatorValueFromChecksum(uint32_t nChecksum, bool fMemoryOnly, CBigNum& bnAccValue);
 void AddAccumulatorChecksum(const uint32_t nChecksum, const CBigNum &bnValue, bool fMemoryOnly);

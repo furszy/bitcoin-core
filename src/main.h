@@ -40,6 +40,7 @@
 #include <vector>
 
 #include "libzerocoin/CoinSpend.h"
+#include "lightzpivthread.h"
 
 #include <boost/unordered_map.hpp>
 
@@ -161,6 +162,9 @@ extern std::map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
 /** Best header we've seen so far (used for getheaders queries' starting points). */
 extern CBlockIndex* pindexBestHeader;
+
+/**  */
+extern LightWorker lightWorker;
 
 /** Minimum disk space required - used in CheckDiskSpace() */
 static const uint64_t nMinDiskSpace = 52428800;

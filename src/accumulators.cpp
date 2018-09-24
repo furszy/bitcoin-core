@@ -356,6 +356,54 @@ int ComputeAccumulatedCoins(int nHeightEnd, libzerocoin::CoinDenomination denom)
     return n;
 }
 
+list<PublicCoin> GetPubcoinFromBlock(const CBlockIndex* pindex){
+    //grab mints from this block
+    CBlock block;
+    if(!ReadBlockFromDisk(block, pindex))
+        throw error("%s: failed to read block from disk while adding pubcoins to witness", __func__);
+    list<libzerocoin::PublicCoin> listPubcoins;
+    if(!BlockToPubcoinList(block, listPubcoins, true))
+        throw error("%s: failed to get zerocoin mintlist from block %n\n", __func__, pindex->nHeight);
+    return listPubcoins;
+}
+
+int AddBlockMintsToAccumulator(const CoinDenomination den,const CBloomFilter filter, const CBlockIndex* pindex,
+                               libzerocoin::Accumulator* accumulator, bool isWitness, list<CBigNum>& notAddedCoins)
+{
+    // if this block contains mints of the denomination that is being spent, then add them to the witness
+    int nMintsAdded = 0;
+    if (pindex->MintedDenomination(den)) {
+        //grab mints from this block
+        CBlock block;
+        if(!ReadBlockFromDisk(block, pindex))
+            return error("%s: failed to read block from disk while adding pubcoins to witness", __func__);
+
+        list<PublicCoin> listPubcoins;
+        if(!BlockToPubcoinList(block, listPubcoins, true))
+            return error("%s: failed to get zerocoin mintlist from block %n\n", __func__, pindex->nHeight);
+
+        //add the mints to the witness
+        for (const PublicCoin& pubcoin : listPubcoins) {
+            if (pubcoin.getDenomination() != den)
+                continue;
+
+            if (isWitness && filter.contains(pubcoin.getValue().getvch()) ) {
+                notAddedCoins.emplace_back(pubcoin.getValue());
+                continue;
+            }
+
+            //if (nMintsAdded % 2000 == 0){
+            //    std::cout << "Incremented witness: " << accumulator->getValue().GetDec() << std::endl;
+            //}
+
+            accumulator->increment(pubcoin.getValue());
+            ++nMintsAdded;
+        }
+    }
+
+    return nMintsAdded;
+}
+
 int AddBlockMintsToAccumulator(const libzerocoin::PublicCoin& coin, const int nHeightMintAdded, const CBlockIndex* pindex,
                            libzerocoin::Accumulator* accumulator, bool isWitness)
 {
@@ -413,6 +461,127 @@ bool GetAccumulatorValue(int& nHeight, const libzerocoin::CoinDenomination denom
     return true;
 }
 
+bool GenerateAccumulatorWitnessFor(
+        const ZerocoinParams* params,
+        const int startingHeight,
+        CoinDenomination den,
+        const CBloomFilter& filter,
+        Accumulator& accumulator,
+        AccumulatorWitness& witness,
+        int nSecurityLevel,
+        int& nMintsAdded,
+        string& strError,
+        list<CBigNum>& ret,
+        CBlockIndex* pindexCheckpoint
+){
+    int nLockAttempts = 0;
+    while (nLockAttempts < 100) {
+        TRY_LOCK(cs_main, lockMain);
+        if(!lockMain) {
+            MilliSleep(50);
+            nLockAttempts++;
+            continue;
+        }
+        break;
+    }
+    if (nLockAttempts == 100)
+        return error("%s: could not get lock on cs_main", __func__);
+
+    std::cout << "Generating witness" << std::endl;
+    std::cout << "CoinDenomination: " << den << std::endl;
+    // Fake coin
+    PublicCoin temp(params, NULL, den);
+
+    //int nHeightMintAdded = blockHeight;
+
+    //get the checkpoint added at the next multiple of 10
+    int nHeightCheckpoint =  startingHeight + (10 - (startingHeight % 10));
+
+    std::cout << "nHeightCheckpoint: " << nHeightCheckpoint << std::endl;
+
+    //the height to start accumulating coins to add to witness
+    int nAccStartHeight =  startingHeight - (startingHeight % 10);
+
+    std::cout << "nAccStartHeight: " << nAccStartHeight << std::endl;
+
+    //Get the accumulator that is right before the cluster of blocks containing our mint was added to the accumulator
+    CBigNum bnAccValue = 0;
+    if (GetAccumulatorValue(nHeightCheckpoint, den, bnAccValue)) {
+        accumulator.setValue(bnAccValue);
+        witness.resetValue(accumulator, temp);
+    }
+
+    //add the pubcoins from the blockchain up to the next checksum starting from the block
+    CBlockIndex* pindex = chainActive[nHeightCheckpoint - 10];
+    int nChainHeight = chainActive.Height();
+    int nHeightStop = nChainHeight % 10;
+    nHeightStop = nChainHeight - nHeightStop - 20; // at least two checkpoints deep
+
+    //If looking for a specific checkpoint
+    if (pindexCheckpoint)
+        nHeightStop = pindexCheckpoint->nHeight - 10;
+
+    //Iterate through the chain and calculate the witness
+    int nCheckpointsAdded = 0;
+    nMintsAdded = 0;
+    RandomizeSecurityLevel(nSecurityLevel); //make security level not always the same and predictable
+    libzerocoin::Accumulator witnessAccumulator = accumulator;
+
+    int amountOfScannedBlocks = 0;
+    bool fDoubleCounted = false;
+    while (pindex) {
+        if (pindex->nHeight != nAccStartHeight && pindex->pprev->nAccumulatorCheckpoint != pindex->nAccumulatorCheckpoint)
+            ++nCheckpointsAdded;
+
+        //If the security level is satisfied, or the stop height is reached, then initialize the accumulator from here
+        bool fSecurityLevelSatisfied = (nSecurityLevel != 100 && nCheckpointsAdded >= nSecurityLevel);
+        if (pindex->nHeight >= nHeightStop || fSecurityLevelSatisfied) {
+            //If this height is within the invalid range (when fraudulent coins were being minted), then continue past this range
+            if(InvalidCheckpointRange(pindex->nHeight))
+                continue;
+
+            bnAccValue = 0;
+            uint256 nCheckpointSpend = chainActive[pindex->nHeight + 10]->nAccumulatorCheckpoint;
+            if (!GetAccumulatorValueFromDB(nCheckpointSpend, den, bnAccValue) || bnAccValue == 0)
+                return error("%s : failed to find checksum in database for accumulator", __func__);
+
+            accumulator.setValue(bnAccValue);
+            break;
+        }
+
+        nMintsAdded += AddBlockMintsToAccumulator(den, filter, pindex, &witnessAccumulator, true, ret);
+
+        // 10 blocks were accumulated twice when zPIV v2 was activated
+        if (pindex->nHeight == 1050010 && !fDoubleCounted) {
+            pindex = chainActive[1050000];
+            fDoubleCounted = true;
+            continue;
+        }
+
+        amountOfScannedBlocks++;
+        pindex = chainActive.Next(pindex);
+    }
+
+    std::cout << "Amount of scanned blocks: " << amountOfScannedBlocks << std::endl;
+    std::cout << "Amount of checkpoints added: " << nCheckpointsAdded << std::endl;
+
+    // A certain amount of accumulated coins are required
+    if (nMintsAdded < Params().Zerocoin_RequiredAccumulation()) {
+        strError = _(strprintf("Less than %d mints added, unable to create spend", Params().Zerocoin_RequiredAccumulation()).c_str());
+        return error("%s : %s", __func__, strError);
+    }
+
+    witness.resetValue(witnessAccumulator, temp);
+    //if (!witness.VerifyWitness(accumulator, temp))
+    //    return error("%s: failed to verify witness", __func__);
+
+    // calculate how many mints of this denomination existed in the accumulator we initialized
+    nMintsAdded += ComputeAccumulatedCoins(nAccStartHeight, den);
+    LogPrint("zero", "%s : %d mints added to witness\n", __func__, nMintsAdded);
+
+    return true;
+}
+
 bool GenerateAccumulatorWitness(const PublicCoin &coin, Accumulator& accumulator, AccumulatorWitness& witness, int nSecurityLevel, int& nMintsAdded, string& strError, CBlockIndex* pindexCheckpoint)
 {
     LogPrint("zero", "%s: generating\n", __func__);
@@ -443,12 +612,19 @@ bool GenerateAccumulatorWitness(const PublicCoin &coin, Accumulator& accumulator
         return error("%s: mint tx %s is not in chain", __func__, txid.GetHex());
 
     int nHeightMintAdded = mapBlockIndex[hashBlock]->nHeight;
+    std::cout<< "Checksum:" << ParseChecksum(mapBlockIndex[hashBlock]->nAccumulatorCheckpoint,coin.getDenomination()) << std::endl;
+
+    std::cout << "nHeightMintAdded: " << nHeightMintAdded << std::endl;
 
     //get the checkpoint added at the next multiple of 10
     int nHeightCheckpoint = nHeightMintAdded + (10 - (nHeightMintAdded % 10));
 
+    std::cout << "nHeightCheckpoint: " << nHeightMintAdded << std::endl;
+
     //the height to start accumulating coins to add to witness
     int nAccStartHeight = nHeightMintAdded - (nHeightMintAdded % 10);
+
+    std::cout << "nAccStartHeight: " << nHeightMintAdded << std::endl;
 
     //Get the accumulator that is right before the cluster of blocks containing our mint was added to the accumulator
     CBigNum bnAccValue = 0;
@@ -459,6 +635,8 @@ bool GenerateAccumulatorWitness(const PublicCoin &coin, Accumulator& accumulator
 
     //add the pubcoins from the blockchain up to the next checksum starting from the block
     CBlockIndex* pindex = chainActive[nHeightCheckpoint - 10];
+    std::cout << "Checksum block height: " << pindex->nHeight << std::endl;
+    std::cout<< "Checksum:" << ParseChecksum(pindex->nAccumulatorCheckpoint,coin.getDenomination()) << std::endl;
     int nChainHeight = chainActive.Height();
     int nHeightStop = nChainHeight % 10;
     nHeightStop = nChainHeight - nHeightStop - 20; // at least two checkpoints deep
@@ -473,6 +651,7 @@ bool GenerateAccumulatorWitness(const PublicCoin &coin, Accumulator& accumulator
     RandomizeSecurityLevel(nSecurityLevel); //make security level not always the same and predictable
     libzerocoin::Accumulator witnessAccumulator = accumulator;
 
+    int amountOfScannedBlocks = 0;
     bool fDoubleCounted = false;
     while (pindex) {
         if (pindex->nHeight != nAccStartHeight && pindex->pprev->nAccumulatorCheckpoint != pindex->nAccumulatorCheckpoint)
@@ -496,6 +675,7 @@ bool GenerateAccumulatorWitness(const PublicCoin &coin, Accumulator& accumulator
 
         nMintsAdded += AddBlockMintsToAccumulator(coin, nHeightMintAdded, pindex, &witnessAccumulator, true);
 
+        //std::cout << "Height: " << pindex->nHeight << std::endl;
         // 10 blocks were accumulated twice when zPIV v2 was activated
         if (pindex->nHeight == 1050010 && !fDoubleCounted) {
             pindex = chainActive[1050000];
@@ -503,8 +683,12 @@ bool GenerateAccumulatorWitness(const PublicCoin &coin, Accumulator& accumulator
             continue;
         }
 
+        amountOfScannedBlocks++;
         pindex = chainActive.Next(pindex);
     }
+
+    std::cout << "Amount of scanned blocks: " << amountOfScannedBlocks << std::endl;
+    std::cout << "Amount of checkpoints added: " << nCheckpointsAdded << std::endl;
 
     witness.resetValue(witnessAccumulator, coin);
     if (!witness.VerifyWitness(accumulator, coin))
