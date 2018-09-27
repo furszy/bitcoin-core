@@ -102,7 +102,7 @@ map<uint256, int64_t> mapRejectedBlocks;
 map<uint256, int64_t> mapZerocoinspends; //txid, time received
 
 /***/
-LightWorker lightWorker;
+CLightWorker lightWorker;
 
 void EraseOrphansFor(NodeId peer);
 
@@ -5432,43 +5432,44 @@ void static ProcessGetData(CNode* pfrom)
                     }
                 }
 
-                if (!pushed && inv.type == MSG_PUBCOINS){
-                    std::cout << "asking for pubcoins, requested block hash: " << inv.hash.GetHex() << std::endl;
+                if(nLocalServices == NODE_BLOOM_LIGHT_ZC) {
+                    if (!pushed && inv.type == MSG_PUBCOINS) {
+                        //std::cout << "asking for pubcoins, requested block hash: " << inv.hash.GetHex() << std::endl;
 
-                    bool send = false;
-                    BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
-                    if (mi != mapBlockIndex.end()) {
-                        if (chainActive.Contains(mi->second)) {
-                            send = true;
-                        } else {
-                            // To prevent fingerprinting attacks, only send blocks outside of the active
-                            // chain if they are valid, and no more than a max reorg depth than the best header
-                            // chain we know about.
-                            send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
-                                   (chainActive.Height() - mi->second->nHeight < Params().MaxReorganizationDepth());
-                            if (!send) {
-                                LogPrintf("ProcessGetData(): ignoring request from peer=%i for old block that isn't in the main chain\n", pfrom->GetId());
+                        bool send = false;
+                        BlockMap::iterator mi = mapBlockIndex.find(inv.hash);
+                        if (mi != mapBlockIndex.end()) {
+                            if (chainActive.Contains(mi->second)) {
+                                send = true;
+                            } else {
+                                // To prevent fingerprinting attacks, only send blocks outside of the active
+                                // chain if they are valid, and no more than a max reorg depth than the best header
+                                // chain we know about.
+                                send = mi->second->IsValid(BLOCK_VALID_SCRIPTS) && (pindexBestHeader != NULL) &&
+                                       (chainActive.Height() - mi->second->nHeight < Params().MaxReorganizationDepth());
+                                if (!send) {
+                                    LogPrintf(
+                                            "ProcessGetData(): ignoring request from peer=%i for old block that isn't in the main chain\n",
+                                            pfrom->GetId());
+                                }
                             }
                         }
-                    }
-                    // Don't send not-validated blocks
-                    if (send && (mi->second->nStatus & BLOCK_HAVE_DATA)) {
-                        try {
-                            list<libzerocoin::PublicCoin> pubcoins = GetPubcoinFromBlock((*mi).second);
-                            CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                            ss.reserve(2000);
-                            std::cout << "hash32: " << inv.hash.Get32() << std::endl;
-                            ss << inv.hash.Get32();
-                            ss << pubcoins.size();
-                            std::cout << "size: " << pubcoins.size() << std::endl;
-                            for (const libzerocoin::PublicCoin &pubcoin : pubcoins) {
-                                ss << pubcoin.getValue();
+                        // Don't send not-validated blocks
+                        if (send && (mi->second->nStatus & BLOCK_HAVE_DATA)) {
+                            try {
+                                list<libzerocoin::PublicCoin> pubcoins = GetPubcoinFromBlock((*mi).second);
+                                CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                                ss.reserve(2000);
+                                ss << inv.hash.Get32();
+                                ss << pubcoins.size();
+                                for (const libzerocoin::PublicCoin &pubcoin : pubcoins) {
+                                    ss << pubcoin.getValue();
+                                }
+                                pfrom->PushMessage("pubcoins", ss);
+                                pushed = true;
+                            } catch (std::exception &e) {
+                                PrintExceptionContinue(&e, "ProcessMessages()");
                             }
-                            pfrom->PushMessage("pubcoins", ss);
-                            pushed = true;
-                        } catch (std::exception& e) {
-                            std::cout << e.what() << std::endl;
-                            PrintExceptionContinue(&e, "ProcessMessages()");
                         }
                     }
                 }
@@ -6218,31 +6219,57 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv, 
         }
     }
 
+    else if (strCommand == "accvalue"){
+        if(nLocalServices == NODE_BLOOM_LIGHT_ZC) {
+            try {
+                int height;
+                libzerocoin::CoinDenomination den;
+                vRecv >> height;
+                vRecv >> den;
+                CBigNum bnAccValue = 0;
+                //std::cout << "asking for checkpoint value in height: " << height << ", den: " << den << std::endl;
+                if (!GetAccumulatorValue(height, den, bnAccValue)) {
+                    std::cout << "peer misbehaving for request an invalid acc checkpoint" << std::endl;
+                    Misbehaving(pfrom->GetId(), 50);
+                } else {
+                    //std::cout << "Sending acc value, with checksum: " << GetChecksum(bnAccValue) << " for "
+                    //          << bnAccValue.GetDec() << std::endl;
+                    CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                    ss << bnAccValue;
+                    ss << height;
+                    pfrom->PushMessage("accvalueresponse", ss);
+                }
+            } catch (std::exception &e) {
+                // TODO: Response with an error?
+                PrintExceptionContinue(&e, "ProcessMessages()");
+            }
+        }
+    }
+
     else if (strCommand == "genwit") {
-        try {
-            //std::cout << "Entering in genwit" << std::endl;
-            GenWit gen;
-            vRecv >> gen;
-            gen.setPfrom(pfrom);
-            if (gen.isValid(chainActive.Height())){
-                if(!lightWorker.addWitWork(gen)){
-                    LogPrint("zpiv", "%s : add genwit request failed \n", __func__);
-                    std::cout << "Cannot add genwit work" << std::endl;
+        if(nLocalServices == NODE_BLOOM_LIGHT_ZC) {
+            try {
+                CGenWit gen;
+                vRecv >> gen;
+                gen.setPfrom(pfrom);
+                if (gen.isValid(chainActive.Height())) {
+                    if (!lightWorker.addWitWork(gen)) {
+                        LogPrint("zpiv", "%s : add genwit request failed \n", __func__);
+                        CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+                        // Invalid request only returns the message without a result.
+                        ss << gen.getRequestNum();
+                        pfrom->PushMessage("pubcoins", ss);
+                    }
+                } else {
                     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
                     // Invalid request only returns the message without a result.
                     ss << gen.getRequestNum();
                     pfrom->PushMessage("pubcoins", ss);
                 }
-            }else {
-                std::cout << "Invalid request" << std::endl;
-                CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
-                // Invalid request only returns the message without a result.
-                ss << gen.getRequestNum();
-                pfrom->PushMessage("pubcoins", ss);
+            } catch (std::exception &e) {
+                // TODO: Response with an error?
+                PrintExceptionContinue(&e, "ProcessMessages()");
             }
-        } catch (std::exception& e) {
-            // TODO: Response with an error
-            PrintExceptionContinue(&e, "ProcessMessages()");
         }
     }
 

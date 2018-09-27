@@ -5,19 +5,20 @@
 
 #include "bloom.h"
 
+
+#include "chainparams.h"
 #include "hash.h"
+#include "libzerocoin/bignum.h"
+#include "libzerocoin/CoinSpend.h"
 #include "primitives/transaction.h"
 #include "script/script.h"
 #include "script/standard.h"
 #include "streams.h"
-#include "chainparams.h"
 
 #include <math.h>
 #include <stdlib.h>
 
 #include <boost/foreach.hpp>
-#include <libzerocoin/bignum.h>
-#include <libzerocoin/CoinSpend.h>
 
 #define LN2SQUARED 0.4804530139182014246671025263266649717305529515945455
 #define LN2 0.6931471805599453094172321214581765680755001343602552

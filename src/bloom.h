@@ -6,10 +6,10 @@
 #ifndef BITCOIN_BLOOM_H
 #define BITCOIN_BLOOM_H
 
+#include "libzerocoin/bignum.h"
 #include "serialize.h"
 
 #include <vector>
-#include <libzerocoin/bignum.h>
 
 class COutPoint;
 class CTransaction;
@@ -102,9 +102,6 @@ public:
 
     //! Checks for empty and full filters to avoid wasting cpu
     void UpdateEmptyFull();
-
-    //!
-    bool IsBnRelevantAndUpdate(const CBigNum& bnValue);
 };
 
 #endif // BITCOIN_BLOOM_H

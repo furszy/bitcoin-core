@@ -180,7 +180,7 @@ BITCOIN_CORE_H = \
   zpivchain.h \
   zpivtracker.h \
   zpivwallet.h \
-  GenWit.h \
+  genwit.h \
   concurrentqueue.h \
   lightzpivthread.h \
   zmq/zmqabstractnotifier.h \
@@ -273,7 +273,7 @@ libbitcoin_wallet_a_SOURCES = \
   zpivwallet.cpp \
   zpivtracker.cpp \
   stakeinput.cpp \
-  GenWit.cpp \
+  genwit.cpp \
   $(BITCOIN_CORE_H)
 
 # crypto primitives library

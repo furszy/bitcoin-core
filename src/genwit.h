@@ -6,17 +6,18 @@
 #define PIVX_GENWIT_H
 
 
+#include <iostream>
 #include "bloom.h"
 #include "libzerocoin/Denominations.h"
 #include "net.h"
 
-class GenWit {
+class CGenWit {
 
     public:
 
-    GenWit();
+    CGenWit();
 
-    GenWit(const CBloomFilter &filter, int startingHeight, libzerocoin::CoinDenomination den, int requestNum);
+    CGenWit(const CBloomFilter &filter, int startingHeight, libzerocoin::CoinDenomination den, int requestNum, CBigNum accWitValue = 0);
 
     bool isValid(int chainActiveHeight);
 
@@ -28,6 +29,12 @@ class GenWit {
         READWRITE(startingHeight);
         READWRITE(den);
         READWRITE(requestNum);
+        try {
+            // TODO: This is for the old testnet nodes that are running my code..
+            READWRITE(accWitValue);
+        }catch (std::exception& e){
+            std::cout << e.what() << std::endl;
+        }
     }
 
     const CBloomFilter &getFilter() const;
@@ -42,13 +49,17 @@ class GenWit {
 
     void setPfrom(CNode *pfrom);
 
+    const CBigNum &getAccWitValue() const;
+
+    const std::string toString() const;
+
 private:
     CBloomFilter filter;
     int startingHeight;
     libzerocoin::CoinDenomination den;
     int requestNum;
+    CBigNum accWitValue;
     CNode* pfrom;
-
 };
 
 
