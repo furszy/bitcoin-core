@@ -555,21 +555,8 @@ bool GenerateAccumulatorWitness(CoinWitnessData* coinWitness, AccumulatorMap& ma
             coinWitness->pAccumulator->setValue(witnessAccumulator.getValue());
         }
 
-        //add the pubcoins from the blockchain up to the next checksum starting from the block
-        int nChainHeight = chainActive.Height();
-        int nHeightMax = nChainHeight % 10;
-        nHeightMax = nChainHeight - nHeightMax - 20; // at least two checkpoints deep
-
         // Determine the height to stop at
-        int nHeightStop;
-        if (pindexCheckpoint) {
-            nHeightStop = pindexCheckpoint->nHeight - 10;
-            nHeightStop -= nHeightStop % 10;
-            LogPrint("zero", "%s: using checkpoint height %d\n", __func__, pindexCheckpoint->nHeight);
-        } else {
-            nHeightStop = nHeightMax;
-        }
-
+        int nHeightStop = CalWitUpToChainHeight(pindexCheckpoint);
         if (nHeightStop <= coinWitness->nHeightAccEnd)
             return error("%s: trying to accumulate bad block range, start=%d end=%d", __func__, coinWitness->nHeightAccEnd, nHeightStop);
 
@@ -832,13 +819,7 @@ bool GenerateAccumulatorWitness(
 
         //add the pubcoins from the blockchain up to the next checksum starting from the block
         CBlockIndex *pindex = chainActive[nHeightCheckpoint - 10];
-        int nChainHeight = chainActive.Height();
-        int nHeightStop = nChainHeight % 10;
-        nHeightStop = nChainHeight - nHeightStop - 20; // at least two checkpoints deep
-
-        //If looking for a specific checkpoint
-        if (pindexCheckpoint)
-            nHeightStop = pindexCheckpoint->nHeight - 10;
+        int nHeightStop = CalWitUpToChainHeight(pindexCheckpoint);
 
         //Iterate through the chain and calculate the witness
         int nCheckpointsAdded = 0;
@@ -929,4 +910,20 @@ map<CoinDenomination, int> GetMintMaturityHeight()
         mapRet.insert(make_pair(denom, mapDenomMaturity.at(denom).second));
 
     return mapRet;
+}
+
+/**
+ * If pindex is null then it will return the chain head mature checkpoint height
+ * @param pindex
+ * @return
+ */
+int CalWitUpToChainHeight(CBlockIndex* pindex){
+    if (pindex){
+        int nHeightStop = pindex->nHeight - 10;
+        nHeightStop -= nHeightStop % 10;
+        return nHeightStop;
+    }else{
+        int nChainHeight = chainActive.Height();
+        return nChainHeight - (nChainHeight % 10) - 20; // at least two checkpoints deep
+    }
 }

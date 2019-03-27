@@ -4742,11 +4742,14 @@ bool CWallet::MintsToInputVector(std::map<CBigNum, CZerocoinMint>& mapMintsSelec
                 coinWitness->SetHeightMintAdded(mint.GetHeight());
             }
 
-            // Generate the witness for each mint being spent
-            if (!GenerateAccumulatorWitness(coinWitness, mapAccumulators, pindexCheckpoint)) {
-                receipt.SetStatus(_("Try to spend with a higher security level to include more coins"),
-                                  ZPIV_FAILED_ACCUMULATOR_INITIALIZATION);
-                return error("%s : %s", __func__, receipt.GetStatusMessage());
+            // Check if it's already precomputed
+            if (CalWitUpToChainHeight(pindexCheckpoint) > coinWitness->nHeightAccEnd){
+                // Generate the witness for each mint being spent
+                if (!GenerateAccumulatorWitness(coinWitness, mapAccumulators, pindexCheckpoint)) {
+                    receipt.SetStatus(_("Try to spend with a higher security level to include more coins"),
+                                      ZPIV_FAILED_ACCUMULATOR_INITIALIZATION);
+                    return error("%s : %s", __func__, receipt.GetStatusMessage());
+                }
             }
 
             // Construct the CoinSpend object. This acts like a signature on the transaction.

@@ -63,6 +63,13 @@ int GetChecksumHeight(uint32_t nChecksum, libzerocoin::CoinDenomination denomina
 bool InvalidCheckpointRange(int nHeight);
 bool ValidateAccumulatorCheckpoint(const CBlock& block, CBlockIndex* pindex, AccumulatorMap& mapAccumulators);
 
+/**
+ * If pindex is null then it will return the last mature checkpoint height
+ * @param pindex
+ * @return
+ */
+int CalWitUpToChainHeight(CBlockIndex* pindex = nullptr);
+
 
 // Exceptions
 
