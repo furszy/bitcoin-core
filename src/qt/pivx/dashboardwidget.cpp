@@ -42,9 +42,8 @@ DashboardWidget::DashboardWidget(PIVXGUI* _window, QWidget *parent) :
     this->setStyleSheet(parent->styleSheet());
     this->setContentsMargins(0,0,0,0);
 
-    setProperty("cssClass", "container");
-
     // Containers
+    setProperty("cssClass", "container");
     ui->left->setProperty("cssClass", "container");
     ui->left->setContentsMargins(0,0,0,0);
     ui->right->setProperty("cssClass", "container-right");
@@ -59,7 +58,6 @@ DashboardWidget::DashboardWidget(PIVXGUI* _window, QWidget *parent) :
     /* Subtitle */
     ui->labelSubtitle->setText(tr("You can view your account's history"));
     ui->labelSubtitle->setProperty("cssClass", "text-subtitle");
-
 
     // Staking Information
     ui->labelMessage->setText(tr("Amount of PIV and zPIV staked."));
@@ -80,17 +78,12 @@ DashboardWidget::DashboardWidget(PIVXGUI* _window, QWidget *parent) :
     ui->labelAmountPiv->setProperty("cssClass", "text-stake-piv-disable");
     ui->labelAmountZpiv->setProperty("cssClass", "text-stake-zpiv-disable");
 
-
-    // Chart
-    //ui->verticalWidgetChart->setProperty("cssClass", "container-chart");
-
     ui->pushButtonHour->setProperty("cssClass", "btn-check-time");
     ui->pushButtonDay->setProperty("cssClass", "btn-check-time");
     ui->pushButtonWeek->setProperty("cssClass", "btn-check-time");
     ui->pushButtonMonth->setProperty("cssClass", "btn-check-time");
     ui->pushButtonYear->setProperty("cssClass", "btn-check-time");
     ui->pushButtonYear->setChecked(true);
-
 
     // Sort Transactions
     ui->comboBoxSort->setProperty("cssClass", "btn-combo");
@@ -129,7 +122,6 @@ DashboardWidget::DashboardWidget(PIVXGUI* _window, QWidget *parent) :
     ui->labelEmpty->setText(tr("No transactions yet"));
     ui->labelEmpty->setProperty("cssClass", "text-empty");
 
-
     ui->chartContainer->setProperty("cssClass", "container-chart");
 
     ui->pushImgEmptyChart->setProperty("cssClass", "img-empty-staking-on");
@@ -153,6 +145,8 @@ DashboardWidget::DashboardWidget(PIVXGUI* _window, QWidget *parent) :
     setShadow(ui->layoutShadow);
 
     connect(ui->listTransactions, SIGNAL(clicked(QModelIndex)), this, SLOT(handleTransactionClicked(QModelIndex)));
+    if (window)
+        connect(window, SIGNAL(windowResizeEvent(QResizeEvent*)), this, SLOT(windowResizeEvent(QResizeEvent*)));
 }
 
 void DashboardWidget::handleTransactionClicked(const QModelIndex &index){
@@ -169,171 +163,6 @@ void DashboardWidget::handleTransactionClicked(const QModelIndex &index){
     ui->listTransactions->scrollTo(index);
     ui->listTransactions->clearSelection();
     ui->listTransactions->setFocus();
-}
-
-void DashboardWidget::initChart() {
-    chart = new QChart();
-    series = new QtCharts::QBarSeries();
-    axisX = new QBarCategoryAxis();
-    axisY = new QValueAxis();
-
-    // Legend
-    chart->legend()->setVisible(false);
-    chart->legend()->setAlignment(Qt::AlignTop);
-    // Chart margin removed.
-    chart->layout()->setContentsMargins(0, 0, 0, 0);
-    chart->setBackgroundRoundness(0);
-
-    // Axis
-    chart->addAxis(axisX, Qt::AlignBottom);
-    series->attachAxis(axisX);
-    chart->addAxis(axisY, Qt::AlignRight);
-    series->attachAxis(axisY);
-
-    chart->setAnimationOptions(QChart::SeriesAnimations);
-
-    chartView = new QChartView(chart);
-    chartView->setRenderHint(QPainter::Antialiasing);
-
-    QVBoxLayout *baseScreensContainer = new QVBoxLayout(this);
-    baseScreensContainer->setMargin(0);
-    ui->chartContainer->setLayout(baseScreensContainer);
-    ui->chartContainer->layout()->addWidget(chartView);
-    ui->chartContainer->setProperty("cssClass", "container-chart");
-}
-
-const char * monthsNames[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-
-void DashboardWidget::refreshChart(){
-    std::cout << "refresh chart" << std::endl;
-    int size = stakesFilter->rowCount();
-
-    // init sets
-    set0 = new QBarSet("PIV");
-    set1 = new QBarSet("zPIV");
-    set0->setColor(QColor(92,75,125));
-    set1->setColor(QColor(176,136,255));
-
-    // pair PIV, zPIV
-    QMap<int, std::pair<qint64, qint64>> amountByMonths;
-    bool hasZpivStakes = false;
-
-    // get all of the stakes
-    for (int i = 0; i < size; ++i) {
-        QModelIndex modelIndex = stakesFilter->index(i, TransactionTableModel::ToAddress);
-        qint64 amount = llabs(modelIndex.data(TransactionTableModel::AmountRole).toLongLong());
-        QDateTime datetime = modelIndex.data(TransactionTableModel::DateRole).toDateTime();
-        bool isPiv = modelIndex.data(TransactionTableModel::TypeRole).toInt() != TransactionRecord::StakeZPIV;
-        int month = datetime.date().month();
-        if (amountByMonths.contains(month)) {
-            if (isPiv) {
-                amountByMonths[month].first += amount;
-            } else
-                amountByMonths[month].second += amount;
-        } else {
-            if (isPiv) {
-                amountByMonths[month] = std::make_pair(amount, 0);
-            } else {
-                amountByMonths[month] = std::make_pair(0, amount);
-                hasZpivStakes = true;
-            }
-        }
-
-    }
-
-    QStringList months;
-    qreal maxValue = 0;
-    qint64 totalPiv = 0;
-    qint64 totalZpiv = 0;
-    for (int j = 12; j > 0; j--) {
-        qreal piv = 0;
-        qreal zpiv = 0;
-        if (amountByMonths.contains(j)) {
-            std::pair<qint64, qint64> pair = amountByMonths[j];
-            piv = (pair.first != 0) ? pair.first / 100000000 : 0;
-            zpiv = (pair.second != 0) ? pair.second / 100000000 : 0;
-            totalPiv += pair.first;
-            totalZpiv += pair.second;
-        }
-        months << monthsNames[j - 1];
-        set0->append(piv);
-        set1->append(zpiv);
-
-        int max = std::max(piv, zpiv);
-        if (max > maxValue) {
-            maxValue = max;
-        }
-    }
-
-    // Total
-    nDisplayUnit = walletModel->getOptionsModel()->getDisplayUnit();
-
-    if (totalPiv > 0 || totalZpiv > 0) {
-        ui->labelAmountPiv->setProperty("cssClass", "text-stake-piv");
-        ui->labelAmountZpiv->setProperty("cssClass", "text-stake-zpiv");
-    } else {
-        ui->labelAmountPiv->setProperty("cssClass", "text-stake-piv-disable");
-        ui->labelAmountZpiv->setProperty("cssClass", "text-stake-zpiv-disable");
-    }
-    forceUpdateStyle({ui->labelAmountPiv, ui->labelAmountZpiv});
-    ui->labelAmountPiv->setText(GUIUtil::formatBalance(totalPiv, nDisplayUnit));
-    ui->labelAmountZpiv->setText(GUIUtil::formatBalance(totalZpiv, nDisplayUnit, true));
-
-    // Series
-    series->clear();
-    series->append(set0);
-    if(hasZpivStakes)
-        series->append(set1);
-
-    chart->addSeries(series);
-
-    // bar width
-    series->setBarWidth(0.8);
-    axisX->append(months);
-    axisY->setRange(0,maxValue);
-}
-
-void DashboardWidget::loadChart(){
-    int size = stakesFilter->rowCount();
-    if (size > 0) {
-        if (!chart) {
-            ui->layoutChart->setVisible(true);
-            ui->emptyContainerChart->setVisible(false);
-            initChart();
-        } else {
-            delete set0;
-            delete set1;
-        }
-        refreshChart();
-        changeChartColors();
-    } else {
-        ui->layoutChart->setVisible(false);
-        ui->emptyContainerChart->setVisible(true);
-    }
-}
-
-void DashboardWidget::changeChartColors(){
-    QColor gridLineColorX;
-    QColor linePenColorY;
-    QColor backgroundColor;
-    QColor gridY;
-    if(isLightTheme()){
-        gridLineColorX = QColor(255,255,255);
-        linePenColorY = gridLineColorX;
-        backgroundColor = linePenColorY;
-    }else{
-        gridY = QColor("#40ffffff");
-        axisY->setGridLineColor(gridY);
-        gridLineColorX = QColor(15,11,22);
-        linePenColorY =  gridLineColorX;
-        backgroundColor = linePenColorY;
-    }
-
-    axisX->setGridLineColor(gridLineColorX);
-    axisY->setLinePenColor(linePenColorY);
-    chart->setBackgroundBrush(QBrush(backgroundColor));
-    set0->setBorderColor(gridLineColorX);
-    set1->setBorderColor(gridLineColorX);
 }
 
 void DashboardWidget::loadWalletModel(){
@@ -378,7 +207,9 @@ void DashboardWidget::openFAQ(){
 
 void DashboardWidget::onTxArrived() {
     showList();
-    refreshChart();
+    if (stakesFilter->rowCount() > 0) {
+        refreshChart();
+    }
 }
 
 void DashboardWidget::showList(){
@@ -421,6 +252,196 @@ void DashboardWidget::changeTheme(bool isLightTheme, QString& theme){
     static_cast<TxViewHolder*>(this->txViewDelegate->getRowFactory())->isLightTheme = isLightTheme;
     if (stakesFilter->rowCount() > 0)
         this->changeChartColors();
+}
+
+void DashboardWidget::loadChart(){
+    int size = stakesFilter->rowCount();
+    if (size > 0) {
+        if (!chart) {
+            ui->layoutChart->setVisible(true);
+            ui->emptyContainerChart->setVisible(false);
+            initChart();
+        }
+        refreshChart();
+        changeChartColors();
+    } else {
+        ui->layoutChart->setVisible(false);
+        ui->emptyContainerChart->setVisible(true);
+    }
+}
+
+void DashboardWidget::initChart() {
+    chart = new QChart();
+    series = new QBarSeries();
+    axisX = new QBarCategoryAxis();
+    axisY = new QValueAxis();
+
+    // Chart style
+    chart->legend()->setVisible(false);
+    chart->legend()->setAlignment(Qt::AlignTop);
+    chart->layout()->setContentsMargins(0, 0, 0, 0);
+    chart->setBackgroundRoundness(0);
+
+    // Axis
+    chart->addAxis(axisX, Qt::AlignBottom);
+    series->attachAxis(axisX);
+    chart->addAxis(axisY, Qt::AlignRight);
+    series->attachAxis(axisY);
+
+    chart->setAnimationOptions(QChart::SeriesAnimations);
+
+    chartView = new QChartView(chart);
+    chartView->setRenderHint(QPainter::Antialiasing);
+
+    QVBoxLayout *baseScreensContainer = new QVBoxLayout(this);
+    baseScreensContainer->setMargin(0);
+    ui->chartContainer->setLayout(baseScreensContainer);
+    ui->chartContainer->layout()->addWidget(chartView);
+    ui->chartContainer->setProperty("cssClass", "container-chart");
+}
+
+void DashboardWidget::changeChartColors(){
+    QColor gridLineColorX;
+    QColor linePenColorY;
+    QColor backgroundColor;
+    QColor gridY;
+    if(isLightTheme()){
+        gridLineColorX = QColor(255,255,255);
+        linePenColorY = gridLineColorX;
+        backgroundColor = linePenColorY;
+    }else{
+        gridY = QColor("#40ffffff");
+        axisY->setGridLineColor(gridY);
+        gridLineColorX = QColor(15,11,22);
+        linePenColorY =  gridLineColorX;
+        backgroundColor = linePenColorY;
+    }
+
+    axisX->setGridLineColor(gridLineColorX);
+    axisY->setLinePenColor(linePenColorY);
+    chart->setBackgroundBrush(QBrush(backgroundColor));
+    set0->setBorderColor(gridLineColorX);
+    set1->setBorderColor(gridLineColorX);
+}
+
+const char * monthsNames[12] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+void DashboardWidget::refreshChart(){
+    int size = stakesFilter->rowCount();
+    if (chart) {
+        delete set0;
+        delete set1;
+    }
+    // init sets
+    set0 = new QBarSet("PIV");
+    set1 = new QBarSet("zPIV");
+    set0->setColor(QColor(92,75,125));
+    set1->setColor(QColor(176,136,255));
+
+    // pair PIV, zPIV
+    QMap<int, std::pair<qint64, qint64>> amountByMonths;
+    bool hasZpivStakes = false;
+
+    // get all of the stakes
+    for (int i = 0; i < size; ++i) {
+        QModelIndex modelIndex = stakesFilter->index(i, TransactionTableModel::ToAddress);
+        qint64 amount = llabs(modelIndex.data(TransactionTableModel::AmountRole).toLongLong());
+        QDateTime datetime = modelIndex.data(TransactionTableModel::DateRole).toDateTime();
+        bool isPiv = modelIndex.data(TransactionTableModel::TypeRole).toInt() != TransactionRecord::StakeZPIV;
+        int month = datetime.date().month();
+        if (amountByMonths.contains(month)) {
+            if (isPiv) {
+                amountByMonths[month].first += amount;
+            } else
+                amountByMonths[month].second += amount;
+        } else {
+            if (isPiv) {
+                amountByMonths[month] = std::make_pair(amount, 0);
+            } else {
+                amountByMonths[month] = std::make_pair(0, amount);
+                hasZpivStakes = true;
+            }
+        }
+
+    }
+
+    QStringList months;
+    bool withMonthNames = width() > 1350;
+    isChartMin = !withMonthNames;
+
+    qreal maxValue = 0;
+    qint64 totalPiv = 0;
+    qint64 totalZpiv = 0;
+    for (int j = 1; j < 13; j++) {
+        qreal piv = 0;
+        qreal zpiv = 0;
+        if (amountByMonths.contains(j)) {
+            std::pair<qint64, qint64> pair = amountByMonths[j];
+            piv = (pair.first != 0) ? pair.first / 100000000 : 0;
+            zpiv = (pair.second != 0) ? pair.second / 100000000 : 0;
+            totalPiv += pair.first;
+            totalZpiv += pair.second;
+        }
+
+        months << ((withMonthNames) ? monthsNames[j-1] : QString::number(j));
+        set0->append(piv);
+        set1->append(zpiv);
+
+        int max = std::max(piv, zpiv);
+        if (max > maxValue) {
+            maxValue = max;
+        }
+    }
+
+    // Total
+    nDisplayUnit = walletModel->getOptionsModel()->getDisplayUnit();
+    if (totalPiv > 0 || totalZpiv > 0) {
+        ui->labelAmountPiv->setProperty("cssClass", "text-stake-piv");
+        ui->labelAmountZpiv->setProperty("cssClass", "text-stake-zpiv");
+    } else {
+        ui->labelAmountPiv->setProperty("cssClass", "text-stake-piv-disable");
+        ui->labelAmountZpiv->setProperty("cssClass", "text-stake-zpiv-disable");
+    }
+    forceUpdateStyle({ui->labelAmountPiv, ui->labelAmountZpiv});
+    ui->labelAmountPiv->setText(GUIUtil::formatBalance(totalPiv, nDisplayUnit));
+    ui->labelAmountZpiv->setText(GUIUtil::formatBalance(totalZpiv, nDisplayUnit, true));
+
+
+    // Series
+    series->clear();
+    series->append(set0);
+    if(hasZpivStakes)
+        series->append(set1);
+    chart->addSeries(series);
+
+    // bar width
+    series->setBarWidth(0.8);
+    axisX->clear();
+    axisX->append(months);
+    axisY->setRange(0,maxValue);
+}
+
+void DashboardWidget::windowResizeEvent(QResizeEvent *event){
+    if (stakesFilter->rowCount() > 0) {
+        if (width() > 1350 && axisX) {
+            if (isChartMin) {
+                isChartMin = false;
+                axisX->clear();
+                QStringList months;
+                for (const char *month : monthsNames) months << month;
+                axisX->append(months);
+                chartView->repaint();
+            }
+        } else {
+            if (!isChartMin) {
+                isChartMin = true;
+                axisX->clear();
+                QStringList months;
+                for (int i = 1; i < 13; i++) months << QString::number(i);
+                axisX->append(months);
+            }
+        }
+    }
 }
 
 DashboardWidget::~DashboardWidget(){
