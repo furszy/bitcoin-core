@@ -11,6 +11,8 @@
 #include <QWidget>
 #include <QLineEdit>
 
+#include <QtCharts/QChartView>
+#include <QtCharts/QBarSeries>
 #include <QtCharts/QBarCategoryAxis>
 #include <QtCharts/QBarSet>
 #include <QtCharts/QChart>
@@ -69,6 +71,7 @@ private slots:
     void onSortChanged(const QString&);
     void updateDisplayUnit();
     void showList();
+    void onTxArrived();
     void openFAQ();
 private:
     Ui::DashboardWidget *ui;
@@ -82,16 +85,19 @@ private:
 
 
     // Chart
-    QBarSet *set0;
-    QBarSet *set1;
+    QChartView *chartView = nullptr;
+    QBarSeries *series = nullptr;
+    QBarSet *set0 = nullptr;
+    QBarSet *set1 = nullptr;
 
-    QBarCategoryAxis *axisX;
-    QValueAxis *axisY;
+    QBarCategoryAxis *axisX = nullptr;
+    QValueAxis *axisY = nullptr;
 
-    QChart *chart;
+    QChart *chart = nullptr;
     bool isSync = false;
 
     void initChart();
+    void refreshChart();
 };
 
 #endif // DASHBOARDWIDGET_H
