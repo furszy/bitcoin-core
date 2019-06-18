@@ -22,7 +22,7 @@
 #include "wallet/walletdb.h" // for BackupWallet
 #include <stdint.h>
 #include <iostream>
-#include "primitives/deterministicmint.h"
+#include "zpiv/deterministicmint.h"
 
 #include <QDebug>
 #include <QSet>
@@ -490,7 +490,6 @@ bool WalletModel::createZpivSpend(
     vector<CDeterministicMint> vNewMints;
     if (!wallet->CreateZerocoinSpendTransaction(
             value,
-            100,
             wtxNew,
             reserveKey,
             receipt,
@@ -527,7 +526,6 @@ bool WalletModel::sendZpiv(
     CWalletTx wtxNew;
     return wallet->SpendZerocoin(
             value,
-            100,
             wtxNew,
             receipt,
             vMintsSelected,
@@ -557,7 +555,6 @@ bool WalletModel::convertBackZpiv(
     CWalletTx wtxNew;
     return wallet->SpendZerocoin(
             value,
-            100,
             wtxNew,
             receipt,
             vMintsSelected,
