@@ -423,7 +423,7 @@ public:
         return nWalletMaxVersion >= wf;
     }
 
-    void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlyConfirmed = true, const CCoinControl* coinControl = NULL, bool fIncludeZeroValue = false, AvailableCoinsType nCoinType = ALL_COINS, bool fUseIX = false, int nWatchonlyConfig = 1) const;
+    void AvailableCoins(std::vector<COutput>& vCoins, bool fOnlyConfirmed = true, const CCoinControl* coinControl = NULL, bool fIncludeZeroValue = false, AvailableCoinsType nCoinType = ALL_COINS, bool fUseIX = false, int nWatchonlyConfig = 1, bool fIncludeColdStaking=false, bool fIncludeDelegated=true) const;
     std::map<CBitcoinAddress, std::vector<COutput> > AvailableCoinsByAddress(bool fConfirmed = true, CAmount maxCoinValue = 0);
     bool SelectCoinsMinConf(const CAmount& nTargetValue, int nConfMine, int nConfTheirs, std::vector<COutput> vCoins, std::set<std::pair<const CWalletTx*, unsigned int> >& setCoinsRet, CAmount& nValueRet) const;
 
@@ -510,6 +510,8 @@ public:
     void ReacceptWalletTransactions();
     void ResendWalletTransactions();
     CAmount GetBalance() const;
+    CAmount GetColdStakingBalance() const;  // delegated coins for which we have the staking key
+    CAmount GetDelegatedBalance() const;  // delegated coins for which we have the spending key
     CAmount GetZerocoinBalance(bool fMatureOnly) const;
     CAmount GetUnconfirmedZerocoinBalance() const;
     CAmount GetImmatureZerocoinBalance() const;
@@ -861,6 +863,10 @@ public:
     mutable bool fImmatureWatchCreditCached;
     mutable bool fAvailableWatchCreditCached;
     mutable bool fChangeCached;
+    mutable bool fColdDebitCached;
+    mutable bool fColdCreditCached;
+    mutable bool fDelegatedDebitCached;
+    mutable bool fDelegatedCreditCached;
     mutable CAmount nDebitCached;
     mutable CAmount nCreditCached;
     mutable CAmount nImmatureCreditCached;
@@ -874,6 +880,10 @@ public:
     mutable CAmount nImmatureWatchCreditCached;
     mutable CAmount nAvailableWatchCreditCached;
     mutable CAmount nChangeCached;
+    mutable CAmount nColdDebitCached;
+    mutable CAmount nColdCreditCached;
+    mutable CAmount nDelegatedDebitCached;
+    mutable CAmount nDelegatedCreditCached;
 
     CWalletTx()
     {
@@ -918,6 +928,10 @@ public:
         fImmatureWatchCreditCached = false;
         fAvailableWatchCreditCached = false;
         fChangeCached = false;
+        fColdDebitCached = false;
+        fColdCreditCached = false;
+        fDelegatedDebitCached = false;
+        fDelegatedCreditCached = false;
         nDebitCached = 0;
         nCreditCached = 0;
         nImmatureCreditCached = 0;
@@ -930,6 +944,10 @@ public:
         nWatchCreditCached = 0;
         nAvailableWatchCreditCached = 0;
         nImmatureWatchCreditCached = 0;
+        nColdDebitCached = 0;
+        nColdCreditCached = 0;
+        nDelegatedDebitCached = 0;
+        nDelegatedCreditCached = 0;
         nChangeCached = 0;
         nOrderPos = -1;
     }
@@ -992,6 +1010,10 @@ public:
         fImmatureWatchCreditCached = false;
         fDebitCached = false;
         fChangeCached = false;
+        fColdDebitCached = false;
+        fColdCreditCached = false;
+        fDelegatedDebitCached = false;
+        fDelegatedCreditCached = false;
     }
 
     void BindWallet(CWallet* pwalletIn)
@@ -1012,6 +1034,9 @@ public:
     CAmount GetImmatureWatchOnlyCredit(const bool& fUseCache = true) const;
     CAmount GetAvailableWatchOnlyCredit(const bool& fUseCache = true) const;
     CAmount GetLockedWatchOnlyCredit() const;
+    // Cold staking contracts credit
+    CAmount GetColdStakingCredit(bool fUseCache = true) const;
+    CAmount GetStakeDelegationCredit(bool fUseCache = true) const;
 
     CAmount GetChange() const
     {
@@ -1069,8 +1094,10 @@ public:
     int64_t GetComputedTxTime() const;
     int GetRequestCount() const;
     void RelayWalletTransaction(std::string strCommand = "tx");
-
     std::set<uint256> GetConflicts() const;
+
+protected:
+    CAmount CreditFor(const isminetype& minetype) const;
 };
 
 
