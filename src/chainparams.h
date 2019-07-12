@@ -146,6 +146,8 @@ public:
     int Block_Enforce_Invalid() const { return nBlockEnforceInvalidUTXO; }
     int Zerocoin_Block_V2_Start() const { return nBlockZerocoinV2; }
     bool IsStakeModifierV2(const int nHeight) const { return nHeight >= nBlockStakeModifierlV2; }
+    bool Cold_Staking_Enabled(const int height) const { return height >= nColdStakingStart; }
+    int Block_Enforce_Cold_Staking() const { return nColdStakingStart; }
 
     // fake serial attack
     int Zerocoin_Block_EndFakeSerial() const { return nFakeSerialBlockheightEnd; }
@@ -235,6 +237,7 @@ protected:
     int nPublicZCSpends;
     int nBlockStakeModifierlV2;
     int nBlockTimeProtocolV2;
+    int nColdStakingStart;
 
     // fake serial attack
     int nFakeSerialBlockheightEnd = 0;

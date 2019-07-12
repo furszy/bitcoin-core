@@ -1174,7 +1174,7 @@ bool CheckZerocoinSpend(const CTransaction& tx, bool fVerifySignature, CValidati
 }
 
 
-bool CheckColdStake(const CTransaction& tx, CValidationState& state)
+bool CheckColdStake(const CTransaction& tx, CValidationState& state, bool fColdStakingActive)
 {
     CTxOut prevOut;
     if(!GetOutput(tx.vin[0].prevout.hash, tx.vin[0].prevout.n, state, prevOut))
@@ -1183,6 +1183,9 @@ bool CheckColdStake(const CTransaction& tx, CValidationState& state)
     if (!prevOut.scriptPubKey.IsPayToColdStaking())
     	return true;
 
+    if (!fColdStakingActive)
+        return state.DoS(100, error("%s : invalid input", __func__), REJECT_INVALID, "coldstake-not-active");
+
     // spending to the same contract
    	if (prevOut.scriptPubKey != tx.vout[1].scriptPubKey)
         return state.DoS(100, error("%s : invalid scripts", __func__), REJECT_INVALID, "bad-txns-cold-stake");
@@ -1190,7 +1193,7 @@ bool CheckColdStake(const CTransaction& tx, CValidationState& state)
     return true;
 }
 
-bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, bool fRejectBadUTXO, CValidationState& state, bool fFakeSerialAttack)
+bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, bool fRejectBadUTXO, CValidationState& state, bool fFakeSerialAttack, bool fColdStakingActive)
 {
     // Basic checks that don't depend on any context
     if (tx.vin.empty())
@@ -1212,7 +1215,8 @@ bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, bool fReject
     for (const CTxOut& txout : tx.vout) {
         if (txout.IsEmpty() && !tx.IsCoinBase() && !tx.IsCoinStake())
             return state.DoS(100, error("CheckTransaction(): txout empty for user transaction"));
-
+        if (txout.scriptPubKey.IsPayToColdStaking() && !fColdStakingActive)
+            return state.DoS(100, error("CheckTransaction(): cold staking not active"));
         if (txout.nValue < 0)
             return state.DoS(100, error("CheckTransaction() : txout.nValue negative"),
                 REJECT_INVALID, "bad-txns-vout-negative");
@@ -1230,7 +1234,7 @@ bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, bool fReject
     }
 
     // Additional check for cold staking
-    if(tx.IsCoinStake() && !tx.HasZerocoinSpendInputs() && !CheckColdStake(tx, state))
+    if (tx.IsCoinStake() && !tx.HasZerocoinSpendInputs() && !CheckColdStake(tx, state, fColdStakingActive))
         return state.DoS(100, error("CheckTransaction() : invalid cold stake"), REJECT_INVALID, "bad-txns-cold-stake");
 
     std::set<COutPoint> vInOutPoints;
@@ -1365,8 +1369,10 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
     if (sporkManager.IsSporkActive(SPORK_16_ZEROCOIN_MAINTENANCE_MODE) && tx.ContainsZerocoins())
         return state.DoS(10, error("AcceptToMemoryPool : Zerocoin transactions are temporarily disabled for maintenance"), REJECT_INVALID, "bad-tx");
 
+    // Cold staking and zerocoin enforcement
     int chainHeight = chainActive.Height();
-    if (!CheckTransaction(tx, chainHeight >= Params().Zerocoin_StartHeight(), true, state, isBlockBetweenFakeSerialAttackRange(chainHeight)))
+    bool fColdStakingActive = Params().Cold_Staking_Enabled(chainHeight);
+    if (!CheckTransaction(tx, chainHeight >= Params().Zerocoin_StartHeight(), true, state, isBlockBetweenFakeSerialAttackRange(chainHeight), fColdStakingActive))
         return state.DoS(100, error("AcceptToMemoryPool: : CheckTransaction failed"), REJECT_INVALID, "bad-tx");
 
     // Coinbase is only valid in a block, not as a loose transaction
@@ -4506,6 +4512,7 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
 
     // Check transactions
     bool fZerocoinActive = block.GetBlockTime() > Params().Zerocoin_StartTime();
+    bool fColdStakingActive = Params().Cold_Staking_Enabled(nHeight);
     std::vector<CBigNum> vBlockSerials;
     // TODO: Check if this is ok... blockHeight is always the tip or should we look for the prevHash and get the height?
     int blockHeight = chainActive.Height() + 1;
@@ -4515,7 +4522,8 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
                 fZerocoinActive,
                 blockHeight >= Params().Zerocoin_Block_EnforceSerialRange(),
                 state,
-                isBlockBetweenFakeSerialAttackRange(blockHeight)
+                isBlockBetweenFakeSerialAttackRange(blockHeight),
+                fColdStakingActive
         ))
             return error("%s : CheckTransaction failed", __func__);
 
