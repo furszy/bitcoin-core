@@ -52,7 +52,7 @@ SendWidget::SendWidget(PIVXGUI* parent) :
     setCssProperty(ui->pushRight, "btn-check-right");
 
     /* Subtitle */
-    ui->labelSubtitle1->setText(tr("You can transfer public coins: PIV or private ones: zPIV"));
+    ui->labelSubtitle1->setText(tr("You can transfer public coins (PIV) or private coins (zPIV)"));
     setCssProperty(ui->labelSubtitle1, "text-subtitle");
 
     ui->labelSubtitle2->setText(tr("Select coin type to spend"));
