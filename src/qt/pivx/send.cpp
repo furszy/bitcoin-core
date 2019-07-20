@@ -82,11 +82,11 @@ SendWidget::SendWidget(PIVXGUI* parent) :
     setCssBtnSecondary(ui->pushButtonReset);
 
     // Coin control
-    ui->btnCoinControl->setTitleClassAndText("btn-title-grey", "Control coin");
+    ui->btnCoinControl->setTitleClassAndText("btn-title-grey", "Coin Control");
     ui->btnCoinControl->setSubTitleClassAndText("text-subtitle", "Select the source of the coins.");
 
     // Change address option
-    ui->btnChangeAddress->setTitleClassAndText("btn-title-grey", "Change address");
+    ui->btnChangeAddress->setTitleClassAndText("btn-title-grey", "Change Address");
     ui->btnChangeAddress->setSubTitleClassAndText("text-subtitle", "Customize the change address.");
 
     // Uri
