@@ -6,6 +6,7 @@
 #define MNINFODIALOG_H
 
 #include <QDialog>
+#include "qt/pivx/snackbar.h"
 
 class WalletModel;
 
@@ -21,15 +22,20 @@ public:
     explicit MnInfoDialog(QWidget *parent = nullptr);
     ~MnInfoDialog();
 
+    bool exportMN = false;
+
     void setData(QString privKey, QString name, QString address, QString txId, QString outputIndex, QString status);
+
+public slots:
+    void closeDialog();
 
 private:
     Ui::MnInfoDialog *ui;
+    SnackBar *snackBar = nullptr;
     int nDisplayUnit = 0;
     WalletModel *model = nullptr;
     QString txId;
     QString pubKey;
-    bool exportMN = false;
 
     void copyInform(QString& copyStr, QString message);
 };
