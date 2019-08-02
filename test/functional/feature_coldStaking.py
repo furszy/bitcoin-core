@@ -30,6 +30,7 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
         self.setup_clean_chain = True
         self.num_nodes = 3
         self.extra_args = [['-staking=1']] * self.num_nodes
+        self.extra_args[0].append('-sporkkey=932HEevBSujW2ud7RfB1YF91AFygbBRQj3de3LyaCRqNzKKgWXi')
 
 
     def setup_network(self):
@@ -59,19 +60,42 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
             self.test_nodes[i].wait_for_verack()
 
 
+
+    def setColdStakingEnforcement(self, fEnable=True):
+        new_val = 1563253447 if fEnable else 4070908800
+        # update spork 17 and mine 1 more block
+        mess = "Enabling" if fEnable else "Disabling"
+        mess += " cold staking with SPORK 17..."
+        self.log.info(mess)
+        res = self.nodes[0].spork("SPORK_17_COLDSTAKING_ENFORCEMENT", new_val)
+        self.log.info(res)
+        assert (res == "success")
+        time.sleep(1)
+        self.sync_all()
+
+
+    def isColdStakingEnforced(self):
+        # verify from node[1]
+        active = self.nodes[1].spork("active")
+        return active["SPORK_17_COLDSTAKING_ENFORCEMENT"]
+
+
+
     def run_test(self):
         self.description = "Performs tests on the Cold Staking P2CS implementation"
         self.init_test()
         LAST_POW_BLOCK = 250
         NUM_OF_INPUTS = 20
         INPUT_VALUE = 50
-        INITAL_MINED_BLOCKS = 200
+        INITAL_MINED_BLOCKS = LAST_POW_BLOCK + 1
 
         # nodes[0] - coin-owner
         # nodes[1] - cold-staker
 
         # 1) nodes[0] mines 20 blocks. nodes[2] mines all the others.
         # -----------------------------------------------------------
+        # Check that SPORK 17 is disabled
+        assert (not self.isColdStakingEnforced())
         print("*** 1 ***")
         self.log.info("Mining %d blocks..." % INITAL_MINED_BLOCKS)
         for i in  range(1, INITAL_MINED_BLOCKS+1):
@@ -109,12 +133,11 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
             assert("The transaction was rejected!" in str(e))
             self.log.info("Good. Cold Staking NOT ACTIVE yet.")
             pass
-        self.log.info("Mining 51 blocks to get to cold staking activation...")
-        for i in range(1, 52):
-            self.generateBlock()
-            self.sync_all()
-            if i % 10 == 0:
-                self.log.info("%d Blocks mined." % i)
+
+        # Enable SPORK
+        self.setColdStakingEnforcement()
+        # double check
+        assert (self.isColdStakingEnforced())
 
 
         # 4) nodes[0] delegates a number of inputs for nodes[1] to stake em.
@@ -317,15 +340,28 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
         print("*** 12 ***")
         self.log.info("Cancel the stake delegation spending the cold stakes...")
         delegated_utxos = getDelegatedUtxos(self.nodes[0].listunspent())
+        # remove one utxo to spend later
+        final_spend = delegated_utxos.pop()
         txhash = self.spendUTXOsWithNode(delegated_utxos, 0)
         assert(txhash != None)
         self.log.info("Good. Owner was able to void the stake delegations - tx: %s" % str(txhash))
+        self.generateBlock()
+        self.sync_all()
+        # deactivate SPORK 17 and check that the owner can still spend the last utxo
+        self.setColdStakingEnforcement(False)
+        assert (not self.isColdStakingEnforced())
+        txhash = self.spendUTXOsWithNode([final_spend], 0)
+        assert(txhash != None)
+        self.log.info("Good. Owner was able to void the last stake delegation (with SPORK 17 disabled) - tx: %s" % str(txhash))
         self.generateBlock()
         self.sync_all()
         # check balances after big spend.
         self.expected_balance = 2 * (INPUT_VALUE + 250)
         self.checkBalances()
         self.log.info("Balances check out after the delegations have been voided.")
+        # re-activate SPORK17
+        self.setColdStakingEnforcement()
+        assert (self.isColdStakingEnforced())
 
 
         # 13) check that coinstaker is empty and can no longer stake.

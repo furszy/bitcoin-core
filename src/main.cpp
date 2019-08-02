@@ -1210,7 +1210,7 @@ bool CheckTransaction(const CTransaction& tx, bool fZerocoinActive, bool fReject
             if(!CheckZerocoinMint(tx.GetHash(), txout, state, true))
                 return state.DoS(100, error("CheckTransaction() : invalid zerocoin mint"));
         }
-        // check cold staking enforcement and value out
+        // check cold staking enforcement (for delegations) and value out
         if (txout.scriptPubKey.IsPayToColdStaking()) {
             if (!fColdStakingActive)
                 return state.DoS(100, error("%s: cold staking not active", __func__), REJECT_INVALID, "bad-txns-cold-stake");
@@ -1354,7 +1354,7 @@ bool AcceptToMemoryPool(CTxMemPool& pool, CValidationState& state, const CTransa
 
     // Cold staking and zerocoin enforcement
     int chainHeight = chainActive.Height();
-    bool fColdStakingActive = Params().Cold_Staking_Enabled(chainHeight);
+    bool fColdStakingActive = sporkManager.IsSporkActive(SPORK_17_COLDSTAKING_ENFORCEMENT);
     if (!CheckTransaction(tx, chainHeight >= Params().Zerocoin_StartHeight(), true, state, isBlockBetweenFakeSerialAttackRange(chainHeight), fColdStakingActive))
         return state.DoS(100, error("AcceptToMemoryPool: : CheckTransaction failed"), REJECT_INVALID, "bad-tx");
 
@@ -4441,7 +4441,8 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
                 return state.DoS(100, error("%s : more than one coinstake", __func__));
 
         // if MN payment is disabled. Check that the last output is not abused by cold staker
-        if (!IsInitialBlockDownload() && block.vtx[1].HasP2CSOutputs() && !sporkManager.IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT)) {
+        if (!IsInitialBlockDownload() && block.vtx[1].HasP2CSOutputs() &&
+                !sporkManager.IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT)) {
             const int outputs = block.vtx[1].vout.size();
             if (outputs >=3 && block.vtx[1].vout[outputs-1].scriptPubKey != block.vtx[1].vout[outputs-2].scriptPubKey)
                 return state.DoS(100, error("%s: Wrong cold staking outputs when masternode payment enforcement is disabled: "
@@ -4472,6 +4473,12 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
         LogPrintf("%s : skipping transaction locking checks\n", __func__);
     }
 
+    // Cold Staking enforcement (true during sync - reject P2CS outputs when false)
+    bool fColdStakingActive = true;
+
+    // Zerocoin activation
+    bool fZerocoinActive = block.GetBlockTime() > Params().Zerocoin_StartTime();
+
     // masternode payments / budgets
     CBlockIndex* pindexPrev = chainActive.Tip();
     int nHeight = 0;
@@ -4491,6 +4498,10 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
         // The case also exists that the sending peer could not have enough data to see
         // that this block is invalid, so don't issue an outright ban.
         if (nHeight != 0 && !IsInitialBlockDownload()) {
+            // check Cold Staking Spork
+            fColdStakingActive = sporkManager.IsSporkActive(SPORK_17_COLDSTAKING_ENFORCEMENT);
+
+            // check masternode payment
             if (!IsBlockPayeeValid(block, nHeight)) {
                 mapRejectedBlocks.insert(std::make_pair(block.GetHash(), GetTime()));
                 return state.DoS(0, error("%s : Couldn't find masternode/budget payment", __func__),
@@ -4503,8 +4514,6 @@ bool CheckBlock(const CBlock& block, CValidationState& state, bool fCheckPOW, bo
     }
 
     // Check transactions
-    bool fZerocoinActive = block.GetBlockTime() > Params().Zerocoin_StartTime();
-    bool fColdStakingActive = Params().Cold_Staking_Enabled(nHeight);
     std::vector<CBigNum> vBlockSerials;
     // TODO: Check if this is ok... blockHeight is always the tip or should we look for the prevHash and get the height?
     int blockHeight = chainActive.Height() + 1;
