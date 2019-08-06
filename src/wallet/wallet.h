@@ -868,7 +868,6 @@ public:
     mutable bool fColdCreditCached;
     mutable bool fDelegatedDebitCached;
     mutable bool fDelegatedCreditCached;
-    mutable bool fStakeDelegationVoided;
     mutable CAmount nDebitCached;
     mutable CAmount nCreditCached;
     mutable CAmount nImmatureCreditCached;
@@ -934,7 +933,6 @@ public:
         fColdCreditCached = false;
         fDelegatedDebitCached = false;
         fDelegatedCreditCached = false;
-        fStakeDelegationVoided = false;
         nDebitCached = 0;
         nCreditCached = 0;
         nImmatureCreditCached = 0;
