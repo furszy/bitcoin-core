@@ -28,8 +28,8 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
 
     def set_test_params(self):
         self.setup_clean_chain = True
-        self.num_nodes = 2
-        self.extra_args = [['-staking=1']]*self.num_nodes
+        self.num_nodes = 3
+        self.extra_args = [['-staking=1']] * self.num_nodes
 
 
     def setup_network(self):
@@ -65,25 +65,32 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
         LAST_POW_BLOCK = 250
         NUM_OF_INPUTS = 20
         INPUT_VALUE = 50
-        INITAL_MINED_BLOCKS = LAST_POW_BLOCK - 40
+        INITAL_MINED_BLOCKS = 200
 
         # nodes[0] - coin-owner
         # nodes[1] - cold-staker
 
-        # 1) nodes[0] mines first blocks.
-        # -----------------------------------
+        # 1) nodes[0] mines 20 blocks. nodes[2] mines all the others.
+        # -----------------------------------------------------------
         print("*** 1 ***")
         self.log.info("Mining %d blocks..." % INITAL_MINED_BLOCKS)
         for i in  range(1, INITAL_MINED_BLOCKS+1):
-            self.nodes[0].generate(1)
+            if i % 10 == 0:
+                self.sync_all()
+                self.nodes[0].generate(1)
+                self.sync_all()
+            else:
+                self.generateBlock()
             if i % 25 == 0:
                 self.log.info("%d Blocks mined." % i)
-                self.sync_all()
 
 
-        # 2) nodes[1] generates a cold-staking address.
+
+        # 2) nodes[0] generates a owner address
+        #    nodes[1] generates a cold-staking address.
         # ---------------------------------------------
         print("*** 2 ***")
+        self.sync_all()
         owner_address = self.nodes[0].getnewaddress()
         self.log.info("Owner Address: %s" % owner_address)
         staker_address = self.nodes[1].getnewstakingaddress()
@@ -102,11 +109,11 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
             assert("The transaction was rejected!" in str(e))
             self.log.info("Good. Cold Staking NOT ACTIVE yet.")
             pass
-        self.log.info("Mining 42 blocks to get to cold staking activation...")
-        for i in range(1, 43):
-            self.nodes[0].generate(1)
+        self.log.info("Mining 51 blocks to get to cold staking activation...")
+        for i in range(1, 52):
+            self.generateBlock()
             self.sync_all()
-            if i % 7 == 0:
+            if i % 10 == 0:
                 self.log.info("%d Blocks mined." % i)
 
 
@@ -138,7 +145,7 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
             assert(res != None and res["txid"] != None and res["txid"] != "")
             assert(res["owner_address"] == owner_address)
             assert(res["staker_address"] == staker_address)
-        self.nodes[0].generate(1)
+        self.generateBlock()
         self.sync_all()
         self.log.info("%d Txes created." % NUM_OF_INPUTS)
         # check balances:
@@ -156,7 +163,7 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
         txhash = self.spendUTXOwithNode(u, 0)
         assert(txhash != None)
         self.log.info("Good. Owner was able to spend - tx: %s" % str(txhash))
-        self.nodes[0].generate(1)
+        self.generateBlock()
         self.sync_all()
         # check balances after spend.
         self.expected_balance -= float(u["amount"])
@@ -169,7 +176,7 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
         # -----------------------------------------------------------
         self.log.info("Staking 15 blocks to mature P2CS stake delegations...")
         for i in range(1, 16):
-            self.nodes[0].generate(1)
+            self.generateBlock()
             self.sync_all()
             if i % 5 == 0:
                 self.log.info("%d Blocks added." % i)
@@ -202,7 +209,7 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
             assert("Script failed an OP_CHECKCOLDSTAKEVERIFY operation" in str(e))
             self.log.info("Good. Cold staker was NOT able to spend (failed OP_CHECKCOLDSTAKEVERIFY)")
             pass
-        self.nodes[0].generate(1)
+        self.generateBlock()
         self.sync_all()
 
 
@@ -305,7 +312,7 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
         # 12) Now node[0] gets mad and spends all the delegated coins, voiding the P2CS contracts.
         # ----------------------------------------------------------------------------------------
         self.log.info("Let's void the contracts.")
-        self.nodes[0].generate(1)
+        self.generateBlock()
         self.sync_all()
         print("*** 12 ***")
         self.log.info("Cancel the stake delegation spending the cold stakes...")
@@ -313,7 +320,7 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
         txhash = self.spendUTXOsWithNode(delegated_utxos, 0)
         assert(txhash != None)
         self.log.info("Good. Owner was able to void the stake delegations - tx: %s" % str(txhash))
-        self.nodes[0].generate(1)
+        self.generateBlock()
         self.sync_all()
         # check balances after big spend.
         self.expected_balance = 2 * (INPUT_VALUE + 250)
@@ -332,6 +339,20 @@ class PIVX_ColdStakingTest(BitcoinTestFramework):
             assert ("Couldn't create new block" in str(e))
             self.log.info("Cigar. Cold staker was NOT able to create any more blocks.\n")
             pass
+
+
+    def generateBlock(self):
+        fStaked = False
+        while (not fStaked):
+            try:
+                self.nodes[2].generate(1)
+                fStaked = True
+            except JSONRPCException as e:
+                if ("Couldn't create new block" in str(e)):
+                    # Sleep two seconds and retry
+                    time.sleep(2)
+                else:
+                    raise e
 
 
 
