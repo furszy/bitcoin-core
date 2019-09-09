@@ -160,6 +160,7 @@ public:
         nFutureTimeDriftPoS = 180;
         nMasternodeCountDrift = 20;
         nMaxMoneyOut = 21000000 * COIN;
+        nStakeTimestampMask = 0xf;
 
         /** Height or Time Based Activations **/
         nLastPOWBlock = 259200;
