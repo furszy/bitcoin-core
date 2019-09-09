@@ -179,6 +179,7 @@ public:
         nEnforceNewSporkKey = 1566860400; //!> Sporks signed after Monday, August 26, 2019 11:00:00 PM GMT must use the new spork key
         nRejectOldSporkKey = 1569538800; //!> Fully reject old spork key after Thursday, September 26, 2019 11:00:00 PM GMT
         nBlockStakeModifierlV2 = 1967000;
+        nBlockTimeProtocolV2 = 2880000;
         // Public coin spend enforcement
         nPublicZCSpends = 1880000;
 
@@ -314,6 +315,7 @@ public:
         nEnforceNewSporkKey = 1566860400; //!> Sporks signed after Monday, August 26, 2019 11:00:00 PM GMT must use the new spork key
         nRejectOldSporkKey = 1569538800; //!> Reject old spork key after Thursday, September 26, 2019 11:00:00 PM GMT
         nBlockStakeModifierlV2 = 1214000;
+        nBlockTimeProtocolV2 = 2106100;
         // Public coin spend enforcement
         nPublicZCSpends = 1106100;
 
@@ -407,6 +409,7 @@ public:
         nBlockFirstFraudulent = 999999999; //First block that bad serials emerged
         nBlockLastGoodCheckpoint = 999999999; //Last valid accumulator checkpoint
         nBlockStakeModifierlV2 = std::numeric_limits<int>::max(); // max integer value (never switch on regtest)
+        nBlockTimeProtocolV2 = 355;
         // Public coin spend enforcement
         nPublicZCSpends = 350;
 
