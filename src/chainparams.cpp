@@ -216,6 +216,9 @@ public:
         // Public coin spend enforcement
         nPublicZCSpends = 1880000;
 
+        // New P2P messages signatures
+        nBlockEnforceNewMessageSignatures = 2967000;
+
         // Fake Serial Attack
         nFakeSerialBlockheightEnd = 1686229;
         nSupplyBeforeFakeSerial = 4131563 * COIN;   // zerocoin supply at block nFakeSerialBlockheightEnd
@@ -353,6 +356,9 @@ public:
         // Public coin spend enforcement
         nPublicZCSpends = 1106100;
 
+        // New P2P messages signatures
+        nBlockEnforceNewMessageSignatures = 2214000;
+
         // Fake Serial Attack
         nFakeSerialBlockheightEnd = -1;
         nSupplyBeforeFakeSerial = 0;
@@ -448,6 +454,9 @@ public:
 
         // Public coin spend enforcement
         nPublicZCSpends = 350;
+
+        // New P2P messages signatures
+        nBlockEnforceNewMessageSignatures = 1;
 
         // Fake Serial Attack
         nFakeSerialBlockheightEnd = -1;
