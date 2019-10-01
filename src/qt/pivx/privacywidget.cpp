@@ -12,6 +12,7 @@
 #include "optionsmodel.h"
 #include "coincontroldialog.h"
 #include "coincontrol.h"
+#include "pairresult.h"
 #include "zpiv/accumulators.h"
 
 #define DECORATION_SIZE 65
@@ -286,13 +287,21 @@ void PrivacyWidget::spend(CAmount value){
     bool mintChange = false;
     bool minimizeChange = false;
 
+    CBitcoinAddress newAddress;
+    PairResult r = walletModel->getNewAddress(newAddress, "Default");
+    // Check for generation errors
+    if (!r.result) {
+        inform(tr("Error generating address"));
+        return;
+    }
+
     if(!walletModel->convertBackZpiv(
             value,
             selectedMints,
             mintChange,
             minimizeChange,
             receipt,
-            walletModel->getNewAddress()
+            newAddress
     )){
         inform(receipt.GetStatusMessage().data());
     }else{
