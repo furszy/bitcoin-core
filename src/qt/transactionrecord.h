@@ -94,7 +94,9 @@ public:
         ObfuscationCollateralPayment,
         ObfuscationMakeCollaterals,
         ObfuscationCreateDenominations,
-        Obfuscated
+        Obfuscated,
+        StakeDelegated, // Received cold stake
+        StakeHot // Staked via a delegated P2CS.
     };
 
     /** Number of confirmation recommended for accepting a transaction */
@@ -156,6 +158,10 @@ public:
     /** Return transaction status
      */
     std::string statusToString();
+
+
+private:
+    static void loadHotOrColdStake(const CWallet* wallet, const CWalletTx& wtx, TransactionRecord& record);
 };
 
 #endif // BITCOIN_QT_TRANSACTIONRECORD_H
