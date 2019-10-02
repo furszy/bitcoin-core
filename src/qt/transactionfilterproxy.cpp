@@ -64,6 +64,9 @@ bool TransactionFilterProxy::filterAcceptsRow(int sourceRow, const QModelIndex& 
     if (fOnlyStakes && !isStakeTx(type))
         return false;
 
+    if (fOnlyColdStaking && !isColdStake(type))
+        return false;
+
     return true;
 }
 
@@ -115,13 +118,21 @@ void TransactionFilterProxy::setHideOrphans(bool fHide)
     invalidateFilter();
 }
 
-void TransactionFilterProxy::setShowZcTxes(bool fOnlyZc){
+void TransactionFilterProxy::setShowZcTxes(bool fOnlyZc)
+{
     this->fOnlyZc = fOnlyZc;
     invalidateFilter();
 }
 
-void TransactionFilterProxy::setOnlyStakes(bool fOnlyStakes){
+void TransactionFilterProxy::setOnlyStakes(bool fOnlyStakes)
+{
     this->fOnlyStakes = fOnlyStakes;
+    invalidateFilter();
+}
+
+void TransactionFilterProxy::setOnlyColdStakes(bool fOnlyColdStakes)
+{
+    this->fOnlyColdStaking = fOnlyColdStakes;
     invalidateFilter();
 }
 
@@ -148,6 +159,10 @@ bool TransactionFilterProxy::isZcTx(int type) const {
 
 bool TransactionFilterProxy::isStakeTx(int type) const {
     return (type == TransactionRecord::StakeMint || type == TransactionRecord::Generated || type == TransactionRecord::StakeZPIV);
+}
+
+bool TransactionFilterProxy::isColdStake(int type) const {
+    return (type == TransactionRecord::P2CSDelegation || type == TransactionRecord::StakeDelegated || type == TransactionRecord::StakeHot);
 }
 
 /*QVariant TransactionFilterProxy::dataFromSourcePos(int sourceRow, int role) const {
