@@ -1087,41 +1087,20 @@ CAmount CWalletTx::CreditFor(const isminetype& minetype) const
 
 CAmount CWalletTx::GetAvailableCredit(bool fUseCache) const
 {
-    if (pwallet == 0)
-        return 0;
-
-    // Must wait until coinbase is safely deep enough in the chain before valuing it
-    if (IsCoinBase() && GetBlocksToMaturity() > 0)
-        return 0;
-
-    if (fUseCache && fAvailableCreditCached)
-        return nAvailableCreditCached;
-
-    CAmount nCredit = CreditFor(ISMINE_SPENDABLE);
-    nAvailableCreditCached = nCredit;
-    fAvailableCreditCached = true;
-    return nCredit;
+    return UpdateAmount(nAvailableCreditCached, fAvailableCreditCached, fUseCache, ISMINE_SPENDABLE);
 }
 
 CAmount CWalletTx::GetColdStakingCredit(bool fUseCache) const
 {
-    if (pwallet == 0)
-        return 0;
-
-    // Must wait until coinbase is safely deep enough in the chain before valuing it
-    if (IsCoinBase() && GetBlocksToMaturity() > 0)
-        return 0;
-
-    if (fUseCache && fColdCreditCached)
-        return nColdCreditCached;
-
-    CAmount nCredit = CreditFor(ISMINE_COLD);
-    nColdCreditCached = nCredit;
-    fColdCreditCached = true;
-    return nCredit;
+    return UpdateAmount(nColdCreditCached, fColdCreditCached, fUseCache, ISMINE_COLD);
 }
 
 CAmount CWalletTx::GetStakeDelegationCredit(bool fUseCache) const
+{
+    return UpdateAmount(nDelegatedCreditCached, fDelegatedCreditCached, fUseCache, ISMINE_SPENDABLE_DELEGATED);
+}
+
+CAmount CWalletTx::UpdateAmount(CAmount& amountToUpdate, bool& cacheFlagToUpdate, bool fUseCache, isminetype mimeType) const
 {
     if (pwallet == 0)
         return 0;
@@ -1130,12 +1109,12 @@ CAmount CWalletTx::GetStakeDelegationCredit(bool fUseCache) const
     if (IsCoinBase() && GetBlocksToMaturity() > 0)
         return 0;
 
-    if (fUseCache && fDelegatedCreditCached)
-        return nDelegatedCreditCached;
+    if (fUseCache && cacheFlagToUpdate)
+        return amountToUpdate;
 
-    CAmount nCredit = CreditFor(ISMINE_SPENDABLE_DELEGATED);
-    nDelegatedCreditCached = nCredit;
-    fDelegatedCreditCached = true;
+    CAmount nCredit = CreditFor(mimeType);
+    amountToUpdate = nCredit;
+    cacheFlagToUpdate = true;
     return nCredit;
 }
 
