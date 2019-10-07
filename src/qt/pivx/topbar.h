@@ -46,6 +46,7 @@ public slots:
     void setNumBlocks(int count);
     void updateAutoMintStatus();
     void updateStakingStatus();
+    void updateColdStakingStatus(const bool show);
 
 signals:
     void themeChanged(bool isLight);

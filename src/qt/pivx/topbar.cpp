@@ -281,30 +281,10 @@ void TopBar::showBottom(){
     this->adjustSize();
 }
 
-void TopBar::onColdStakingClicked() {
-
-    bool isColdStakingEnabled = walletModel->isColdStaking();
-    ui->pushButtonColdStaking->setChecked(isColdStakingEnabled);
-
+void TopBar::onColdStakingClicked()
+{
     bool show = (isInitializing) ? false : walletModel->getOptionsModel()->invertColdStakingScreenStatus();
-    QString className;
-    QString text;
-
-    if (isColdStakingEnabled) {
-        text = "Cold Staking Active";
-        className = (show) ? "btn-check-cold-staking-checked" : "btn-check-cold-staking-unchecked";
-    } else if (show) {
-        className = "btn-check-cold-staking";
-        text = "Cold Staking Enabled";
-    } else {
-        className = "btn-check-cold-staking-inactive";
-        text = "Cold Staking Disabled";
-    }
-
-    ui->pushButtonColdStaking->setButtonClassStyle("cssClass", className, true);
-    ui->pushButtonColdStaking->setButtonText(text);
-    updateStyle(ui->pushButtonColdStaking);
-
+    updateColdStakingStatus(show);
     emit onShowHideColdStakingChanged(show);
 }
 
@@ -336,20 +316,43 @@ void TopBar::updateAutoMintStatus(){
     ui->pushButtonMint->setChecked(fEnableZeromint);
 }
 
-void TopBar::updateStakingStatus(){
+void TopBar::updateStakingStatus() {
     if (nLastCoinStakeSearchInterval) {
         if (!ui->pushButtonStack->isChecked()) {
             ui->pushButtonStack->setButtonText(tr("Staking active"));
             ui->pushButtonStack->setChecked(true);
             ui->pushButtonStack->setButtonClassStyle("cssClass", "btn-check-stack", true);
         }
-    }else{
+    } else {
         if (ui->pushButtonStack->isChecked()) {
             ui->pushButtonStack->setButtonText(tr("Staking not active"));
             ui->pushButtonStack->setChecked(false);
             ui->pushButtonStack->setButtonClassStyle("cssClass", "btn-check-stack-inactive", true);
         }
     }
+    updateColdStakingStatus(walletModel->getOptionsModel()->isColdStakingScreenEnabled());
+}
+
+void TopBar::updateColdStakingStatus(const bool show) {
+    bool isColdStakingEnabled = walletModel->isColdStaking();
+    QString className;
+    QString text;
+
+    if (isColdStakingEnabled) {
+        text = tr("Cold Staking Active");
+        className = (show) ? "btn-check-cold-staking-checked" : "btn-check-cold-staking-unchecked";
+    } else if (show) {
+        text = tr("Cold Staking Enabled");
+        className = "btn-check-cold-staking";
+    } else {
+        text = tr("Cold Staking Disabled");
+        className = "btn-check-cold-staking-inactive";
+    }
+
+    ui->pushButtonColdStaking->setButtonText(text);
+    ui->pushButtonColdStaking->setButtonClassStyle("cssClass", className, true);
+    updateStyle(ui->pushButtonColdStaking);
+    ui->pushButtonColdStaking->setChecked(isColdStakingEnabled);
 }
 
 void TopBar::setNumConnections(int count) {

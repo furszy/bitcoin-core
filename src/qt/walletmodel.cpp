@@ -141,8 +141,9 @@ CAmount WalletModel::getColdStakedBalance() const
 
 bool WalletModel::isColdStaking() const
 {
-    // TODO: Complete me..
-    return false;
+    return /*sporkManager.IsSporkActive(SPORK_17_COLDSTAKING_ENFORCEMENT) &&*/
+           getColdStakedBalance() > 0 &&
+           nLastCoinStakeSearchInterval > 0;
 }
 
 void WalletModel::updateStatus()
@@ -447,7 +448,7 @@ WalletModel::SendCoinsReturn WalletModel::sendCoins(WalletModelTransaction& tran
         return AnonymizeOnlyUnlocked;
     }
 
-    bool fColdStakingActive = sporkManager.IsSporkActive(SPORK_17_COLDSTAKING_ENFORCEMENT);
+    bool fColdStakingActive = false/*sporkManager.IsSporkActive(SPORK_17_COLDSTAKING_ENFORCEMENT)*/;
 
     // Double check tx before do anything
     CValidationState state;
