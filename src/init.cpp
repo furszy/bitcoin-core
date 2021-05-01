@@ -1232,6 +1232,11 @@ bool AppInitSanityChecks()
 {
     // ********************************************************* Step 4: sanity checks
 
+    // Initialize libsodium
+    if (init_and_check_sodium() == -1) {
+        return false;
+    }
+
     // Initialize elliptic curve code
     RandomInit();
     ECC_Start();
