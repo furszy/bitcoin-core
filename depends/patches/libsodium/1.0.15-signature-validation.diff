@@ -1,6 +1,6 @@
-diff -ur libsodium-1.0.18-orig/src/libsodium/crypto_sign/ed25519/ref10/open.c libsodium-1.0.18/src/libsodium/crypto_sign/ed25519/ref10/open.c
---- libsodium-1.0.18-orig/src/libsodium/crypto_sign/ed25519/ref10/open.c	2019-05-18 21:32:11.000000000 +0100
-+++ libsodium-1.0.18/src/libsodium/crypto_sign/ed25519/ref10/open.c	2020-02-18 00:00:08.544107613 +0000
+diff -ur libsodium-1.0.17-orig/src/libsodium/crypto_sign/ed25519/ref10/open.c libsodium-1.0.17/src/libsodium/crypto_sign/ed25519/ref10/open.c
+--- libsodium-1.0.17-orig/src/libsodium/crypto_sign/ed25519/ref10/open.c	2019-05-18 21:32:11.000000000 +0100
++++ libsodium-1.0.17/src/libsodium/crypto_sign/ed25519/ref10/open.c	2020-02-18 00:00:08.544107613 +0000
 @@ -10,6 +10,81 @@
  #include "private/ed25519_ref10.h"
  #include "utils.h"
