@@ -124,8 +124,8 @@ jobs:
           CC=${{ matrix.config.cc }}
           CXX=${{ matrix.config.cxx }}
           if [[ ${{ matrix.config.os }} = macos* ]]; then
-            export CPPFLAGS="-I/usr/local/Cellar/gmp/6.2.1/include"
-            export LDFLAGS="-L/usr/local/Cellar/gmp/6.2.1/lib"
+            export CPPFLAGS="-I/usr/local/Cellar/gmp/6.2.1/include -I/usr/local/include"
+            export LDFLAGS="-L/usr/local/Cellar/gmp/6.2.1/lib -L/usr/local/lib"
           fi
           export CC
           export CXX
