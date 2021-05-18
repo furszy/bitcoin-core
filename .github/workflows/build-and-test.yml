@@ -79,7 +79,7 @@ jobs:
 
           - name: macOS
             os: macos-10.15
-            packages: python3 autoconf automake berkeley-db4 libtool boost miniupnpc libnatpmp pkg-config qt5 zmq libevent qrencode gmp libsodium rust
+            packages: python3 autoconf automake berkeley-db4 libtool boost miniupnpc libnatpmp pkg-config qt5 zmq libevent qrencode gmp rust
             cc: $(brew --prefix llvm)/bin/clang
             cxx: $(brew --prefix llvm)/bin/clang++
 
@@ -93,10 +93,16 @@ jobs:
             sudo apt-add-repository "ppa:ondrej/php" -y
             sudo apt-get --yes update
             sudo apt-get install --no-install-recommends --no-upgrade -qq "$APT_BASE" ${{ matrix.config.packages }}
+            sudo dpkg --remove --force-depends libsodium-dev
           fi
           if [[ ${{ matrix.config.os }} = macos* ]]; then
             brew install "$APT_BASE" ${{ matrix.config.packages }}
+            brew uninstall --ignore-dependencies libsodium
           fi
+
+          echo "Installing libsodium.."
+          sudo ./contrib/install_sodium.sh `pwd`
+          echo "libsodium install finished.."
 
       - name: Prepare ccache timestamp
         id: ccache_cache_timestamp
@@ -348,6 +354,13 @@ jobs:
             pip3 install ds_store mac_alias
           fi
 
+          if [[ "${{ matrix.config.no_depends }}" = 1 ]]; then
+            sudo dpkg --remove --force-depends libsodium-dev
+            echo "Installing libsodium.."
+            sudo ./contrib/install_sodium.sh `pwd`
+            echo "libsodium install finished.."
+          fi
+
       - name: depends cache files
         if: matrix.config.no_depends != 1
         uses: actions/cache@v2
@@ -423,12 +436,6 @@ jobs:
           if [ "${{ matrix.config.unit_tests }}" = "true" ] || [ "${{ matrix.config.functional_tests }}" = "true" ]; then
             mkdir -p $PARAMS_DIR
             PARAMS_FLAGS="--with-params-dir=$PARAMS_DIR"
-          fi
-
-          if [ ${{ matrix.config.no_depends }} == 1 ]]; then
-            echo "Installing libsodium.."
-            sudo ./contrib/install_sodium.sh `pwd`
-            echo "libsodium install finished.."
           fi
 
           echo ::group::Autogen
