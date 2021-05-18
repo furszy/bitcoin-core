@@ -425,9 +425,11 @@ jobs:
             PARAMS_FLAGS="--with-params-dir=$PARAMS_DIR"
           fi
 
-          echo "Installing libsodium.."
-          sudo ./contrib/install_sodium.sh `pwd`
-          echo "libsodium install finished.."
+          if [ ${{ matrix.config.no_depends }} == 1 ]]; then
+            echo "Installing libsodium.."
+            sudo ./contrib/install_sodium.sh `pwd`
+            echo "libsodium install finished.."
+          fi
 
           echo ::group::Autogen
           ./autogen.sh
