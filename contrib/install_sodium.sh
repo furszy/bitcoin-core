@@ -71,6 +71,7 @@ cd "${SODIUM_PREFIX}/libsodium-${SODIUM_VERSION}/"
 echo "Applying patches.."
 patch -p1 < "${ROOT_PREFIX}/depends/patches/libsodium/1.0.15-pubkey-validation.diff" && \
 patch -p1 < "${ROOT_PREFIX}/depends/patches/libsodium/1.0.15-signature-validation.diff" && \
+patch -p1 < "${ROOT_PREFIX}/depends/patches/libsodium/1.0.15-library-version.diff" && \
 DO_NOT_UPDATE_CONFIG_SCRIPTS=1 ./autogen.sh
 
 # make
