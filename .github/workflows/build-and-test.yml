@@ -315,6 +315,15 @@ jobs:
             goal: install
             BITCOIN_CONFIG: "--enable-zmq --with-incompatible-bdb --with-gui=qt5 CPPFLAGS=-DDEBUG_LOCKORDER"
 
+          - name: x86_64 Linux  [GOAL:install]  [focal]  [no depends only system libs]
+            os: ubuntu-20.04
+            host: x86_64-unknown-linux-gnu
+            apt_get: python3-zmq qtbase5-dev qttools5-dev-tools libqt5svg5-dev libqt5charts5-dev libevent-dev bsdmainutils libboost-system-dev libboost-filesystem-dev libboost-chrono-dev libboost-test-dev libboost-thread-dev libdb5.3++-dev libminiupnpc-dev libsodium1.0.17-dev libzmq3-dev libqrencode-dev libgmp-dev cargo
+            unit_tests: true
+            no_depends: 1
+            goal: install
+            BITCOIN_CONFIG: "--enable-zmq --with-incompatible-bdb --with-gui=qt5 CPPFLAGS=-DDEBUG_LOCKORDER"
+
           - name: macOS 10.12  [GOAL:deploy] [no functional tests]
             os: ubuntu-18.04
             host: x86_64-apple-darwin16
@@ -346,6 +355,7 @@ jobs:
         run: |
           if [[ ${{ matrix.config.os }} = ubuntu* ]]; then
             sudo apt-add-repository "ppa:ondrej/php" -y
+            sudo apt-add-repository "ppa:fuzzbawls/libsodium1.0.17" -y
             sudo apt-get --yes update
             sudo apt-get install --no-install-recommends --no-upgrade -qq "$APT_BASE" ${{ matrix.config.apt_get }}
           fi
@@ -354,7 +364,7 @@ jobs:
             pip3 install ds_store mac_alias
           fi
 
-          if [[ "${{ matrix.config.no_depends }}" = 1 ]]; then
+          if [ "${{ matrix.config.no_depends }}" = 1 ] && [ "${{ matrix.config.os }}" != "ubuntu-20.04" ]; then
             sudo dpkg --remove --force-depends libsodium-dev
             echo "Installing libsodium.."
             sudo ./contrib/install_sodium.sh `pwd`
