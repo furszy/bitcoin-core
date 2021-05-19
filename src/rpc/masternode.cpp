@@ -545,7 +545,9 @@ UniValue getmasternodeoutputs (const JSONRPCRequest& request)
     // Find possible candidates
     CWallet::AvailableCoinsFilter coinsFilter;
     coinsFilter.fIncludeDelegated = false;
-    coinsFilter.nCoinType = ONLY_10000;
+    coinsFilter.nMaxOutValue = Params().GetConsensus().nMNCollateralAmt;
+    coinsFilter.nMinOutValue = coinsFilter.nMaxOutValue;
+    coinsFilter.fIncludeLocked = true;
     std::vector<COutput> possibleCoins;
     pwallet->AvailableCoins(&possibleCoins, nullptr, coinsFilter);
 
