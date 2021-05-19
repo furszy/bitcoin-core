@@ -213,7 +213,7 @@ bool MasterNodeWizardDialog::createMN()
         SendCoinsRecipient sendCoinsRecipient(
                 QString::fromStdString(dest.ToString()),
                 QString::fromStdString(alias),
-                CAmount(10000) * COIN,
+                Params().GetConsensus().nMNCollateralAmt,
                 "");
 
         // Send the 10 tx to one of your address
