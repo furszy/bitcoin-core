@@ -1005,7 +1005,7 @@ static void SendMoney(CWallet* const pwallet, const CTxDestination& address, CAm
     CReserveKey reservekey(pwallet);
     CAmount nFeeRequired;
     std::string strError;
-    if (!pwallet->CreateTransaction(scriptPubKey, nValue, tx, reservekey, nFeeRequired, strError, nullptr, ALL_COINS, (CAmount)0)) {
+    if (!pwallet->CreateTransaction(scriptPubKey, nValue, tx, reservekey, nFeeRequired, strError, nullptr, (CAmount)0)) {
         if (nValue + nFeeRequired > pwallet->GetAvailableBalance())
             strError = strprintf("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
         LogPrintf("%s: %s\n", __func__, strError);
@@ -1219,7 +1219,7 @@ static UniValue CreateColdStakeDelegation(CWallet* const pwallet, const UniValue
         CAmount nFeeRequired;
         CScript scriptPubKey = fV6Enforced ? GetScriptForStakeDelegation(*stakeKey, ownerKey)
                                            : GetScriptForStakeDelegationLOF(*stakeKey, ownerKey);
-        if (!pwallet->CreateTransaction(scriptPubKey, nValue, txNew, reservekey, nFeeRequired, strError, nullptr, ALL_COINS, (CAmount)0, fUseDelegated)) {
+        if (!pwallet->CreateTransaction(scriptPubKey, nValue, txNew, reservekey, nFeeRequired, strError, nullptr, (CAmount)0, fUseDelegated)) {
             if (nValue + nFeeRequired > currBalance)
                 strError = strprintf("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds!", FormatMoney(nFeeRequired));
             LogPrintf("%s : %s\n", __func__, strError);
@@ -2284,7 +2284,6 @@ static UniValue legacy_sendmany(CWallet* const pwallet, const UniValue& sendTo, 
     int nChangePosInOut = -1;
     bool fCreated = pwallet->CreateTransaction(vecSend, txNew, keyChange, nFeeRequired, nChangePosInOut, strFailReason,
                                                nullptr,     // coinControl
-                                               ALL_COINS,   // inputType
                                                true,        // sign
                                                0,           // nFeePay
                                                fIncludeDelegated);

@@ -119,10 +119,6 @@ enum WalletFeature {
     FEATURE_LATEST = FEATURE_SAPLING
 };
 
-enum AvailableCoinsType {
-    ALL_COINS = 1,
-};
-
 /** A key pool entry */
 class CKeyPool
 {
@@ -639,7 +635,6 @@ private:
     OutputAvailabilityResult CheckOutputAvailability(const CTxOut& output,
                                                      const unsigned int outIndex,
                                                      const uint256& wtxid,
-                                                     AvailableCoinsType nCoinType,
                                                      const CCoinControl* coinControl,
                                                      const bool fCoinsSelected,
                                                      const bool fIncludeColdStaking,
@@ -770,7 +765,6 @@ public:
         AvailableCoinsFilter() {}
         AvailableCoinsFilter(bool _fIncludeDelegated,
                              bool _fIncludeColdStaking,
-                             AvailableCoinsType _nCoinType,
                              bool _fOnlyConfirmed,
                              bool _fOnlySpendable,
                              std::set<CTxDestination>* _onlyFilteredDest,
@@ -779,7 +773,6 @@ public:
                              CAmount _nMaxOutValue = 0) :
                 fIncludeDelegated(_fIncludeDelegated),
                 fIncludeColdStaking(_fIncludeColdStaking),
-                nCoinType(_nCoinType),
                 fOnlyConfirmed(_fOnlyConfirmed),
                 fOnlySpendable(_fOnlySpendable),
                 onlyFilteredDest(_onlyFilteredDest),
@@ -789,7 +782,6 @@ public:
 
         bool fIncludeDelegated{true};
         bool fIncludeColdStaking{false};
-        AvailableCoinsType nCoinType{ALL_COINS};
         bool fOnlyConfirmed{true};
         bool fOnlySpendable{false};
         std::set<CTxDestination>* onlyFilteredDest{nullptr};
@@ -1009,14 +1001,13 @@ public:
         int& nChangePosInOut,
         std::string& strFailReason,
         const CCoinControl* coinControl = NULL,
-        AvailableCoinsType coin_type = ALL_COINS,
         bool sign = true,
         CAmount nFeePay = 0,
         bool fIncludeDelegated = false,
         bool* fStakeDelegationVoided = nullptr,
         int nExtraSize = 0);
 
-    bool CreateTransaction(CScript scriptPubKey, const CAmount& nValue, CTransactionRef& tx, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl = NULL, AvailableCoinsType coin_type = ALL_COINS, CAmount nFeePay = 0, bool fIncludeDelegated = false);
+    bool CreateTransaction(CScript scriptPubKey, const CAmount& nValue, CTransactionRef& tx, CReserveKey& reservekey, CAmount& nFeeRet, std::string& strFailReason, const CCoinControl* coinControl = NULL, CAmount nFeePay = 0, bool fIncludeDelegated = false);
 
     // enumeration for CommitResult (return status of CommitTransaction)
     enum CommitStatus

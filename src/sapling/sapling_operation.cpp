@@ -297,7 +297,6 @@ OperationResult SaplingOperation::loadUtxos(TxValues& txValues)
     if (fromAddress.isFromTAddress()) destinations.insert(fromAddress.fromTaddr);
     CWallet::AvailableCoinsFilter coinsFilter(fIncludeDelegated,
                                               false,
-                                              ALL_COINS,
                                               true,
                                               true,
                                               &destinations,
