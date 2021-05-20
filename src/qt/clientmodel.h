@@ -101,6 +101,9 @@ public:
     // Future todo: implement an event based update and remove the lock requirement.
     QString getMasternodesCount();
 
+    // Return the specific chain amount value for the MN collateral output.
+    CAmount getMNCollateralRequiredAmount();
+
 private:
     // Listeners
     std::unique_ptr<interfaces::Handler> m_handler_show_progress;

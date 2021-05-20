@@ -18,12 +18,9 @@
 #include "masternode-sync.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
-#include "sync.h"
 #include "wallet/wallet.h"
-#include "askpassphrasedialog.h"
 #include "util/system.h"
 #include "qt/pivx/optionbutton.h"
-#include <iostream>
 #include <fstream>
 
 #define DECORATION_SIZE 65
@@ -476,12 +473,14 @@ void MasterNodesWidget::onCreateMNClicked()
         return;
     }
 
-    if (walletModel->getBalance() <= (COIN * 10000)) {
-        inform(tr("Not enough balance to create a masternode, 10,000 %1 required.").arg(CURRENCY_UNIT.c_str()));
+    CAmount mnCollateralAmount = clientModel->getMNCollateralRequiredAmount();
+    if (walletModel->getBalance() <= mnCollateralAmount) {
+        inform(tr("Not enough balance to create a masternode, %1 required.")
+            .arg(GUIUtil::formatBalance(mnCollateralAmount, BitcoinUnits::PIV)));
         return;
     }
     showHideOp(true);
-    MasterNodeWizardDialog *dialog = new MasterNodeWizardDialog(walletModel, window);
+    MasterNodeWizardDialog *dialog = new MasterNodeWizardDialog(walletModel, clientModel, window);
     if (openDialogWithOpaqueBackgroundY(dialog, window, 5, 7)) {
         if (dialog->isOk) {
             // Update list

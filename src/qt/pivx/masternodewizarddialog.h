@@ -12,6 +12,7 @@
 #include "qt/pivx/pwidget.h"
 
 class WalletModel;
+class ClientModel;
 
 namespace Ui {
 class MasterNodeWizardDialog;
@@ -23,7 +24,9 @@ class MasterNodeWizardDialog : public FocusedDialog, public PWidget::Translator
     Q_OBJECT
 
 public:
-    explicit MasterNodeWizardDialog(WalletModel *walletMode, QWidget *parent = nullptr);
+    explicit MasterNodeWizardDialog(WalletModel* walletMode,
+                                    ClientModel* clientModel,
+                                    QWidget *parent = nullptr);
     ~MasterNodeWizardDialog();
     void showEvent(QShowEvent *event) override;
     QString translate(const char *msg) override { return tr(msg); }
@@ -43,7 +46,8 @@ private:
     SnackBar *snackBar = nullptr;
     int pos = 0;
 
-    WalletModel *walletModel = nullptr;
+    WalletModel* walletModel{nullptr};
+    ClientModel* clientModel{nullptr};
     bool createMN();
     void inform(QString text);
     void initBtn(std::initializer_list<QPushButton*> args);
