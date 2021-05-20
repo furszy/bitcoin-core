@@ -121,7 +121,6 @@ enum WalletFeature {
 
 enum AvailableCoinsType {
     ALL_COINS = 1,
-    STAKEABLE_COINS = 6                             // UTXO's that are valid for staking
 };
 
 /** A key pool entry */

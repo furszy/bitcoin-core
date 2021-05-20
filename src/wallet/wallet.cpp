@@ -2581,9 +2581,6 @@ CWallet::OutputAvailabilityResult CWallet::CheckOutputAvailability(
 {
     OutputAvailabilityResult res;
 
-    // Check for stakeable utxo
-    if (nCoinType == STAKEABLE_COINS && output.IsZerocoinMint()) return res;
-
     // Check if the utxo was spent.
     if (IsSpent(wtxid, outIndex)) return res;
 
@@ -2641,9 +2638,6 @@ bool CWallet::AvailableCoins(std::vector<COutput>* pCoins,      // --> populates
             int nDepth;
             if (!CheckTXAvailability(pcoin, coinsFilter.fOnlyConfirmed, nDepth, m_last_block_processed_height))
                 continue;
-
-            // Check min depth requirement for stake inputs
-            if (coinsFilter.nCoinType == STAKEABLE_COINS && nDepth < Params().GetConsensus().nStakeMinDepth) continue;
 
             // Check min depth filtering requirements
             if (nDepth < coinsFilter.minDepth) continue;
@@ -2803,7 +2797,7 @@ bool CWallet::StakeableCoins(std::vector<CStakeableOutput>* pCoins)
                     pcoin->tx->vout[index],
                     index,
                     wtxid,
-                    STAKEABLE_COINS,
+                    ALL_COINS,
                     nullptr, // coin control
                     false,   // fIncludeDelegated
                     fIncludeColdStaking,
