@@ -14,6 +14,8 @@
 #include <list>
 #include <utility>
 
+#include <QObject>
+
 struct ProposalInfo {
 public:
     enum Status {
@@ -55,14 +57,20 @@ public:
     }
 };
 
+class CBudgetProposal;
 class WalletModel;
 
-class GovernanceModel
+QT_BEGIN_NAMESPACE
+class QTimer;
+QT_END_NAMESPACE
+
+class GovernanceModel : public QObject
 {
     static const int PROP_URL_MAX_SIZE = 100;
 
 public:
     explicit GovernanceModel(ClientModel* _clientModel);
+    ~GovernanceModel();
     void setWalletModel(WalletModel* _walletModel);
 
     // Return proposals ordered by net votes
@@ -92,10 +100,26 @@ public:
                                    int nPaymentCount,
                                    CAmount nAmount,
                                    const std::string& strPaymentAddr);
+public Q_SLOTS:
+    void pollGovernanceChanged();
+
 private:
     ClientModel* clientModel{nullptr};
     WalletModel* walletModel{nullptr};
     std::atomic<bool> refreshNeeded{false};
+
+    QTimer* pollTimer{nullptr};
+    // Cached proposals waiting for the minimum required confirmations
+    // to be broadcasted to the network.
+    std::vector<CBudgetProposal> waitingPropsForConfirmations;
+
+    void scheduleBroadcast(const CBudgetProposal& proposal);
+    void stopPolling();
+
+    // Util function to create a ProposalInfo object
+    ProposalInfo buidProposalInfo(const CBudgetProposal* prop,
+                                  const std::vector<CBudgetProposal>& currentBudget,
+                                  bool isPending);
 };
 
 #endif // GOVERNANCEMODEL_H
