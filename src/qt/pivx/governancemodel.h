@@ -58,6 +58,7 @@ public:
 };
 
 class CBudgetProposal;
+class TransactionRecord;
 class WalletModel;
 
 QT_BEGIN_NAMESPACE
@@ -70,7 +71,7 @@ class GovernanceModel : public QObject
 
 public:
     explicit GovernanceModel(ClientModel* _clientModel);
-    ~GovernanceModel();
+    ~GovernanceModel() override;
     void setWalletModel(WalletModel* _walletModel);
 
     // Return proposals ordered by net votes
@@ -102,6 +103,7 @@ public:
                                    const std::string& strPaymentAddr);
 public Q_SLOTS:
     void pollGovernanceChanged();
+    void txLoaded(const QString& hash, const int txType, const int txStatus);
 
 private:
     ClientModel* clientModel{nullptr};
