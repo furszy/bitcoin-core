@@ -518,6 +518,78 @@ struct VarIntFormatter
     }
 };
 
+// !TODO: update to new serialization
+#define FIXEDBITSET(obj, size) CFixedBitSet(REF(obj), (size))
+#define DYNBITSET(obj) CDynamicBitSet(REF(obj))
+
+// !TODO: temporarily reintroduced - removed in the following commits
+template <typename T>
+inline T& REF(const T& val)
+{
+    return const_cast<T&>(val);
+}
+
+class CFixedBitSet
+{
+protected:
+    std::vector<bool>& vec;
+    size_t size;
+
+public:
+    CFixedBitSet(std::vector<bool>& vecIn, size_t sizeIn) : vec(vecIn), size(sizeIn) {}
+
+    template<typename Stream>
+    void Serialize(Stream& s) const
+    {
+        std::vector<unsigned char> vBytes((size + 7) / 8);
+        size_t ms = std::min(size, vec.size());
+        for (size_t p = 0; p < ms; p++)
+            vBytes[p / 8] |= vec[p] << (p % 8);
+        s.write((char*)vBytes.data(), vBytes.size());
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s)
+    {
+        vec.resize(size);
+
+        std::vector<unsigned char> vBytes((size + 7) / 8);
+        s.read((char*)vBytes.data(), vBytes.size());
+        for (size_t p = 0; p < size; p++)
+            vec[p] = (vBytes[p / 8] & (1 << (p % 8))) != 0;
+        if (vBytes.size() * 8 != size) {
+            size_t rem = vBytes.size() * 8 - size;
+            uint8_t m = ~(uint8_t)(0xff >> rem);
+            if (vBytes[vBytes.size() - 1] & m) {
+                throw std::ios_base::failure("Out-of-range bits set");
+            }
+        }
+    }
+};
+
+class CDynamicBitSet
+{
+protected:
+    std::vector<bool>& vec;
+
+public:
+    explicit CDynamicBitSet(std::vector<bool>& vecIn) : vec(vecIn) {}
+
+    template<typename Stream>
+    void Serialize(Stream& s) const
+    {
+        WriteCompactSize(s, vec.size());
+        CFixedBitSet(REF(vec), vec.size()).Serialize(s);
+    }
+
+    template<typename Stream>
+    void Unserialize(Stream& s)
+    {
+        vec.resize(ReadCompactSize(s));
+        CFixedBitSet(vec, vec.size()).Unserialize(s);
+    }
+};
+
 /** Serialization wrapper class for custom integers and enums.
  *
  * It permits specifying the serialized size (1 to 8 bytes) and endianness.
