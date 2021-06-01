@@ -59,6 +59,84 @@ static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
 
+// this one is for testing only
+static Consensus::LLMQParams llmq_test = {
+        .type = Consensus::LLMQ_TEST,
+        .name = "llmq_test",
+        .size = 3,
+        .minSize = 2,
+        .threshold = 2,
+
+        .dkgInterval = 60, // one DKG per hour
+        .dkgPhaseBlocks = 6,
+        .dkgMiningWindowStart = 30, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 40,
+        .dkgBadVotesThreshold = 2,
+
+        .signingActiveQuorumCount = 2, // just a few ones to allow easier testing
+
+        .keepOldConnections = 3,
+        .recoveryMembers = 3,
+};
+
+static Consensus::LLMQParams llmq50_60 = {
+        .type = Consensus::LLMQ_50_60,
+        .name = "llmq_50_60",
+        .size = 50,
+        .minSize = 40,
+        .threshold = 30,
+
+        .dkgInterval = 60, // one DKG per hour
+        .dkgPhaseBlocks = 6,
+        .dkgMiningWindowStart = 30, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 40,
+        .dkgBadVotesThreshold = 40,
+
+        .signingActiveQuorumCount = 24, // a full day worth of LLMQs
+
+        .keepOldConnections = 25,
+        .recoveryMembers = 25,
+};
+
+static Consensus::LLMQParams llmq400_60 = {
+        .type = Consensus::LLMQ_400_60,
+        .name = "llmq_400_60",
+        .size = 400,
+        .minSize = 300,
+        .threshold = 240,
+
+        .dkgInterval = 60 * 12, // one DKG every 12 hours
+        .dkgPhaseBlocks = 10,
+        .dkgMiningWindowStart = 50, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 70,
+        .dkgBadVotesThreshold = 300,
+
+        .signingActiveQuorumCount = 4, // two days worth of LLMQs
+
+        .keepOldConnections = 5,
+        .recoveryMembers = 100,
+};
+
+// Used for deployment and min-proto-version signaling, so it needs a higher threshold
+static Consensus::LLMQParams llmq400_85 = {
+        .type = Consensus::LLMQ_400_85,
+        .name = "llmq_400_85",
+        .size = 400,
+        .minSize = 350,
+        .threshold = 340,
+
+        .dkgInterval = 60 * 24, // one DKG every 24 hours
+        .dkgPhaseBlocks = 10,
+        .dkgMiningWindowStart = 50, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 70, // give it a larger mining window to make sure it is mined
+        .dkgBadVotesThreshold = 300,
+
+        .signingActiveQuorumCount = 4, // four days worth of LLMQs
+
+        .keepOldConnections = 5,
+        .recoveryMembers = 100,
+};
+
 /**
  * Main network
  */
@@ -255,6 +333,11 @@ public:
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "pivks";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "p-secret-spending-key-main";
         bech32HRPs[SAPLING_EXTENDED_FVK]         = "pxviews";
+
+        // long living quorum params
+        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+        consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
+        consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
     }
 
     const CCheckpointData& Checkpoints() const
@@ -382,6 +465,11 @@ public:
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "pivktestsapling";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "p-secret-spending-key-test";
         bech32HRPs[SAPLING_EXTENDED_FVK]         = "pxviewtestsapling";
+
+        // long living quorum params
+        consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
+        consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
+        consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
     }
 
     const CCheckpointData& Checkpoints() const
@@ -509,6 +597,9 @@ public:
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "pivktestsapling";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "p-secret-spending-key-test";
         bech32HRPs[SAPLING_EXTENDED_FVK]         = "pxviewtestsapling";
+
+        // long living quorum params
+        consensus.llmqs[Consensus::LLMQ_TEST] = llmq_test;
     }
 
     const CCheckpointData& Checkpoints() const
