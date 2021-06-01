@@ -256,6 +256,7 @@ public:
         PROUPSERV = 2,
         PROUPREG = 3,
         PROUPREV = 4,
+        LLMQCOMM = 5,
     };
 
     static const int16_t CURRENT_VERSION = TxVersion::LEGACY;

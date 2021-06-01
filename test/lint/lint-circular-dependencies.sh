@@ -56,6 +56,7 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "evo/deterministicmns -> masternode -> masternode-sync -> evo/deterministicmns"
     "evo/deterministicmns -> masternodeman -> net_processing -> evo/deterministicmns"
     "evo/deterministicmns -> masternode -> wallet/wallet -> evo/deterministicmns"
+    "evo/specialtx_validation -> llmq/quorums_commitment -> validation -> evo/specialtx_validation"
     "kernel -> stakeinput -> wallet/wallet -> kernel"
     "legacy/validation_zerocoin_legacy -> wallet/wallet -> validation -> legacy/validation_zerocoin_legacy"
     "masternode-sync -> masternodeman -> net_processing -> masternode-sync"
@@ -63,7 +64,6 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "qt/pivx/coldstakingwidget -> qt/pivx/tooltipmenu -> qt/pivx/pivxgui -> qt/pivx/coldstakingwidget"
     "qt/pivx/masternodeswidget -> qt/pivx/tooltipmenu -> qt/pivx/pivxgui -> qt/pivx/masternodeswidget"
     "qt/pivx/pivxgui -> qt/pivx/send -> qt/pivx/tooltipmenu -> qt/pivx/pivxgui"
-    "chain -> legacy/stakemodifier -> validation -> evo/specialtx_validation -> chain"
     "chain -> legacy/stakemodifier -> validation -> validationinterface -> chain"
     "chain -> legacy/stakemodifier -> stakeinput -> txdb -> chain"
     "chain -> legacy/stakemodifier -> validation -> checkpoints -> chain"
@@ -72,7 +72,6 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "chain -> legacy/stakemodifier -> validation -> zpivchain -> chain"
     "consensus/tx_verify -> consensus/zerocoin_verify -> spork -> validation -> consensus/tx_verify"
     "evo/deterministicmns -> masternodeman -> net_processing -> validationinterface -> evo/deterministicmns"
-    "evo/deterministicmns -> masternodeman -> validation -> evo/specialtx_validation -> evo/deterministicmns"
     "chain -> legacy/stakemodifier -> stakeinput -> wallet/wallet -> spork -> net_processing -> chain"
 )
 

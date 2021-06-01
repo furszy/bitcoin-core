@@ -62,6 +62,29 @@ public:
     }
 };
 
+class LLMQCommPL
+{
+public:
+    static const uint16_t CURRENT_VERSION = 1;
+
+public:
+    uint16_t nVersion{CURRENT_VERSION};
+    uint32_t nHeight{(uint32_t)-1};
+    CFinalCommitment commitment;
+
+public:
+    SERIALIZE_METHODS(LLMQCommPL, obj)
+    {
+        READWRITE(obj.nVersion);
+        READWRITE(obj.nHeight);
+        READWRITE(obj.commitment);
+    }
+
+    void ToJson(UniValue& obj) const;
+};
+
+bool CheckLLMQCommitment(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state);
+
 } // namespace llmq
 
 #endif // PIVX_QUORUMS_COMMITMENT_H
