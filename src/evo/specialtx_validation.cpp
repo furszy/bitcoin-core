@@ -12,6 +12,7 @@
 #include "consensus/validation.h"
 #include "evo/deterministicmns.h"
 #include "evo/providertx.h"
+#include "llmq/quorums_commitment.h"
 #include "messagesigner.h"
 #include "primitives/transaction.h"
 #include "primitives/block.h"
@@ -488,6 +489,10 @@ bool CheckSpecialTxNoContext(const CTransaction& tx, CValidationState& state)
             // provider-update-revoke
             return CheckProUpRevTx(tx, nullptr, state);
         }
+        case CTransaction::TxType::LLMQCOMM: {
+            // quorum commitment
+            return llmq::CheckLLMQCommitment(tx, nullptr, state);
+        }
     }
 
     return state.DoS(10, error("%s: special tx %s with invalid type %d", __func__, tx.GetHash().ToString(), tx.nType),
@@ -531,6 +536,10 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, const
         case CTransaction::TxType::PROUPREV: {
             // provider-update-revoke
             return CheckProUpRevTx(tx, pindexPrev, state);
+        }
+        case CTransaction::TxType::LLMQCOMM: {
+            // quorum commitment
+            return llmq::CheckLLMQCommitment(tx, pindexPrev, state);
         }
     }
 
