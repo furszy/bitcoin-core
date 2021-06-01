@@ -29,6 +29,7 @@
 #include "httpserver.h"
 #include "httprpc.h"
 #include "invalid.h"
+#include "llmq/quorums_init.h"
 #include "key.h"
 #include "mapport.h"
 #include "masternode-payments.h"
@@ -209,6 +210,7 @@ void Shutdown()
     StopREST();
     StopRPC();
     StopHTTPServer();
+    llmq::StopLLMQSystem();
 #ifdef ENABLE_WALLET
     for (CWalletRef pwallet : vpwallets) {
         pwallet->Flush(false);
@@ -282,6 +284,7 @@ void Shutdown()
         zerocoinDB.reset();
         accumulatorCache.reset();
         pSporkDB.reset();
+        llmq::DestroyLLMQSystem();
         deterministicMNManager.reset();
         evoDb.reset();
     }
@@ -1619,6 +1622,9 @@ bool AppInitMain()
                 // The on-disk coinsdb is now in a good state, create the cache
                 pcoinsTip.reset(new CCoinsViewCache(pcoinscatcher.get()));
 
+                // Initialize LLMQ system
+                llmq::InitLLMQSystem(*evoDb);
+
                 bool is_coinsview_empty = fReset || fReindexChainState || pcoinsTip->GetBestBlock().IsNull();
                 if (!is_coinsview_empty) {
                     // LoadChainTip sets chainActive based on pcoinsTip's best block
@@ -1918,6 +1924,9 @@ bool AppInitMain()
         LogPrintf("Shutdown requested. Exiting.\n");
         return false;
     }
+
+    // start LLMQ system
+    llmq::StartLLMQSystem();
 
     // ********************************************************* Step 11: start node
 
