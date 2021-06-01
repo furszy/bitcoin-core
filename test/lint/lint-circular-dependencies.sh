@@ -56,7 +56,7 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "evo/deterministicmns -> masternode -> masternode-sync -> evo/deterministicmns"
     "evo/deterministicmns -> masternodeman -> net_processing -> evo/deterministicmns"
     "evo/deterministicmns -> masternode -> wallet/wallet -> evo/deterministicmns"
-    "evo/specialtx_validation -> llmq/quorums_commitment -> validation -> evo/specialtx_validation"
+    "evo/specialtx_validation -> llmq/quorums_blockprocessor -> validation -> evo/specialtx_validation"
     "kernel -> stakeinput -> wallet/wallet -> kernel"
     "legacy/validation_zerocoin_legacy -> wallet/wallet -> validation -> legacy/validation_zerocoin_legacy"
     "masternode-sync -> masternodeman -> net_processing -> masternode-sync"
