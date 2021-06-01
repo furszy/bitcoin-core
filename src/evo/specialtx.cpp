@@ -11,6 +11,7 @@
 #include "consensus/validation.h"
 #include "evo/deterministicmns.h"
 #include "evo/providertx.h"
+#include "llmq/quorums_blockprocessor.h"
 #include "llmq/quorums_commitment.h"
 #include "primitives/transaction.h"
 #include "primitives/block.h"
@@ -159,7 +160,11 @@ bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CV
         return false;
     }
 
-    // !TODO: ProcessBlock llmq quorum block processor
+    if (!llmq::quorumBlockProcessor->ProcessBlock(block, pindex, state, fJustCheck)) {
+        // pass the state returned by the function above
+        return false;
+    }
+
     return true;
 }
 
@@ -168,7 +173,9 @@ bool UndoSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex)
     if (!deterministicMNManager->UndoBlock(block, pindex)) {
         return false;
     }
-    // !TODO: UndoBlock llmq quorum block processor
+    if (!llmq::quorumBlockProcessor->UndoBlock(block, pindex)) {
+        return false;
+    }
     return true;
 }
 

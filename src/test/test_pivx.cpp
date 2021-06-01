@@ -14,6 +14,7 @@
 #include "evo/deterministicmns.h"
 #include "evo/evodb.h"
 #include "evo/evonotificationinterface.h"
+#include "llmq/quorums_init.h"
 #include "miner.h"
 #include "net_processing.h"
 #include "rpc/server.h"
@@ -99,6 +100,7 @@ TestingSetup::TestingSetup(const std::string& chainName) : BasicTestingSetup(cha
         pblocktree.reset(new CBlockTreeDB(1 << 20, true));
         pcoinsdbview.reset(new CCoinsViewDB(1 << 23, true));
         pcoinsTip.reset(new CCoinsViewCache(pcoinsdbview.get()));
+        llmq::InitLLMQSystem(*evoDb);
         if (!LoadGenesisBlock()) {
             throw std::runtime_error("Error initializing block database");
         }
@@ -130,6 +132,7 @@ TestingSetup::~TestingSetup()
         pblocktree.reset();
         zerocoinDB.reset();
         pSporkDB.reset();
+        llmq::DestroyLLMQSystem();
 }
 
 // Test chain only available on regtest
