@@ -58,7 +58,7 @@ template<typename... Args>
 static bool errorFinalCommitment(const char* fmt, const Args&... args)
 {
     try {
-        LogPrintf("Invalid Final Commitment -- %s\n", tfm::format(fmt, args...));
+        LogPrint(BCLog::LLMQ, "Invalid Final Commitment -- %s\n", tfm::format(fmt, args...));
     } catch (tinyformat::format_error &e) {
         LogPrintf("Error (%s) while formatting message %s\n", std::string(e.what()), fmt);
     }

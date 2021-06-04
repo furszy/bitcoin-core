@@ -66,6 +66,7 @@ namespace BCLog {
         SAPLING     = (1 << 26),
         SPORKS      = (1 << 27),
         VALIDATION  = (1 << 28),
+        LLMQ        = (1 << 29),
         ALL         = ~(uint32_t)0,
     };
 

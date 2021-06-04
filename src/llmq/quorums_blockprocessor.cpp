@@ -33,9 +33,8 @@ template<typename... Args>
 static void SetMisbehaving(CNode* pfrom, int nDos, const char* fmt, const Args&... args)
 {
     LOCK(cs_main);
-    // !TODO: Add log category for LLMQ stuff
     try {
-        LogPrintf("Invalid QFCOMMITMENT message from peer=%d (reason: %s)\n",
+        LogPrint(BCLog::LLMQ, "Invalid QFCOMMITMENT message from peer=%d (reason: %s)\n",
                 pfrom->GetId(), tfm::format(fmt, args...));
     } catch (tinyformat::format_error &e) {
         LogPrintf("Error (%s) while formatting message %s\n", std::string(e.what()), fmt);
