@@ -4,6 +4,7 @@
 
 #include "masternode-sync.h"
 
+#include "llmq/quorums_blockprocessor.h"
 #include "masternodeman.h"          // for mnodeman
 #include "netmessagemaker.h"
 #include "net_processing.h"         // for Misbehaving
@@ -43,6 +44,11 @@ bool CMasternodeSync::MessageDispatcher(CNode* pfrom, std::string& strCommand, C
     if (strCommand == NetMsgType::GETSPORKS) {
         // send sporks
         sporkManager.ProcessGetSporks(pfrom, strCommand, vRecv);
+        return true;
+    }
+
+    if (strCommand == NetMsgType::QFCOMMITMENT) {
+        llmq::quorumBlockProcessor->ProcessMessage(pfrom, vRecv);
         return true;
     }
 

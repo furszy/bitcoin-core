@@ -53,6 +53,7 @@ const char* FINALBUDGET = "fbs";
 const char* FINALBUDGETVOTE = "fbvote";
 const char* SYNCSTATUSCOUNT = "ssc";
 const char* GETMNLIST = "dseg";
+const char* QFCOMMITMENT = "qfcommit";
 }; // namespace NetMsgType
 
 /** All known message types. Keep this in the same order as the list of
@@ -101,7 +102,8 @@ const static std::string allNetMessageTypes[] = {
     NetMsgType::BUDGETVOTESYNC,
     NetMsgType::GETSPORKS,
     NetMsgType::SYNCSTATUSCOUNT,
-    NetMsgType::MNBROADCAST2
+    NetMsgType::MNBROADCAST2,
+    NetMsgType::QFCOMMITMENT
 };
 const static std::vector<std::string> allNetMessageTypesVec(allNetMessageTypes, allNetMessageTypes + ARRAYLEN(allNetMessageTypes));
 const static std::vector<std::string> tiertwoNetMessageTypesVec(std::find(allNetMessageTypesVec.begin(), allNetMessageTypesVec.end(), NetMsgType::SPORK), allNetMessageTypesVec.end());
@@ -200,6 +202,7 @@ std::string CInv::GetCommand() const
         case MSG_MASTERNODE_ANNOUNCE: return cmd.append(NetMsgType::MNBROADCAST); // or MNBROADCAST2
         case MSG_MASTERNODE_PING: return cmd.append(NetMsgType::MNPING);
         case MSG_DSTX: return cmd.append("dstx"); // Deprecated
+        case MSG_QUORUM_FINAL_COMMITMENT: return cmd.append(NetMsgType::QFCOMMITMENT);
         default:
             throw std::out_of_range(strprintf("%s: type=%d unknown type", __func__, type));
     }
