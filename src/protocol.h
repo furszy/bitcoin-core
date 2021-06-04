@@ -274,6 +274,10 @@ extern const char* FINALBUDGETVOTE;
  * The syncstatuscount message is used to track the layer 2 syncing process
  */
 extern const char* SYNCSTATUSCOUNT;
+/**
+ * The qfcommit message is used to propagate LLMQ final commitments
+ */
+extern const char* QFCOMMITMENT;
 }; // namespace NetMsgType
 
 /* Get a vector of all valid message types (see above) */
@@ -425,8 +429,9 @@ enum GetDataMsg
     MSG_MASTERNODE_QUORUM,
     MSG_MASTERNODE_ANNOUNCE,
     MSG_MASTERNODE_PING,
-    MSG_DSTX,
-    MSG_TYPE_MAX = MSG_DSTX
+    MSG_DSTX,               // Deprecated
+    MSG_QUORUM_FINAL_COMMITMENT,
+    MSG_TYPE_MAX = MSG_QUORUM_FINAL_COMMITMENT
 };
 
 /** inv message data */

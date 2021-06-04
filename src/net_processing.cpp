@@ -9,6 +9,7 @@
 #include "budget/budgetmanager.h"
 #include "chain.h"
 #include "evo/deterministicmns.h"
+#include "llmq/quorums_blockprocessor.h"
 #include "masternodeman.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
@@ -811,6 +812,8 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         return false;
     case MSG_MASTERNODE_PING:
         return mnodeman.mapSeenMasternodePing.count(inv.hash);
+    case MSG_QUORUM_FINAL_COMMITMENT:
+        return llmq::quorumBlockProcessor->HasMinableCommitment(inv.hash);
     }
     // Don't know what it is, just say we already got one
     return true;
@@ -862,6 +865,14 @@ bool static PushTierTwoGetDataRequest(const CInv& inv,
             ss.reserve(1000);
             ss << mapSporks[inv.hash];
             connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::SPORK, ss));
+            return true;
+        }
+    }
+
+    if (inv.type == MSG_QUORUM_FINAL_COMMITMENT) {
+        llmq::CFinalCommitment o;
+        if (llmq::quorumBlockProcessor->GetMinableCommitmentByHash(inv.hash, o)) {
+            connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QFCOMMITMENT, o));
             return true;
         }
     }
@@ -1014,7 +1025,8 @@ bool static IsTierTwoInventoryTypeKnown(int type)
            type == MSG_BUDGET_FINALIZED ||
            type == MSG_BUDGET_FINALIZED_VOTE ||
            type == MSG_MASTERNODE_ANNOUNCE ||
-           type == MSG_MASTERNODE_PING;
+           type == MSG_MASTERNODE_PING ||
+           type == MSG_QUORUM_FINAL_COMMITMENT;
 }
 
 void static ProcessGetData(CNode* pfrom, CConnman* connman, const std::atomic<bool>& interruptMsgProc)
