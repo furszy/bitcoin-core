@@ -14,6 +14,7 @@
 #include "consensus/merkle.h"
 #include "consensus/upgrades.h"
 #include "consensus/validation.h"
+#include "llmq/quorums_blockprocessor.h"
 #include "masternode-payments.h"
 #include "policy/policy.h"
 #include "pow.h"
@@ -190,6 +191,22 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
         return nullptr;
     }
 
+    // After v6 enforcement, add LLMQ commitments if needed
+    const Consensus::Params& consensus = Params().GetConsensus();
+    if (consensus.NetworkUpgradeActive(nHeight, Consensus::UPGRADE_V6_0)) {
+        LOCK(cs_main);
+        for (const auto& p : Params().GetConsensus().llmqs) {
+            CTransactionRef qcTx;
+            if (llmq::quorumBlockProcessor->GetMinableCommitmentTx(p.first, nHeight, qcTx)) {
+                pblock->vtx.emplace_back(qcTx);
+                pblocktemplate->vTxFees.emplace_back(0);
+                pblocktemplate->vTxSigOps.emplace_back(0);
+                nBlockSize += qcTx->GetTotalSize();
+                ++nBlockTx;
+            }
+        }
+    }
+
     if (!fNoMempoolTx) {
         // Add transactions from mempool
         LOCK2(cs_main,mempool.cs);
@@ -208,7 +225,7 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock(const CScript& sc
     nLastBlockSize = nBlockSize;
     LogPrintf("CreateNewBlock(): total size %u txs: %u fees: %ld sigops %d\n", nBlockSize, nBlockTx, nFees, nBlockSigOps);
 
-    const Consensus::Params& consensus = Params().GetConsensus();
+
     // Fill in header
     pblock->hashPrevBlock = pindexPrev->GetBlockHash();
     if (!fProofOfStake) UpdateTime(pblock, consensus, pindexPrev);
