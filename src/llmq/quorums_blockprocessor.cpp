@@ -175,7 +175,7 @@ bool CQuorumBlockProcessor::GetCommitmentsFromBlock(const CBlock& block, const C
     ret.clear();
 
     for (const auto& tx : block.vtx) {
-        if (tx->nType != CTransaction::TxType::LLMQCOMM) {
+        if (!tx->IsQuorumCommitmentTx()) {
             continue;
         }
         LLMQCommPL pl;

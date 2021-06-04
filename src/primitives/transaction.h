@@ -337,6 +337,11 @@ public:
         return IsSpecialTx() && nType == TxType::PROREG;
     }
 
+    bool IsQuorumCommitmentTx() const
+    {
+        return IsSpecialTx() && nType == TxType::LLMQCOMM;
+    }
+
     // Ensure that special and sapling fields are signed
     SigVersion GetRequiredSigVersion() const
     {
