@@ -11,6 +11,7 @@
 #include "evo/specialtx.h"
 #include "key_io.h"
 #include "guiinterface.h"
+#include "llmq/quorums_utils.h"
 #include "masternode.h" // for MasternodeCollateralMinConf
 #include "masternodeman.h" // for mnodeman (!TODO: remove)
 #include "script/standard.h"
@@ -771,6 +772,22 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
                 LogPrintf("CDeterministicMNManager::%s -- MN %s updated at height %d: %s\n",
                     __func__, pl.proTxHash.ToString(), nHeight, pl.ToString());
             }
+        } else if (tx.nType == CTransaction::TxType::LLMQCOMM) {
+            llmq::LLMQCommPL pl;
+            if (!GetTxPayload(tx, pl)) {
+                return _state.DoS(100, false, REJECT_INVALID, "bad-qc-payload");
+            }
+            if (!pl.commitment.IsNull()) {
+                // Double-check that the quorum index is in the active chain
+                const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)pl.commitment.llmqType);
+                uint32_t quorumHeight = pl.nHeight - (pl.nHeight % params.dkgInterval);
+                auto quorumIndex = pindexPrev->GetAncestor(quorumHeight);
+                if (!quorumIndex || quorumIndex->GetBlockHash() != pl.commitment.quorumHash) {
+                    return _state.DoS(100, false, REJECT_INVALID, "bad-qc-quorum-hash");
+                }
+                // Check for failed DKG participation by MNs
+                HandleQuorumCommitment(pl.commitment, quorumIndex, newList, debugLogs);
+            }
         }
 
     }
@@ -802,6 +819,26 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
     mnListRet = std::move(newList);
 
     return true;
+}
+
+void CDeterministicMNManager::HandleQuorumCommitment(llmq::CFinalCommitment& qc, const CBlockIndex* pindexQuorum, CDeterministicMNList& mnList, bool debugLogs)
+{
+    // The commitment has already been validated at this point so it's safe to use members of it
+
+    auto members = llmq::utils::GetAllQuorumMembers((Consensus::LLMQType)qc.llmqType, pindexQuorum);
+
+    for (size_t i = 0; i < members.size(); i++) {
+        if (!mnList.HasMN(members[i]->proTxHash)) {
+            continue;
+        }
+        if (!qc.validMembers[i]) {
+            // punish MN for failed DKG participation
+            // The idea is to immediately ban a MN when it fails 2 DKG sessions with only a few blocks in-between
+            // If there were enough blocks between failures, the MN has a chance to recover as he reduces his penalty by 1 for every block
+            // If it however fails 3 times in the timespan of a single payment cycle, it should definitely get banned
+            mnList.PoSePunish(members[i]->proTxHash, mnList.CalcPenalty(66), debugLogs);
+        }
+    }
 }
 
 void CDeterministicMNManager::DecreasePoSePenalties(CDeterministicMNList& mnList)

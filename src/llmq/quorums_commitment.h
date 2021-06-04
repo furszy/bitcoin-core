@@ -8,9 +8,12 @@
 
 #include "bls/bls_wrapper.h"
 #include "consensus/params.h"
-#include "evo/deterministicmns.h"
 
 #include <univalue.h>
+
+class CBlockIndex;
+class CValidationState;
+class CTransaction;
 
 namespace llmq
 {

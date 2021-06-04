@@ -11,6 +11,7 @@
 #include "dbwrapper.h"
 #include "evo/evodb.h"
 #include "evo/providertx.h"
+#include "llmq/quorums_commitment.h"
 #include "saltedhasher.h"
 #include "sync.h"
 
@@ -573,6 +574,7 @@ public:
 
     // the returned list will not contain the correct block hash (we can't know it yet as the coinbase TX is not updated yet)
     bool BuildNewListFromBlock(const CBlock& block, const CBlockIndex* pindexPrev, CValidationState& state, CDeterministicMNList& mnListRet, bool debugLogs);
+    void HandleQuorumCommitment(llmq::CFinalCommitment& qc, const CBlockIndex* pindexQuorum, CDeterministicMNList& mnList, bool debugLogs);
     void DecreasePoSePenalties(CDeterministicMNList& mnList);
 
     // to return a valid list, it must have been built first, so never call it with a block not-yet connected (e.g. from CheckBlock).
