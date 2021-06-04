@@ -29,9 +29,87 @@ CQuorumBlockProcessor::CQuorumBlockProcessor(CEvoDB &_evoDb) :
     //utils::InitQuorumsCache(mapHasMinedCommitmentCache);
 }
 
+template<typename... Args>
+static void SetMisbehaving(CNode* pfrom, int nDos, const char* fmt, const Args&... args)
+{
+    LOCK(cs_main);
+    // !TODO: Add log category for LLMQ stuff
+    try {
+        LogPrintf("Invalid QFCOMMITMENT message from peer=%d (reason: %s)\n",
+                pfrom->GetId(), tfm::format(fmt, args...));
+    } catch (tinyformat::format_error &e) {
+        LogPrintf("Error (%s) while formatting message %s\n", std::string(e.what()), fmt);
+    }
+    if (nDos > 0) {
+        Misbehaving(pfrom->GetId(), nDos);
+    }
+}
+
 void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
 {
-    // !TODO
+    AssertLockNotHeld(cs_main);
+    CFinalCommitment qc;
+    vRecv >> qc;
+
+    if (qc.IsNull()) {
+        SetMisbehaving(pfrom, 100, "null commitment");
+        return;
+    }
+    if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)qc.llmqType)) {
+        SetMisbehaving(pfrom, 100, "invalid commitment type %d", qc.llmqType);
+        return;
+    }
+
+    auto type = (Consensus::LLMQType)qc.llmqType;
+    const auto& llmq_params = Params().GetConsensus().llmqs.at(type);
+
+    // Verify that quorumHash is part of the active chain and that it's the first block in the DKG interval
+    const CBlockIndex* pquorumIndex;
+    {
+        LOCK(cs_main);
+        auto it = mapBlockIndex.find(qc.quorumHash);
+        if (it == mapBlockIndex.end()) {
+            // can't really punish the node here, as we might simply be the one that is on the wrong chain or not
+            // fully synced
+            SetMisbehaving(pfrom, 0, "unknown block %s", qc.quorumHash.ToString());
+            return;
+        }
+        pquorumIndex = it->second;
+        if (chainActive.Tip()->GetAncestor(pquorumIndex->nHeight) != pquorumIndex) {
+            // same, can't punish
+            SetMisbehaving(pfrom, 0, "block %s not in active chain", qc.quorumHash.ToString());
+            return;
+        }
+        int quorumHeight = pquorumIndex->nHeight - (pquorumIndex->nHeight % llmq_params.dkgInterval);
+        if (quorumHeight != pquorumIndex->nHeight) {
+            SetMisbehaving(pfrom, 100, "block %s is not the first in the DKG interval", qc.quorumHash.ToString());
+            return;
+        }
+    }
+    {
+        // Check if we already got a better one locally
+        // We do this before verifying the commitment to avoid DoS
+        LOCK(minableCommitmentsCs);
+        auto k = std::make_pair(type, qc.quorumHash);
+        auto it = minableCommitmentsByQuorum.find(k);
+        if (it != minableCommitmentsByQuorum.end()) {
+            auto jt = minableCommitments.find(it->second);
+            if (jt != minableCommitments.end()) {
+                if (jt->second.CountSigners() <= qc.CountSigners()) {
+                    return;
+                }
+            }
+        }
+    }
+    if (!qc.Verify(pquorumIndex, true)) {
+        SetMisbehaving(pfrom, 100, "invalid commtiment for quorum", qc.quorumHash.ToString());
+        return;
+    }
+
+    LogPrintf("%s :received commitment for quorum %s:%d, validMembers=%d, signers=%d, peer=%d\n", __func__,
+              qc.quorumHash.ToString(), qc.llmqType, qc.CountValidMembers(), qc.CountSigners(), pfrom->GetId());
+
+    AddMinableCommitment(qc);
 }
 
 bool CQuorumBlockProcessor::ProcessBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck)
@@ -355,13 +433,11 @@ void CQuorumBlockProcessor::AddMinableCommitment(const CFinalCommitment& fqc)
         }
     }
 
-    // We only relay the new commitment if it's new or better then the old one (!TODO)
-    /*
+    // We only relay the new commitment if it's new or better then the old one
     if (relay) {
         CInv inv(MSG_QUORUM_FINAL_COMMITMENT, commitmentHash);
         g_connman->RelayInv(inv);
     }
-    */
 }
 
 bool CQuorumBlockProcessor::GetMinableCommitmentByHash(const uint256& commitmentHash, llmq::CFinalCommitment& ret)
