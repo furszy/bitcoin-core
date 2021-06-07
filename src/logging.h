@@ -1,6 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2018 The Bitcoin developers
-// Copyright (c) 2015-2020 The PIVX developers
+// Copyright (c) 2018-2021 The Dash Core developers
+// Copyright (c) 2015-2022 The PIVX developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,8 +9,8 @@
  * Server/client environment: argument handling, config file parsing,
  * logging, thread wrappers
  */
-#ifndef BITCOIN_LOGGING_H
-#define BITCOIN_LOGGING_H
+#ifndef PIVX_LOGGING_H
+#define PIVX_LOGGING_H
 
 #include "fs.h"
 #include "tinyformat.h"
@@ -64,6 +65,7 @@ namespace BCLog {
         VALIDATION  = (1 << 24),
         LLMQ        = (1 << 25),
         NET_MN      = (1 << 26),
+        DKG         = (1 << 27),
         ALL         = ~(uint32_t)0,
     };
 
@@ -163,4 +165,28 @@ static inline void LogPrintf(const char* fmt, const Args&... args)
     }                                                                               \
 } while(0)
 
-#endif // BITCOIN_LOGGING_H
+/// PIVX
+
+class CBatchedLogger
+{
+private:
+    BCLog::Logger* logger;
+    bool accept;
+    std::string header;
+    std::string msg;
+public:
+    CBatchedLogger(BCLog::Logger* _logger, BCLog::LogFlags _category, const std::string& _header);
+    virtual ~CBatchedLogger();
+    void Flush();
+
+    template<typename... Args>
+    void Batch(const std::string& fmt, const Args&... args)
+    {
+        if (!accept) {
+            return;
+        }
+        msg += "    " + strprintf(fmt, args...) + "\n";
+    }
+};
+
+#endif // PIVX_LOGGING_H
