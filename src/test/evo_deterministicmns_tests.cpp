@@ -1012,16 +1012,9 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
         llmq::quorumBlockProcessor->ProcessMessage(&dummyNode, vRecv);
     }
     BOOST_CHECK(qfc.CountSigners() > qfc2.CountSigners());
-    // final commitment received, accepted, and replaced the previous one (with less memebers) ?
-    /*
-    TODO: this test is currently failing.
-    It has been introduced with the specific purpose of triggering this bug in Dash code:
-    when processing final quorum commitments we should skip the message if we have a better one locally,
-    but instead we skip the message if we have a commitment to the same hash but with LESS signatures.
-    The next commit fixes it.
 
+    // final commitment received, accepted, and replaced the previous one (with less memebers)
     BOOST_CHECK(llmq::quorumBlockProcessor->HasMinableCommitment(::SerializeHash(qfc)));
-    */
 
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_V6_0, Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT);
 }

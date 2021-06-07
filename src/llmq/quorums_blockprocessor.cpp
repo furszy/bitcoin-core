@@ -95,7 +95,7 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
         if (it != minableCommitmentsByQuorum.end()) {
             auto jt = minableCommitments.find(it->second);
             if (jt != minableCommitments.end()) {
-                if (jt->second.CountSigners() <= qc.CountSigners()) {
+                if (jt->second.CountSigners() > qc.CountSigners()) {
                     return;
                 }
             }
