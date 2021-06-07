@@ -163,6 +163,7 @@ BITCOIN_CORE_H = \
   clientversion.h \
   coincontrol.h \
   coins.h \
+  cxxtimer.hpp \
   compat.h \
   compat/byteswap.h \
   compat/cpuid.h \
