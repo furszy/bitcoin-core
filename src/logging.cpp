@@ -124,6 +124,7 @@ const CLogCategoryDesc LogCategories[] = {
         {BCLog::VALIDATION,     "validation"},
         {BCLog::LLMQ,           "llmq"},
         {BCLog::NET_MN,         "net_mn"},
+        {BCLog::DKG,            "dkg"},
         {BCLog::ALL,            "1"},
         {BCLog::ALL,            "all"},
 };
@@ -259,4 +260,28 @@ void BCLog::Logger::ShrinkDebugFile()
         }
     } else if (file != NULL)
         fclose(file);
+}
+
+/// PIVX
+
+CBatchedLogger::CBatchedLogger(BCLog::Logger* _logger, BCLog::LogFlags _category, const std::string& _header) :
+    logger(_logger),
+    accept(LogAcceptCategory(_category)),
+    header(_header)
+{}
+
+CBatchedLogger::~CBatchedLogger()
+{
+    Flush();
+}
+
+void CBatchedLogger::Flush()
+{
+    if (!accept || msg.empty()) {
+        return;
+    }
+    if (logger && logger->Enabled()) {
+        logger->LogPrintStr(strprintf("%s:\n%s", header, msg));
+    msg.clear();
+    }
 }
