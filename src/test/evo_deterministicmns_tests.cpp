@@ -7,8 +7,12 @@
 
 #include "blockassembler.h"
 #include "consensus/merkle.h"
+#include "consensus/params.h"
 #include "evo/specialtx_validation.h"
 #include "evo/deterministicmns.h"
+#include "llmq/quorums_blockprocessor.h"
+#include "llmq/quorums_commitment.h"
+#include "llmq/quorums_utils.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
 #include "messagesigner.h"
@@ -904,6 +908,225 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         BOOST_CHECK(dmn->IsPoSeBanned());
         BOOST_CHECK_EQUAL(dmn->pdmnState->nPoSeBanHeight, nHeight);
     }
+
+    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_V6_0, Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT);
+}
+
+// Dummy commitment where the DKG shares are replaced with the operator keys of each member.
+// members at index skeys.size(), ..., llmqType.size - 1 are invalid
+static llmq::CFinalCommitment CreateFinalCommitment(std::vector<CBLSPublicKey>& pkeys,
+                                                    std::vector<CBLSSecretKey>& skeys,
+                                                    const uint256& quorumHash)
+{
+    size_t m = skeys.size();
+    BOOST_ASSERT(pkeys.size() == m);
+
+    llmq::CFinalCommitment qfl;
+    qfl.llmqType = (uint8_t)Consensus::LLMQ_TEST;
+    const auto& params = Params().GetConsensus().llmqs.at(Consensus::LLMQ_TEST);
+    BOOST_ASSERT(m <= (size_t) params.size);    // m-of-n
+
+    // non-included members are marked invalid
+    qfl.signers.resize(params.size);
+    qfl.validMembers.resize(params.size);
+    for (size_t i = 0; i < (size_t) params.size; i++) {
+        qfl.signers[i] = i < m;
+        qfl.validMembers[i] = i < m;
+    }
+
+    qfl.quorumHash = quorumHash;
+
+    // create dummy quorum keys, just aggregating operator BLS keys
+    qfl.quorumPublicKey = CBLSPublicKey::AggregateInsecure(pkeys);
+
+    // use dummy non-null verification vector hash
+    qfl.quorumVvecHash = UINT256_ONE;
+
+    // add signatures
+    const uint256& commitmentHash = llmq::utils::BuildCommitmentHash((Consensus::LLMQType)qfl.llmqType, quorumHash, qfl.validMembers, qfl.quorumPublicKey, qfl.quorumVvecHash);
+    std::vector<CBLSSignature> sigs;
+    for (size_t i = 0; i < m; i++) {
+        sigs.emplace_back(skeys[i].Sign(commitmentHash));
+    }
+    qfl.membersSig = CBLSSignature::AggregateSecure(sigs, pkeys, commitmentHash);
+    qfl.quorumSig = CBLSSecretKey::AggregateInsecure(skeys).Sign(commitmentHash);
+
+    return qfl;
+}
+
+CService ip(uint32_t i)
+{
+    struct in_addr s;
+    s.s_addr = i;
+    return CService(CNetAddr(s), Params().GetDefaultPort());
+}
+
+static NodeId id = 0;
+
+BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
+{
+    auto utxos = BuildSimpleUtxoMap(coinbaseTxns);
+
+    CBlockIndex* chainTip = chainActive.Tip();
+    int nHeight = chainTip->nHeight;
+    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_V6_0, nHeight + 2);
+
+    // load empty list (last block before enforcement)
+    CreateAndProcessBlock({}, coinbaseKey);
+    chainTip = chainActive.Tip();
+    BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+
+    // force mnsync complete and enable spork 8
+    masternodeSync.RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
+    int64_t nTime = GetTime() - 10;
+    const CSporkMessage& sporkMnPayment = CSporkMessage(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT, nTime + 1, nTime);
+    sporkManager.AddOrUpdateSporkMessage(sporkMnPayment);
+    BOOST_CHECK(sporkManager.IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT));
+
+    int port = 1;
+
+    std::vector<uint256> dmnHashes;
+    std::map<uint256, CKey> ownerKeys;
+    std::map<uint256, CBLSSecretKey> operatorKeys;
+
+    // register one MN per block
+    for (size_t i = 0; i < 6; i++) {
+        const CKey& ownerKey = GetRandomKey();
+        const CBLSSecretKey& operatorKey = GetRandomBLSKey();
+        auto tx = CreateProRegTx(nullopt, utxos, port++, GenerateRandomAddress(), coinbaseKey, ownerKey, operatorKey.GetPublicKey());
+        const uint256& txid = tx.GetHash();
+        dmnHashes.emplace_back(txid);
+        ownerKeys.emplace(txid, ownerKey);
+        operatorKeys.emplace(txid, operatorKey);
+        CreateAndProcessBlock({tx}, coinbaseKey);
+        chainTip = chainActive.Tip();
+        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+        BOOST_CHECK(deterministicMNManager->GetListAtChainTip().HasMN(txid));
+    }
+
+    // enable SPORK_21
+    const CSporkMessage& spork = CSporkMessage(SPORK_21_LEGACY_MNS_MAX_HEIGHT, nHeight, GetTime());
+    sporkManager.AddOrUpdateSporkMessage(spork);
+    BOOST_CHECK(deterministicMNManager->LegacyMNObsolete(nHeight + 1));
+
+    // Mine 20 blocks
+    for (size_t i = 0; i < 20; i++) {
+        CreateAndProcessBlock({}, coinbaseKey);
+        chainTip = chainActive.Tip();
+        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+    }
+
+    BOOST_CHECK_EQUAL(nHeight, 427);
+    // dkg starts at 420
+    auto& params = Params().GetConsensus().llmqs.at(Consensus::LLMQ_TEST);
+    uint256 quorumHash = chainActive[nHeight - (nHeight % params.dkgInterval)]->GetBlockHash();
+    const CBlockIndex* quorumIndex = mapBlockIndex.at(quorumHash);
+
+    // get quorum mns
+    auto members = llmq::utils::GetAllQuorumMembers(Consensus::LLMQ_TEST, quorumIndex);
+    std::vector<CBLSPublicKey> pkeys;
+    std::vector<CBLSSecretKey> skeys;
+    for (size_t i = 0; i < members.size()-1; i++) {             // all, except the last one...
+        pkeys.emplace_back(members[i]->pdmnState->pubKeyOperator.Get());
+        skeys.emplace_back(operatorKeys.at(members[i]->proTxHash));
+    }
+    const uint256& invalidmn_proTx = members.back()->proTxHash; // ...which must be punished.
+
+    // create final commitment
+    llmq::CFinalCommitment qfc = CreateFinalCommitment(pkeys, skeys, quorumHash);
+    BOOST_CHECK(!qfc.IsNull());
+    BOOST_CHECK(qfc.Verify(quorumIndex, true));
+    // verify that it fails against a different quorumHash
+    SyncWithValidationInterfaceQueue();
+    BOOST_CHECK(!qfc.Verify(quorumIndex->pprev, true));
+
+    // receive final commitment message
+    CNode dummyNode(id++, NODE_NETWORK, 0, INVALID_SOCKET, CAddress(ip(0xa0b0c001), NODE_NONE), 0, 0, "", true);
+    {
+        CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
+        vRecv << qfc;
+        llmq::quorumBlockProcessor->ProcessMessage(&dummyNode, vRecv);
+    }
+    BOOST_CHECK(llmq::quorumBlockProcessor->HasMinableCommitment(::SerializeHash(qfc)));
+
+    // mine final commitment (at block 450)
+    for (size_t i = 0; i < 23; i++) {
+        CreateAndProcessBlock({}, coinbaseKey);
+        chainTip = chainActive.Tip();
+        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+    }
+    BOOST_CHECK_EQUAL(nHeight, 450);
+
+    // final commitment has been mined
+    llmq::CFinalCommitment ret;
+    uint256 retMinedBlockHash;
+    BOOST_CHECK(llmq::quorumBlockProcessor->GetMinedCommitment(Consensus::LLMQ_TEST, quorumHash, ret, retMinedBlockHash));
+    BOOST_CHECK(chainTip->GetBlockHash() == retMinedBlockHash);
+    BOOST_CHECK(qfc.quorumPublicKey == ret.quorumPublicKey);
+    BOOST_CHECK(qfc.quorumVvecHash == ret.quorumVvecHash);
+    BOOST_CHECK(qfc.quorumSig == ret.quorumSig);
+    BOOST_CHECK(qfc.membersSig == ret.membersSig);
+
+    // non-participating mn has been punished
+    auto punished_mn = deterministicMNManager->GetListAtChainTip().GetMN(invalidmn_proTx);
+    BOOST_CHECK_EQUAL(punished_mn->pdmnState->nPoSePenalty, 66);
+
+    // penalty is decreased each block
+    CreateAndProcessBlock({}, coinbaseKey);
+    chainTip = chainActive.Tip();
+    BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+    punished_mn = deterministicMNManager->GetListAtChainTip().GetMN(invalidmn_proTx);
+    BOOST_CHECK_EQUAL(punished_mn->pdmnState->nPoSePenalty, 65);
+
+    // New DKG starts at block 480. Mine till block 481 and create another valid 2-of-3 commitment
+    for (size_t i = 0; i < 30; i++) {
+        CreateAndProcessBlock({}, coinbaseKey);
+        chainTip = chainActive.Tip();
+        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+    }
+    BOOST_CHECK_EQUAL(nHeight, 481);
+    quorumHash = chainActive[nHeight - (nHeight % params.dkgInterval)]->GetBlockHash();
+    quorumIndex = mapBlockIndex.at(quorumHash);
+    members = llmq::utils::GetAllQuorumMembers(Consensus::LLMQ_TEST, quorumIndex);
+    pkeys.clear();
+    skeys.clear();
+    for (size_t i = 0; i < members.size(); i++) {
+        pkeys.emplace_back(members[i]->pdmnState->pubKeyOperator.Get());
+        skeys.emplace_back(operatorKeys.at(members[i]->proTxHash));
+    }
+    std::vector<CBLSPublicKey> pkeys2(pkeys.begin(), pkeys.end()-1);    // remove the last one.
+    std::vector<CBLSSecretKey> skeys2(skeys.begin(), skeys.end()-1);
+    llmq::CFinalCommitment qfc2 = CreateFinalCommitment(pkeys2, skeys2, quorumHash);
+    BOOST_CHECK(!qfc2.IsNull());
+    BOOST_CHECK(qfc2.Verify(quorumIndex, true));
+    {
+        CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
+        vRecv << qfc2;
+        llmq::quorumBlockProcessor->ProcessMessage(&dummyNode, vRecv);
+    }
+    // final commitment received and accepted
+    BOOST_CHECK(llmq::quorumBlockProcessor->HasMinableCommitment(::SerializeHash(qfc2)));
+
+    // Now receive another commitment for the same quorum hash, but with all 3 signatures
+    qfc = CreateFinalCommitment(pkeys, skeys, quorumHash);
+    BOOST_CHECK(!qfc.IsNull());
+    BOOST_CHECK(qfc.Verify(quorumIndex, true));
+    {
+        CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
+        vRecv << qfc;
+        llmq::quorumBlockProcessor->ProcessMessage(&dummyNode, vRecv);
+    }
+    BOOST_CHECK(qfc.CountSigners() > qfc2.CountSigners());
+    // final commitment received, accepted, and replaced the previous one (with less memebers) ?
+    /*
+    TODO: this test is currently failing.
+    It has been introduced with the specific purpose of triggering this bug in Dash code:
+    when processing final quorum commitments we should skip the message if we have a better one locally,
+    but instead we skip the message if we have a commitment to the same hash but with LESS signatures.
+    The next commit fixes it.
+
+    BOOST_CHECK(llmq::quorumBlockProcessor->HasMinableCommitment(::SerializeHash(qfc)));
+    */
 
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_V6_0, Consensus::NetworkUpgrade::NO_ACTIVATION_HEIGHT);
 }
