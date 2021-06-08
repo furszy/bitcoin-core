@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2015 The Bitcoin developers
-// Copyright (c) 2014-2015 The Dash developers
-// Copyright (c) 2016-2020 The PIVX developers
+// Copyright (c) 2014-2021 The Dash Core developers
+// Copyright (c) 2016-2022 The PIVX developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -286,6 +286,13 @@ extern const char* QSENDRECSIGS;
  * The mnauth message is used authenticate MN connections
  */
 extern const char* MNAUTH;
+/*
+ * Messages for LLMQ-DKG inter-quorum communication
+ */
+extern const char* QCONTRIB;
+extern const char* QCOMPLAINT;
+extern const char* QJUSTIFICATION;
+extern const char* QPCOMMITMENT;
 }; // namespace NetMsgType
 
 /* Get a vector of all valid message types (see above) */
@@ -439,7 +446,11 @@ enum GetDataMsg
     MSG_MASTERNODE_PING,
     MSG_DSTX,               // Deprecated
     MSG_QUORUM_FINAL_COMMITMENT,
-    MSG_TYPE_MAX = MSG_QUORUM_FINAL_COMMITMENT
+    MSG_QUORUM_CONTRIB,
+    MSG_QUORUM_COMPLAINT,
+    MSG_QUORUM_JUSTIFICATION,
+    MSG_QUORUM_PREMATURE_COMMITMENT,
+    MSG_TYPE_MAX = MSG_QUORUM_PREMATURE_COMMITMENT
 };
 
 /** inv message data */
