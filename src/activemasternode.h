@@ -1,5 +1,5 @@
-// Copyright (c) 2014-2016 The Dash developers
-// Copyright (c) 2015-2020 The PIVX developers
+// Copyright (c) 2014-2021 The Dash Core developers
+// Copyright (c) 2015-2022 The PIVX developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -62,7 +62,10 @@ public:
     // If the active masternode is ready, and the keyID matches with the registered one,
     // return private key, keyID, and pointer to dmn.
     OperationResult GetOperatorKey(CBLSSecretKey& key, CDeterministicMNCPtr& dmn) const;
+    // Directly return the operator secret key saved in the manager, without performing any validation
+    const CBLSSecretKey* OperatorKey() const { return &info.keyOperator; }
     void SetNullProTx() { info.proTxHash = UINT256_ZERO; }
+    const uint256 GetProTx() const { return info.proTxHash; }
 
     const CActiveMasternodeInfo* GetInfo() const { return &info; }
     masternode_state_t GetState() const { return state; }
