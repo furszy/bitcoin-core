@@ -66,7 +66,7 @@ void CBLSWorker::Start()
     workerCount = std::max(std::min(1, workerCount), 4);
     workerPool.resize(workerCount);
 
-    RenameThreadPool(workerPool, "bls-worker");
+    RenameThreadPool(workerPool, "pivx-bls-worker");
 }
 
 void CBLSWorker::Stop()
