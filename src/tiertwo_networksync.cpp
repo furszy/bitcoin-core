@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The PIVX developers
+// Copyright (c) 2020-2022 The PIVX developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
@@ -57,6 +57,14 @@ bool CMasternodeSync::MessageDispatcher(CNode* pfrom, std::string& strCommand, C
             WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), retMisbehavingScore));
         }
         return true;
+    }
+
+    if (strCommand == NetMsgType::QCONTRIB
+        || strCommand == NetMsgType::QCOMPLAINT
+        || strCommand == NetMsgType::QJUSTIFICATION
+        || strCommand == NetMsgType::QPCOMMITMENT) {
+        // !TODO
+        return false;
     }
 
     if (strCommand == NetMsgType::GETMNLIST) {

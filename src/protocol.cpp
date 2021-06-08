@@ -1,7 +1,7 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2014 The Bitcoin developers
-// Copyright (c) 2014-2015 The Dash developers
-// Copyright (c) 2017-2020 The PIVX developers
+// Copyright (c) 2014-2021 The Dash Core developers
+// Copyright (c) 2017-2022 The PIVX developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -56,7 +56,12 @@ const char* GETMNLIST = "dseg";
 const char* QFCOMMITMENT = "qfcommit";
 const char* QSENDRECSIGS = "qsendrecsigs";
 const char* MNAUTH = "mnauth";
+const char* QCONTRIB = "qcontrib";
+const char* QCOMPLAINT = "qcomplaint";
+const char* QJUSTIFICATION = "qjustify";
+const char* QPCOMMITMENT = "qpcommit";
 }; // namespace NetMsgType
+
 
 /** All known message types. Keep this in the same order as the list of
  * messages above and in protocol.h.
@@ -107,7 +112,11 @@ const static std::string allNetMessageTypes[] = {
     NetMsgType::MNBROADCAST2,
     NetMsgType::QFCOMMITMENT,
     NetMsgType::QSENDRECSIGS,
-    NetMsgType::MNAUTH
+    NetMsgType::MNAUTH,
+    NetMsgType::QCONTRIB,
+    NetMsgType::QCOMPLAINT,
+    NetMsgType::QJUSTIFICATION,
+    NetMsgType::QPCOMMITMENT
 };
 const static std::vector<std::string> allNetMessageTypesVec(allNetMessageTypes, allNetMessageTypes + ARRAYLEN(allNetMessageTypes));
 const static std::vector<std::string> tiertwoNetMessageTypesVec(std::find(allNetMessageTypesVec.begin(), allNetMessageTypesVec.end(), NetMsgType::SPORK), allNetMessageTypesVec.end());
@@ -207,6 +216,10 @@ std::string CInv::GetCommand() const
         case MSG_MASTERNODE_PING: return cmd.append(NetMsgType::MNPING);
         case MSG_DSTX: return cmd.append("dstx"); // Deprecated
         case MSG_QUORUM_FINAL_COMMITMENT: return cmd.append(NetMsgType::QFCOMMITMENT);
+        case MSG_QUORUM_CONTRIB: return cmd.append(NetMsgType::QCONTRIB);
+        case MSG_QUORUM_COMPLAINT: return cmd.append(NetMsgType::QCOMPLAINT);
+        case MSG_QUORUM_JUSTIFICATION: return cmd.append(NetMsgType::QJUSTIFICATION);
+        case MSG_QUORUM_PREMATURE_COMMITMENT: return cmd.append(NetMsgType::QPCOMMITMENT);
         default:
             throw std::out_of_range(strprintf("%s: type=%d unknown type", __func__, type));
     }
