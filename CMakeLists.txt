@@ -169,6 +169,8 @@ file(GLOB ZRUST_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/rust/include/*.h)
 file(GLOB SAPLING_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/sapling/*.h)
 file(GLOB IMMER_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/immer/*.h)
 file(GLOB EVO_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/evo/*.h)
+file(GLOB BLS_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/bls/*.h)
+file(GLOB LLMQ_HEADERS ${CMAKE_CURRENT_SOURCE_DIR}/src/llmq/*.h)
 
 source_group("BitcoinHeaders" FILES
         ${HEADERS}
@@ -184,6 +186,8 @@ source_group("BitcoinHeaders" FILES
         ${SAPLING_HEADERS}
         ${IMMER_HEADERS}
         ${EVO_HEADERS}
+        ${BLS_HEADERS}
+        ${LLMQ_HEADERS}
         ./src/support/cleanse.h
         ./src/support/events.h
         )
@@ -193,9 +197,6 @@ set(SERVER_SOURCES
         ./src/addrman.cpp
         ./src/bloom.cpp
         ./src/blocksignature.cpp
-        ./src/bls/bls_ies.cpp
-        ./src/bls/bls_worker.cpp
-        ./src/bls/bls_wrapper.cpp
         ./src/chain.cpp
         ./src/checkpoints.cpp
         ./src/consensus/tx_verify.cpp
@@ -367,6 +368,9 @@ set(COMMON_SOURCES
         ./src/activemasternode.cpp
         ./src/base58.cpp
         ./src/bip38.cpp
+        ./src/bls/bls_ies.cpp
+        ./src/bls/bls_worker.cpp
+        ./src/bls/bls_wrapper.cpp
         ./src/budget/budgetdb.cpp
         ./src/budget/budgetmanager.cpp
         ./src/budget/budgetproposal.cpp
