@@ -418,6 +418,7 @@ set(COMMON_SOURCES
         ./src/evo/specialtx_validation.cpp
         ./src/llmq/quorums_blockprocessor.cpp
         ./src/llmq/quorums_commitment.cpp
+        ./src/llmq/quorums_debug.cpp
         ./src/llmq/quorums_dkgsessionhandler.cpp
         ./src/llmq/quorums_dkgsessionmgr.cpp
         ./src/llmq/quorums_dkgsession.cpp
