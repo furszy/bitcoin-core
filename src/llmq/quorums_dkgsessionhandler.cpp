@@ -8,6 +8,7 @@
 #include "activemasternode.h"
 #include "chainparams.h"
 #include "llmq/quorums_blockprocessor.h"
+#include "llmq/quorums_debug.h"
 #include "llmq/quorums_init.h"
 #include "llmq/quorums_utils.h"
 #include "net_processing.h"
@@ -203,7 +204,15 @@ void CDKGSessionHandler::WaitForNextPhase(QuorumPhase curPhase,
         }
     }
 
-    // !TODO: reset/update local session status
+    if (nextPhase == QuorumPhase_Initialized) {
+        quorumDKGDebugManager->ResetLocalSessionStatus(params.type);
+    } else {
+        quorumDKGDebugManager->UpdateLocalSessionStatus(params.type, [&](CDKGDebugSessionStatus& status) {
+            bool changed = status.phase != (uint8_t) nextPhase;
+            status.phase = (uint8_t) nextPhase;
+            return changed;
+        });
+    }
 
     LogPrint(BCLog::DKG, "CDKGSessionHandler::%s -- %s - done, curPhase=%d, nextPhase=%d\n", __func__, params.name, curPhase, nextPhase);
 
@@ -513,6 +522,12 @@ void CDKGSessionHandler::HandleDKGRound()
         throw AbortPhaseException();
     }
 
+    quorumDKGDebugManager->UpdateLocalSessionStatus(params.type, [&](CDKGDebugSessionStatus& status) {
+        bool changed = status.phase != (uint8_t) QuorumPhase_Initialized;
+        status.phase = (uint8_t) QuorumPhase_Initialized;
+        return changed;
+    });
+
     /* TODO
     if (curSession->AreWeMember()) {
         utils::EnsureQuorumConnections(params.type, pindexQuorum, curSession->myProTxHash);
@@ -569,6 +584,10 @@ void CDKGSessionHandler::PhaseHandlerThread()
         try {
             HandleDKGRound();
         } catch (AbortPhaseException& e) {
+            quorumDKGDebugManager->UpdateLocalSessionStatus(params.type, [&](CDKGDebugSessionStatus& status) {
+                status.aborted = true;
+                return true;
+            });
             LogPrintf("CDKGSessionHandler::%s -- aborted current DKG session\n", __func__);
         }
     }
