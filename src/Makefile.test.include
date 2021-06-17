@@ -76,7 +76,9 @@ BITCOIN_TEST_SUITE = \
   test/librust/sapling_test_fixture.h \
   test/librust/sapling_test_fixture.cpp \
   test/librust/utiltest.h \
-  test/librust/utiltest.cpp
+  test/librust/utiltest.cpp \
+  test/util/blocksutil.h \
+  test/util/blocksutil.cpp
 
 if ENABLE_WALLET
 BITCOIN_TEST_SUITE += \

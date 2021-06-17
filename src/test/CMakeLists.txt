@@ -68,6 +68,7 @@ set(BITCOIN_TESTS
         ${CMAKE_CURRENT_SOURCE_DIR}/arith_uint256_tests.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/addrman_tests.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/allocator_tests.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/util/blocksutil.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/evo_specialtx_tests.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/librust/libsapling_utils_tests.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/librust/sapling_key_tests.cpp

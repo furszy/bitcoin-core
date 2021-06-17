@@ -66,17 +66,6 @@ std::shared_ptr<CBlock> Block(const uint256& prev_hash)
     return pblock;
 }
 
-std::shared_ptr<CBlock> FinalizeBlock(std::shared_ptr<CBlock> pblock)
-{
-    pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
-
-    while (!CheckProofOfWork(pblock->GetHash(), pblock->nBits)) {
-        ++(pblock->nNonce);
-    }
-
-    return pblock;
-}
-
 // construct a valid block
 const std::shared_ptr<const CBlock> GoodBlock(const uint256& prev_hash)
 {

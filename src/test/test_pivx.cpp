@@ -8,6 +8,7 @@
 #include "test/test_pivx.h"
 
 #include "blockassembler.h"
+#include "consensus/merkle.h"
 #include "guiinterface.h"
 #include "evo/deterministicmns.h"
 #include "evo/evodb.h"
@@ -188,6 +189,13 @@ CBlock TestChainSetup::CreateBlock(const std::vector<CMutableTransaction>& txns,
 {
     CScript scriptPubKey = CScript() <<  ToByteVector(scriptKey.GetPubKey()) << OP_CHECKSIG;
     return CreateBlock(txns, scriptPubKey);
+}
+
+std::shared_ptr<CBlock> FinalizeBlock(std::shared_ptr<CBlock> pblock)
+{
+    pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
+    while (!CheckProofOfWork(pblock->GetHash(), pblock->nBits)) { ++(pblock->nNonce); }
+    return pblock;
 }
 
 TestChainSetup::~TestChainSetup()

@@ -63,10 +63,18 @@ struct TestingSetup: public BasicTestingSetup
     ~TestingSetup();
 };
 
+struct TestnetSetup : public TestingSetup
+{
+    TestnetSetup() : TestingSetup(CBaseChainParams::TESTNET) {}
+};
+
 struct RegTestingSetup : public TestingSetup
 {
     RegTestingSetup() : TestingSetup(CBaseChainParams::REGTEST) {}
 };
+
+// Helper to finalize a modified PoW block.
+std::shared_ptr<CBlock> FinalizeBlock(std::shared_ptr<CBlock> pblock);
 
 class CBlock;
 struct CMutableTransaction;

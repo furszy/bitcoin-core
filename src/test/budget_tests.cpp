@@ -4,6 +4,7 @@
 
 #include "test_pivx.h"
 
+#include "test/util/blocksutil.h"
 #include "budget/budgetmanager.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
@@ -14,8 +15,7 @@
 
 #include <boost/test/unit_test.hpp>
 
-
-BOOST_FIXTURE_TEST_SUITE(budget_tests, TestingSetup)
+BOOST_AUTO_TEST_SUITE(budget_tests)
 
 void CheckBudgetValue(int nHeight, std::string strNetwork, CAmount nExpectedValue)
 {
@@ -23,6 +23,22 @@ void CheckBudgetValue(int nHeight, std::string strNetwork, CAmount nExpectedValu
     CAmount nBudget = g_budgetman.GetTotalBudget(nHeight);
     std::string strError = strprintf("Budget is not as expected for %s. Result: %s, Expected: %s", strNetwork, FormatMoney(nBudget), FormatMoney(nExpectedValue));
     BOOST_CHECK_MESSAGE(nBudget == nExpectedValue, strError);
+}
+
+void enableMnSyncAndSuperblocksPayment()
+{
+    // force mnsync complete
+    masternodeSync.RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
+
+    // enable SPORK_13
+    int64_t nTime = GetTime() - 10;
+    CSporkMessage spork(SPORK_13_ENABLE_SUPERBLOCKS, nTime + 1, nTime);
+    sporkManager.AddOrUpdateSporkMessage(spork);
+    BOOST_CHECK(sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS));
+
+    spork = CSporkMessage(SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT, nTime + 1, nTime);
+    sporkManager.AddOrUpdateSporkMessage(spork);
+    BOOST_CHECK(sporkManager.IsSporkActive(SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT));
 }
 
 BOOST_AUTO_TEST_CASE(budget_value)
@@ -37,22 +53,11 @@ BOOST_AUTO_TEST_CASE(budget_value)
     CheckBudgetValue(nHeightTest, "mainnet", 43200*COIN);
 }
 
-BOOST_AUTO_TEST_CASE(block_value)
+BOOST_FIXTURE_TEST_CASE(block_value, TestnetSetup)
 {
-    SelectParams(CBaseChainParams::TESTNET);
-    std::string strError;
-
-    // force mnsync complete
-    masternodeSync.RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
-
-    // enable SPORK_13
-    int64_t nTime = GetTime() - 10;
-    const CSporkMessage& spork = CSporkMessage(SPORK_13_ENABLE_SUPERBLOCKS, nTime + 1, nTime);
-    sporkManager.AddOrUpdateSporkMessage(spork);
-    BOOST_CHECK(sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS));
-
+    enableMnSyncAndSuperblocksPayment();
     // regular block
-    int nHeight = 100;
+    int nHeight = 100; std::string strError;
     const CAmount nBlockReward = GetBlockValue(nHeight);
     CAmount nExpectedRet = nBlockReward;
     CAmount nBudgetAmtRet = 0;
@@ -101,7 +106,7 @@ BOOST_AUTO_TEST_CASE(block_value)
     BOOST_CHECK_EQUAL(nBudgetAmtRet, propAmt);
 
     // disable SPORK_13
-    const CSporkMessage& spork2 = CSporkMessage(SPORK_13_ENABLE_SUPERBLOCKS, 4070908800ULL, nTime + 1);
+    const CSporkMessage& spork2 = CSporkMessage(SPORK_13_ENABLE_SUPERBLOCKS, 4070908800ULL, GetTime());
     sporkManager.AddOrUpdateSporkMessage(spork2);
     BOOST_CHECK(!sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS));
 
@@ -122,6 +127,42 @@ BOOST_AUTO_TEST_CASE(block_value)
     BOOST_CHECK_EQUAL(nBudgetAmtRet, 0);
 }
 
+BOOST_FIXTURE_TEST_CASE(budget_blocks_payee_test, TestChain100Setup)
+{
+    // Regtest superblock is every 144 blocks.
+    for (int i=0; i<43; i++) CreateAndProcessBlock({}, coinbaseKey);
+    enableMnSyncAndSuperblocksPayment();
+    BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height();), 143);
+
+    // Now we are at the superblock height, let's add a proposal to pay.
+    const CTxIn mnVin(GetRandHash(), 0);
+    const CScript payee = GetScriptForDestination(CKeyID(uint160(ParseHex("816115944e077fe7c803cfa57f29b36bf87c1d35"))));
+    const CAmount propAmt = 100 * COIN;
+    const uint256& propHash = GetRandHash(), finTxId = GetRandHash();
+    const CTxBudgetPayment txBudgetPayment(propHash, payee, propAmt);
+    CFinalizedBudget fin("main (test)", 144, {txBudgetPayment}, finTxId);
+    const CFinalizedBudgetVote fvote(mnVin, fin.GetHash());
+    std::string strError;
+    BOOST_CHECK(fin.AddOrUpdateVote(fvote, strError));
+    g_budgetman.ForceAddFinalizedBudget(fin.GetHash(), fin.GetFeeTXHash(), fin);
+
+    CBlock block = CreateBlock({}, coinbaseKey);
+    // Check payee validity:
+    CTxOut payeeOut = block.vtx[0]->vout[1];
+    BOOST_CHECK_EQUAL(payeeOut.nValue, propAmt);
+    BOOST_CHECK(payeeOut.scriptPubKey == payee);
+
+    // Modify payee
+    CMutableTransaction mtx(*block.vtx[0]);
+    mtx.vout[1].scriptPubKey = GetScriptForDestination(CKeyID(uint160(ParseHex("8c988f1a4a4de2161e0f50aac7f17e7f9555caa4"))));
+    block.vtx[0] = MakeTransactionRef(mtx);
+    std::shared_ptr<CBlock> pblock = FinalizeBlock(std::make_shared<CBlock>(block));
+    BOOST_CHECK(block.vtx[0]->vout[1].scriptPubKey != payee);
+
+    // Verify block rejection reason.
+    ProcessBlockAndCheckRejectionReason(pblock, "bad-cb-payee", 143);
+}
+
 static CScript GetRandomP2PKH()
 {
     CKey key;
@@ -138,7 +179,7 @@ static CMutableTransaction NewCoinBase(int nHeight, CAmount cbaseAmt, const CScr
     return tx;
 }
 
-BOOST_AUTO_TEST_CASE(IsCoinbaseValueValid_test)
+BOOST_FIXTURE_TEST_CASE(IsCoinbaseValueValid_test, TestingSetup)
 {
     const CAmount mnAmt = GetMasternodePayment();
     const CScript& cbaseScript = GetRandomP2PKH();
