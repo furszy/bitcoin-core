@@ -80,7 +80,7 @@ bool ProcessBlockFound(const std::shared_ptr<const CBlock>& pblock, CWallet& wal
 
     // Process this block the same as if we had received it from another node
     CValidationState state;
-    if (!ProcessNewBlock(state, nullptr, pblock, nullptr)) {
+    if (!ProcessNewBlock(state, pblock, nullptr)) {
         return error("PIVXMiner : ProcessNewBlock, block not accepted");
     }
 

@@ -153,7 +153,7 @@ CBlock TestChainSetup::CreateAndProcessBlock(const std::vector<CMutableTransacti
 {
     CBlock block = CreateBlock(txns, scriptPubKey, fNoMempoolTx);
     CValidationState state;
-    ProcessNewBlock(state, nullptr, std::make_shared<const CBlock>(block), nullptr);
+    ProcessNewBlock(state, std::make_shared<const CBlock>(block), nullptr);
     return block;
 }
 

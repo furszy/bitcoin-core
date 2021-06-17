@@ -171,7 +171,7 @@ extern CBlockIndex* pindexBestHeader;
  * @param[out]  fAccepted  Whether the block is accepted or not
  * @return True if state.IsValid()
  */
-bool ProcessNewBlock(CValidationState& state, CNode* pfrom, const std::shared_ptr<const CBlock> pblock, FlatFilePos* dbp, bool* fAccepted = nullptr);
+bool ProcessNewBlock(CValidationState& state, const std::shared_ptr<const CBlock> pblock, FlatFilePos* dbp, bool* fAccepted = nullptr);
 
 /** Open a block file (blk?????.dat) */
 FILE* OpenBlockFile(const FlatFilePos& pos, bool fReadOnly = false);

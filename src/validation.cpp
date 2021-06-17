@@ -3368,7 +3368,7 @@ bool AcceptBlock(const CBlock& block, CValidationState& state, CBlockIndex** ppi
     return true;
 }
 
-bool ProcessNewBlock(CValidationState& state, CNode* pfrom, const std::shared_ptr<const CBlock> pblock, FlatFilePos* dbp, bool* fAccepted)
+bool ProcessNewBlock(CValidationState& state, const std::shared_ptr<const CBlock> pblock, FlatFilePos* dbp, bool* fAccepted)
 {
     AssertLockNotHeld(cs_main);
 
@@ -3964,7 +3964,7 @@ bool LoadExternalBlockFile(FILE* fileIn, FlatFilePos* dbp)
                 if (mapBlockIndex.count(hash) == 0 || (mapBlockIndex[hash]->nStatus & BLOCK_HAVE_DATA) == 0) {
                     CValidationState state;
                     std::shared_ptr<const CBlock> block_ptr = std::make_shared<const CBlock>(block);
-                    if (ProcessNewBlock(state, nullptr, block_ptr, dbp))
+                    if (ProcessNewBlock(state, block_ptr, dbp))
                         nLoaded++;
                     if (state.IsError())
                         break;
@@ -3986,7 +3986,7 @@ bool LoadExternalBlockFile(FILE* fileIn, FlatFilePos* dbp)
                                 head.ToString());
                             CValidationState dummy;
                             std::shared_ptr<const CBlock> block_ptr = std::make_shared<const CBlock>(block);
-                            if (ProcessNewBlock(dummy, nullptr, block_ptr, &it->second)) {
+                            if (ProcessNewBlock(dummy, block_ptr, &it->second)) {
                                 nLoaded++;
                                 queue.push_back(block.GetHash());
                             }

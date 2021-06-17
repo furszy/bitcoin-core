@@ -1737,7 +1737,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                     mapBlockSource.emplace(hashBlock, pfrom->GetId());
                 }
                 bool fAccepted = true;
-                ProcessNewBlock(state, pfrom, pblock, nullptr, &fAccepted);
+                ProcessNewBlock(state, pblock, nullptr, &fAccepted);
                 if (!fAccepted) {
                     CheckBlockSpam(state, pfrom, hashBlock);
                 }

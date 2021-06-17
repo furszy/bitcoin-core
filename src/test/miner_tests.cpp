@@ -109,7 +109,7 @@ BOOST_AUTO_TEST_CASE(CreateNewBlock_validity)
         pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
         pblock->nNonce = blockinfo[i].nonce;
         CValidationState state;
-        BOOST_CHECK(ProcessNewBlock(state, nullptr, pblock, nullptr));
+        BOOST_CHECK(ProcessNewBlock(state, pblock, nullptr));
         BOOST_CHECK(state.IsValid());
         SyncWithValidationInterfaceQueue();
         pblock->hashPrevBlock = pblock->GetHash();

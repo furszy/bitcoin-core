@@ -129,7 +129,7 @@ BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
 
     CValidationState state;
     // Connect the genesis block and drain any outstanding events
-    BOOST_CHECK_MESSAGE(ProcessNewBlock(state, nullptr, std::make_shared<CBlock>(Params().GenesisBlock()), nullptr), "Error: genesis not connected");
+    BOOST_CHECK_MESSAGE(ProcessNewBlock(state, std::make_shared<CBlock>(Params().GenesisBlock()), nullptr), "Error: genesis not connected");
     SyncWithValidationInterfaceQueue();
 
     // subscribe to events (this subscriber will validate event ordering)
@@ -146,13 +146,13 @@ BOOST_AUTO_TEST_CASE(processnewblock_signals_ordering)
             CValidationState state;
             for (int i = 0; i < 1000; i++) {
                 auto block = blocks[GetRand(blocks.size() - 1)];
-                ProcessNewBlock(state, nullptr, block, nullptr);
+                ProcessNewBlock(state, block, nullptr);
             }
 
             // to make sure that eventually we process the full chain - do it here
             for (const auto& block : blocks) {
                 if (block->vtx.size() == 1) {
-                    bool processed = ProcessNewBlock(state, nullptr, block, nullptr);
+                    bool processed = ProcessNewBlock(state, block, nullptr);
                     // Future to do: "prevblk-not-found" here is the only valid reason to not check processed flag.
                     if (state.GetRejectReason() == "duplicate" ||
                         state.GetRejectReason() == "prevblk-not-found" ||

@@ -98,7 +98,7 @@ void CheckBlockZcRejection(std::shared_ptr<CBlock>& pblock, int nHeight, CMutabl
     pblock->vtx.emplace_back(MakeTransactionRef(mtx));
     BOOST_CHECK(SolveBlock(pblock, nHeight));
     CValidationState state;
-    BOOST_CHECK(!ProcessNewBlock(state, nullptr, pblock, nullptr));
+    BOOST_CHECK(!ProcessNewBlock(state, pblock, nullptr));
     BOOST_CHECK(!state.IsValid());
     BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-blk-with-zc");
 }
