@@ -4,11 +4,11 @@
 
 #include "test_pivx.h"
 
-#include "test/util/blocksutil.h"
 #include "budget/budgetmanager.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"
 #include "spork.h"
+#include "test/util/blocksutil.h"
 #include "tinyformat.h"
 #include "utilmoneystr.h"
 #include "validation.h"
@@ -127,6 +127,18 @@ BOOST_FIXTURE_TEST_CASE(block_value, TestnetSetup)
     BOOST_CHECK_EQUAL(nBudgetAmtRet, 0);
 }
 
+void forceAddFakeProposal(const CScript& payee, const CAmount propAmt)
+{
+    const CTxIn mnVin(GetRandHash(), 0);
+    const uint256& propHash = GetRandHash(), finTxId = GetRandHash();
+    const CTxBudgetPayment txBudgetPayment(propHash, payee, propAmt);
+    CFinalizedBudget fin("main (test)", 144, {txBudgetPayment}, finTxId);
+    const CFinalizedBudgetVote fvote(mnVin, fin.GetHash());
+    std::string strError;
+    BOOST_CHECK(fin.AddOrUpdateVote(fvote, strError));
+    g_budgetman.ForceAddFinalizedBudget(fin.GetHash(), fin.GetFeeTXHash(), fin);
+}
+
 BOOST_FIXTURE_TEST_CASE(budget_blocks_payee_test, TestChain100Setup)
 {
     // Regtest superblock is every 144 blocks.
@@ -135,16 +147,9 @@ BOOST_FIXTURE_TEST_CASE(budget_blocks_payee_test, TestChain100Setup)
     BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height();), 143);
 
     // Now we are at the superblock height, let's add a proposal to pay.
-    const CTxIn mnVin(GetRandHash(), 0);
     const CScript payee = GetScriptForDestination(CKeyID(uint160(ParseHex("816115944e077fe7c803cfa57f29b36bf87c1d35"))));
     const CAmount propAmt = 100 * COIN;
-    const uint256& propHash = GetRandHash(), finTxId = GetRandHash();
-    const CTxBudgetPayment txBudgetPayment(propHash, payee, propAmt);
-    CFinalizedBudget fin("main (test)", 144, {txBudgetPayment}, finTxId);
-    const CFinalizedBudgetVote fvote(mnVin, fin.GetHash());
-    std::string strError;
-    BOOST_CHECK(fin.AddOrUpdateVote(fvote, strError));
-    g_budgetman.ForceAddFinalizedBudget(fin.GetHash(), fin.GetFeeTXHash(), fin);
+    forceAddFakeProposal(payee, propAmt);
 
     CBlock block = CreateBlock({}, coinbaseKey);
     // Check payee validity:
@@ -161,6 +166,71 @@ BOOST_FIXTURE_TEST_CASE(budget_blocks_payee_test, TestChain100Setup)
 
     // Verify block rejection reason.
     ProcessBlockAndCheckRejectionReason(pblock, "bad-cb-payee", 143);
+}
+
+BOOST_FIXTURE_TEST_CASE(budget_blocks_reorg_test, TestChain100Setup)
+{
+    // Regtest superblock is every 144 blocks.
+    for (int i=0; i<43; i++) CreateAndProcessBlock({}, coinbaseKey);
+    enableMnSyncAndSuperblocksPayment();
+    BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height();), 143);
+
+    // Now we are at the superblock height, let's add a proposal to pay.
+    const CScript payee = GetScriptForDestination(CKeyID(uint160(ParseHex("816115944e077fe7c803cfa57f29b36bf87c1d35"))));
+    const CAmount propAmt = 100 * COIN;
+    forceAddFakeProposal(payee, propAmt);
+
+    // This will:
+    // 1) Create a proposal to be paid at block 144 (first superblock).
+    // 1) create blocksA and blockB at block 144 (paying for the proposal).
+    // 2) Process and connect blockA.
+    // 3) Create blockC on top of BlockA and blockD on top of blockB.
+    // 4) Process and connect blockC.
+    // 5) Now force the reorg:
+    //    a) Process blockB and blockD.
+    //    b) Create and process blockE on top of blockD.
+    // 6) Verify that tip is at blockE.
+
+    CScript forkCoinbaseScript = GetScriptForDestination(CKeyID(uint160(ParseHex("8c988f1a4a4de2161e0f50aac7f17e7f9555caa4"))));
+    CBlock blockA = CreateBlock({}, coinbaseKey, false);
+    CBlock blockB = CreateBlock({}, forkCoinbaseScript, false);
+    BOOST_CHECK(blockA.GetHash() != blockB.GetHash());
+    // Check blocks payee validity:
+    CTxOut payeeOut = blockA.vtx[0]->vout[1];
+    BOOST_CHECK_EQUAL(payeeOut.nValue, propAmt);
+    BOOST_CHECK(payeeOut.scriptPubKey == payee);
+    payeeOut = blockB.vtx[0]->vout[1];
+    BOOST_CHECK_EQUAL(payeeOut.nValue, propAmt);
+    BOOST_CHECK(payeeOut.scriptPubKey == payee);
+
+    // Now let's process BlockA:
+    CValidationState stateA;
+    auto pblockA = std::make_shared<const CBlock>(blockA);
+    ProcessNewBlock(stateA, pblockA, nullptr);
+    BOOST_CHECK(WITH_LOCK(cs_main, return chainActive.Tip()->GetBlockHash()) == blockA.GetHash());
+
+    // Now let's create blockC on top of BlockA, blockD on top of blockB
+    // and process blockC to expand the chain.
+    CBlock blockC = CreateBlock({}, coinbaseKey, false);
+    BOOST_CHECK(blockC.hashPrevBlock == blockA.GetHash());
+    CBlock blockD = CreateBlock({}, forkCoinbaseScript, false);
+
+    // Process and connect blockC
+    ProcessNewBlock(stateA, std::make_shared<const CBlock>(blockC), nullptr);
+    BOOST_CHECK(WITH_LOCK(cs_main, return chainActive.Tip()->GetBlockHash()) == blockC.GetHash());
+
+    // Now let's process the secondary chain
+    blockD.hashPrevBlock = blockB.GetHash();
+    std::shared_ptr<CBlock> pblockD = FinalizeBlock(std::make_shared<CBlock>(blockD));
+
+    CValidationState stateB;
+    ProcessNewBlock(stateB, std::make_shared<const CBlock>(blockB), nullptr);
+    ProcessNewBlock(stateB, pblockD, nullptr);
+    CBlock blockE = CreateBlock({}, forkCoinbaseScript, false);
+    blockE.hashPrevBlock = pblockD->GetHash();
+    std::shared_ptr<CBlock> pblockE = FinalizeBlock(std::make_shared<CBlock>(blockE));
+    ProcessNewBlock(stateB, pblockE, nullptr);
+    BOOST_CHECK(WITH_LOCK(cs_main, return chainActive.Tip()->GetBlockHash()) == pblockE->GetHash());
 }
 
 static CScript GetRandomP2PKH()
