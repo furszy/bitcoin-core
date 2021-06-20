@@ -127,16 +127,32 @@ BOOST_FIXTURE_TEST_CASE(block_value, TestnetSetup)
     BOOST_CHECK_EQUAL(nBudgetAmtRet, 0);
 }
 
-void forceAddFakeProposal(const CScript& payee, const CAmount propAmt)
+void forceAddFakeProposal(const CScript& payee1, const CScript& payee2, const CAmount propAmt1, const CAmount propAmt2)
 {
     const CTxIn mnVin(GetRandHash(), 0);
     const uint256& propHash = GetRandHash(), finTxId = GetRandHash();
-    const CTxBudgetPayment txBudgetPayment(propHash, payee, propAmt);
-    CFinalizedBudget fin("main (test)", 144, {txBudgetPayment}, finTxId);
+    const CTxBudgetPayment txBudgetPayment(propHash, payee1, propAmt1);
+
+    const CTxIn mnVin2(GetRandHash(), 0);
+    const uint256& propHash2 = GetRandHash(), finTxId2 = GetRandHash();
+    const CTxBudgetPayment txBudgetPayment2(propHash2, payee2, propAmt2);
+
+    CFinalizedBudget fin("main (test)", 144, {txBudgetPayment, txBudgetPayment2}, finTxId);
     const CFinalizedBudgetVote fvote(mnVin, fin.GetHash());
+    const CFinalizedBudgetVote fvote1_a({GetRandHash(), 0}, fin.GetHash());
+    const CFinalizedBudgetVote fvote1_b({GetRandHash(), 0}, fin.GetHash());
     std::string strError;
     BOOST_CHECK(fin.AddOrUpdateVote(fvote, strError));
+    BOOST_CHECK(fin.AddOrUpdateVote(fvote1_a, strError));
+    BOOST_CHECK(fin.AddOrUpdateVote(fvote1_b, strError));
     g_budgetman.ForceAddFinalizedBudget(fin.GetHash(), fin.GetFeeTXHash(), fin);
+
+    CFinalizedBudget fin2("main2 (test)", 144, {txBudgetPayment2, txBudgetPayment}, finTxId2);
+    const CFinalizedBudgetVote fvote2(mnVin2, fin2.GetHash());
+    const CFinalizedBudgetVote fvote2_a({GetRandHash(), 0}, fin2.GetHash());
+    BOOST_CHECK(fin2.AddOrUpdateVote(fvote2, strError));
+    BOOST_CHECK(fin2.AddOrUpdateVote(fvote2_a, strError));
+    g_budgetman.ForceAddFinalizedBudget(fin2.GetHash(), fin2.GetFeeTXHash(), fin2);
 }
 
 BOOST_FIXTURE_TEST_CASE(budget_blocks_payee_test, TestChain100Setup)
@@ -144,28 +160,76 @@ BOOST_FIXTURE_TEST_CASE(budget_blocks_payee_test, TestChain100Setup)
     // Regtest superblock is every 144 blocks.
     for (int i=0; i<43; i++) CreateAndProcessBlock({}, coinbaseKey);
     enableMnSyncAndSuperblocksPayment();
+    g_budgetman.Clear();
     BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height();), 143);
+    BOOST_ASSERT(g_budgetman.GetFinalizedBudgets().size() == 0);
 
     // Now we are at the superblock height, let's add a proposal to pay.
-    const CScript payee = GetScriptForDestination(CKeyID(uint160(ParseHex("816115944e077fe7c803cfa57f29b36bf87c1d35"))));
-    const CAmount propAmt = 100 * COIN;
-    forceAddFakeProposal(payee, propAmt);
+    const CScript payee1 = GetScriptForDestination(CKeyID(uint160(ParseHex("816115944e077fe7c803cfa57f29b36bf87c1d35"))));
+    const CAmount propAmt1 = 100 * COIN;
+    const CScript payee2 = GetScriptForDestination(CKeyID(uint160(ParseHex("8d5b4f83212214d6ef693e02e6d71969fddad976"))));
+    const CAmount propAmt2 = propAmt1;
+    forceAddFakeProposal(payee1, payee2, propAmt1, propAmt2);
 
     CBlock block = CreateBlock({}, coinbaseKey);
     // Check payee validity:
     CTxOut payeeOut = block.vtx[0]->vout[1];
-    BOOST_CHECK_EQUAL(payeeOut.nValue, propAmt);
-    BOOST_CHECK(payeeOut.scriptPubKey == payee);
+    BOOST_CHECK_EQUAL(payeeOut.nValue, propAmt1);
+    BOOST_CHECK(payeeOut.scriptPubKey == payee1);
+
+    // Good tx
+    CMutableTransaction goodMtx(*block.vtx[0]);
 
     // Modify payee
     CMutableTransaction mtx(*block.vtx[0]);
     mtx.vout[1].scriptPubKey = GetScriptForDestination(CKeyID(uint160(ParseHex("8c988f1a4a4de2161e0f50aac7f17e7f9555caa4"))));
     block.vtx[0] = MakeTransactionRef(mtx);
     std::shared_ptr<CBlock> pblock = FinalizeBlock(std::make_shared<CBlock>(block));
-    BOOST_CHECK(block.vtx[0]->vout[1].scriptPubKey != payee);
+    BOOST_CHECK(block.vtx[0]->vout[1].scriptPubKey != payee1);
 
     // Verify block rejection reason.
     ProcessBlockAndCheckRejectionReason(pblock, "bad-cb-payee", 143);
+
+    // Try to overmint, valid payee --> bad amount.
+    mtx = goodMtx; // reset
+    mtx.vout[1].nValue *= 2; // invalid amount
+    block.vtx[0] = MakeTransactionRef(mtx);
+    pblock = FinalizeBlock(std::make_shared<CBlock>(block));
+    BOOST_CHECK(block.vtx[0]->vout[1].scriptPubKey == payee1);
+    BOOST_CHECK(block.vtx[0]->vout[1].nValue == payeeOut.nValue * 2);
+    ProcessBlockAndCheckRejectionReason(pblock, "bad-blk-amount", 143);
+
+    // Try to send less to a valid payee --> bad amount.
+    mtx = goodMtx; // reset
+    mtx.vout[1].nValue /= 2;
+    block.vtx[0] = MakeTransactionRef(mtx);
+    pblock = FinalizeBlock(std::make_shared<CBlock>(block));
+    BOOST_CHECK(block.vtx[0]->vout[1].scriptPubKey == payee1);
+    BOOST_CHECK(block.vtx[0]->vout[1].nValue == payeeOut.nValue / 2);
+    ProcessBlockAndCheckRejectionReason(pblock, "bad-cb-payee", 143);
+
+    // Try to pay proposals in different order
+    mtx = goodMtx; // reset
+    std::vector<CFinalizedBudget*> vecFin = g_budgetman.GetFinalizedBudgets();
+    CFinalizedBudget* secondFin{nullptr};
+    for (auto fin : vecFin) {
+        if (!secondFin || fin->GetVoteCount() < secondFin->GetVoteCount()) {
+            secondFin = fin;
+        }
+    }
+    secondFin->GetPayeeAndAmount(144, mtx.vout[1].scriptPubKey, mtx.vout[1].nValue);
+    BOOST_CHECK(mtx.vout[1].scriptPubKey != goodMtx.vout[1].scriptPubKey);
+    BOOST_CHECK(mtx.vout[1].nValue == goodMtx.vout[1].nValue);
+    block.vtx[0] = MakeTransactionRef(mtx);
+    pblock = FinalizeBlock(std::make_shared<CBlock>(block));
+    ProcessBlockAndCheckRejectionReason(pblock, "bad-cb-payee", 143);
+
+    // Now create the good block
+    block.vtx[0] = MakeTransactionRef(goodMtx);
+    pblock = FinalizeBlock(std::make_shared<CBlock>(block));
+    CValidationState state;
+    ProcessNewBlock(state, pblock, nullptr);
+    BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Tip()->GetBlockHash();), pblock->GetHash());
 }
 
 BOOST_FIXTURE_TEST_CASE(budget_blocks_reorg_test, TestChain100Setup)
@@ -178,13 +242,15 @@ BOOST_FIXTURE_TEST_CASE(budget_blocks_reorg_test, TestChain100Setup)
     // Now we are at the superblock height, let's add a proposal to pay.
     const CScript payee = GetScriptForDestination(CKeyID(uint160(ParseHex("816115944e077fe7c803cfa57f29b36bf87c1d35"))));
     const CAmount propAmt = 100 * COIN;
-    forceAddFakeProposal(payee, propAmt);
+    const CScript payee2 = GetScriptForDestination(CKeyID(uint160(ParseHex("816115944e077fe7c803cfa57f29b36bf87c1d35"))));
+    const CAmount propAmt2 = propAmt * 2;
+    forceAddFakeProposal(payee, payee2, propAmt, propAmt2);
 
     // This will:
     // 1) Create a proposal to be paid at block 144 (first superblock).
     // 1) create blocksA and blockB at block 144 (paying for the proposal).
     // 2) Process and connect blockA.
-    // 3) Create blockC on top of BlockA and blockD on top of blockB.
+    // 3) Create blockC on top of BlockA and blockD on top of blockB. At height 145.
     // 4) Process and connect blockC.
     // 5) Now force the reorg:
     //    a) Process blockB and blockD.
