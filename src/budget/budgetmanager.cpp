@@ -632,19 +632,19 @@ TrxValidationStatus CBudgetManager::IsTransactionValid(const CTransaction& txNew
     bool fThreshold = false;
     {
         LOCK(cs_budgets);
-        for (const auto& it: mapFinalizedBudgets) {
-            const CFinalizedBudget* pfb = &(it.second);
-            const int nVoteCount = pfb->GetVoteCount();
-            LogPrint(BCLog::MNBUDGET,"%s: checking %s (%s): votes %d (threshold %d)\n",
-                    __func__, pfb->GetName(), pfb->GetProposalsStr(), nVoteCount, nCountThreshold);
-            if (nVoteCount > nCountThreshold) {
+        // Get the finalized budget with the highest amount of votes..
+        const CFinalizedBudget* highestVotesBudget = GetBudgetWithHighestVoteCount(nBlockHeight);
+        if (highestVotesBudget) {
+            // Need to surpass the threshold
+            if (highestVotesBudget->GetVoteCount() > nCountThreshold) {
                 fThreshold = true;
-                if (pfb->IsTransactionValid(txNew, nBlockHash, nBlockHeight) == TrxValidationStatus::Valid) {
+                if (highestVotesBudget->IsTransactionValid(txNew, nBlockHash, nBlockHeight) ==
+                    TrxValidationStatus::Valid) {
                     return TrxValidationStatus::Valid;
                 }
-                // tx not valid. keep looking.
-                LogPrint(BCLog::MNBUDGET, "%s: ignoring budget. Out of range or tx not valid.\n", __func__);
             }
+            // tx not valid
+            LogPrint(BCLog::MNBUDGET, "%s: ignoring budget. Out of range or tx not valid.\n", __func__);
         }
     }
 
