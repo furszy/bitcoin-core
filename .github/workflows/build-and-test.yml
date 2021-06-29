@@ -338,7 +338,7 @@ jobs:
           - name: macOS 10.15 [GOAL:deploy] [native macOS using syslibs no unit or functional tests]
             os: macos-10.15
             host: x86_64-apple-darwin19.6.0
-            brew_install: autoconf automake ccache berkeley-db4 libtool boost miniupnpc pkg-config python3 qt5 zmq libevent qrencode gmp libsodium rust librsvg
+            brew_install: autoconf automake ccache berkeley-db4 libtool boost miniupnpc pkg-config python3 qt5 zmq libevent qrencode gmp rust librsvg
             unit_tests: false
             functional_tests: false
             no_depends: 1
