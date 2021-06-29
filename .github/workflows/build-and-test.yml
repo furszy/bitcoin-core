@@ -364,8 +364,11 @@ jobs:
             pip3 install ds_store mac_alias
           fi
 
-          if [ "${{ matrix.config.no_depends }}" = 1 ] && [ "${{ matrix.config.os }}" != "ubuntu-20.04" ]; then
-            sudo dpkg --remove --force-depends libsodium-dev
+          if [ "${{ matrix.config.no_depends }}" = 1 ]; then
+            if [ "${{ matrix.config.os }}" != "ubuntu-20.04" ] && "${{ matrix.config.os }}" != "macos-10.15" ]; then
+                sudo dpkg --remove --force-depends libsodium-dev
+            fi
+
             echo "Installing libsodium.."
             sudo ./contrib/install_sodium.sh `pwd`
             echo "libsodium install finished.."
