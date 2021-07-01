@@ -369,6 +369,11 @@ jobs:
                 sudo dpkg --remove --force-depends libsodium-dev
             fi
 
+            if [[ ${{ matrix.config.os }} = macos* ]]; then
+                brew install "$APT_BASE" ${{ matrix.config.packages }}
+                brew uninstall --ignore-dependencies libsodium
+            fi
+
             echo "Installing libsodium.."
             sudo ./contrib/install_sodium.sh `pwd`
             echo "libsodium install finished.."
