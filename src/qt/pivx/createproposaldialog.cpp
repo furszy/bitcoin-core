@@ -93,19 +93,28 @@ void CreateProposalDialog::setupPageTwo()
     setCssProperty(ui->labelTitleDest, "text-title-dialog");
     setCssProperty(ui->labelMessageDest, "dialog-proposal-message");
     setEditBoxStyle(ui->labelAmount, ui->lineEditAmount, "e.g 500 PIV");
-    setEditBoxStyle(ui->labelMonths, ui->lineEditMonths, "e.g 2");
 
     setEditBoxStyle(ui->labelAddress, ui->lineEditAddress, "e.g D...something..");
     setCssProperty(ui->lineEditAddress, "edit-primary-multi-book");
     actAddrList = ui->lineEditAddress->addAction(QIcon("://ic-contact-arrow-down"), QLineEdit::TrailingPosition);
-
-    ui->lineEditAmount->setValidator(new QIntValidator(1,43200, this));
-    ui->lineEditMonths->setValidator(new QIntValidator(1, govModel->getPropMaxPaymentsCount(), this));
+    ui->lineEditAmount->setValidator(new QIntValidator(1, govModel->getMaxAvailableBudgetAmount() / 100000000, this));
+    setCssProperty(ui->lineEditMonths, "btn-spin-box");
+    setShadow(ui->lineEditMonths);
+    ui->lineEditMonths->setAttribute(Qt::WA_MacShowFocusRect, false);
+    connect(ui->lineEditMonths, static_cast<void (QSpinBox::*)(int)>(&QSpinBox::valueChanged), this,
+            &CreateProposalDialog::monthsEditDeselect, Qt::QueuedConnection);
+    connect(ui->lineEditMonths->findChild<QLineEdit*>(), &QLineEdit::cursorPositionChanged,
+            this,  &CreateProposalDialog::monthsEditDeselect, Qt::QueuedConnection);
 
     connect(ui->lineEditAmount, &QLineEdit::textChanged, this, &CreateProposalDialog::propAmountChanged);
-    connect(ui->lineEditMonths, &QLineEdit::textChanged, this, &CreateProposalDialog::propMonthsChanged);
     connect(ui->lineEditAddress, &QLineEdit::textChanged, this, &CreateProposalDialog::propaddressChanged);
     connect(actAddrList, &QAction::triggered, this, &CreateProposalDialog::onAddrListClicked);
+}
+
+void CreateProposalDialog::monthsEditDeselect(int i)
+{
+    ui->lineEditMonths->findChild<QLineEdit*>()->deselect();
+    ui->lineEditMonths->clearFocus();
 }
 
 void CreateProposalDialog::setupPageThree()
@@ -138,12 +147,8 @@ void CreateProposalDialog::propUrlChanged(const QString& newText)
 
 void CreateProposalDialog::propAmountChanged(const QString& newText)
 {
-    setCssEditLine(ui->lineEditAmount, govModel->validatePropAmount(newText.toInt()).getRes(), true);
-}
-
-void CreateProposalDialog::propMonthsChanged(const QString& newText)
-{
-    setCssEditLine(ui->lineEditMonths, govModel->validatePropPaymentCount(newText.toInt()).getRes(), true);
+    CAmount amt = newText.toDouble() * COIN;
+    setCssEditLine(ui->lineEditAmount, govModel->validatePropAmount(amt).getRes(), true);
 }
 
 bool CreateProposalDialog::propaddressChanged(const QString& str)
@@ -162,6 +167,7 @@ bool CreateProposalDialog::propaddressChanged(const QString& str)
 bool CreateProposalDialog::validatePageOne()
 {
     if (ui->lineEditPropName->text().isEmpty()) {
+        setCssEditLine(ui->lineEditPropName, false, true);
         inform(tr("Proposal name field cannot be empty"));
         return false;
     }
@@ -172,12 +178,6 @@ bool CreateProposalDialog::validatePageOne()
 
 bool CreateProposalDialog::validatePageTwo()
 {
-    QString sPaymentCount = ui->lineEditMonths->text();
-    if (sPaymentCount.isEmpty()) {
-        inform(tr("Proposal amount field cannot be empty"));
-        return false;
-    }
-
     // Amount validation
     auto opRes = govModel->validatePropAmount(ui->lineEditAmount->text().toInt());
     if (!opRes) {
@@ -186,7 +186,7 @@ bool CreateProposalDialog::validatePageTwo()
     }
 
     // Payments count validation
-    opRes = govModel->validatePropPaymentCount(sPaymentCount.toInt());
+    opRes = govModel->validatePropPaymentCount(ui->lineEditMonths->value());
     if (!opRes) {
         inform(QString::fromStdString(opRes.getError()));
         return false;
@@ -205,18 +205,19 @@ void CreateProposalDialog::loadSummary()
     ui->labelResultName->setText(ui->lineEditPropName->text());
     ui->labelResultUrl->setText(ui->lineEditURL->text());
     ui->labelResultAmount->setText(GUIUtil::formatBalance(ui->lineEditAmount->text().toInt() * COIN));
-    ui->labelResultMonths->setText(ui->lineEditMonths->text());
+    ui->labelResultMonths->setText(QString::number(ui->lineEditMonths->value()));
     ui->labelResultAddress->setText(ui->lineEditAddress->text());
     ui->labelResultUrl->setText(ui->lineEditURL->text());
 }
 
 void CreateProposalDialog::sendProposal()
 {
+    int months = ui->lineEditMonths->value();
     CAmount amount = ui->lineEditAmount->text().toInt() * COIN;
     auto opRes = govModel->createProposal(
             ui->lineEditPropName->text().toStdString(),
             ui->lineEditURL->text().toStdString(),
-            ui->lineEditMonths->text().toInt(),
+            months,
             amount,
             ui->lineEditAddress->text().toStdString()
             );

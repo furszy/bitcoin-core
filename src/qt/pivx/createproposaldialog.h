@@ -32,9 +32,9 @@ public Q_SLOTS:
     void propNameChanged(const QString& newText);
     void propUrlChanged(const QString& newText);
     void propAmountChanged(const QString& newText);
-    void propMonthsChanged(const QString& newText);
     bool propaddressChanged(const QString& newText);
     void onAddrListClicked();
+    void monthsEditDeselect(int i);
 
 private:
     Ui::CreateProposalDialog *ui;
