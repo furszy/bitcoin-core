@@ -29,7 +29,7 @@ void GovernanceModel::setWalletModel(WalletModel* _walletModel)
     connect(walletModel->getTransactionTableModel(), &TransactionTableModel::txLoaded, this, &GovernanceModel::txLoaded);
 }
 
-ProposalInfo GovernanceModel::buidProposalInfo(const CBudgetProposal* prop, bool isPassing, bool isPending)
+ProposalInfo GovernanceModel::buildProposalInfo(const CBudgetProposal* prop, bool isPassing, bool isPending)
 {
     CTxDestination recipient;
     ExtractDestination(prop->GetPayee(), recipient);
@@ -72,7 +72,7 @@ std::list<ProposalInfo> GovernanceModel::getProposals(const ProposalInfo::Status
     std::vector<CBudgetProposal> budget = g_budgetman.GetBudget();
     for (const auto& prop : g_budgetman.GetAllProposals()) {
         bool isPassing = std::find(budget.begin(), budget.end(), *prop) != budget.end();
-        ProposalInfo propInfo = buidProposalInfo(prop, isPassing, false);
+        ProposalInfo propInfo = buildProposalInfo(prop, isPassing, false);
         if (!filterByStatus || propInfo.status == *filterByStatus) {
             ret.emplace_back(propInfo);
         }
@@ -129,14 +129,17 @@ std::vector<VoteInfo> GovernanceModel::getLocalMNsVotesForProposal(const Proposa
     }
 
     std::vector<VoteInfo> localVotes;
-    // Get the budget proposal, get the votes, then loop over it and return the ones that correspond to the local masternodes here.
-    CBudgetProposal* prop = g_budgetman.FindProposal(propInfo.id);
-    const auto& mapVotes = prop->GetVotes();
-    for (const auto& it : mapVotes) {
-        for (const auto& mn : vecLocalMn) {
-            if (it.first == mn.first && it.second.IsValid()) {
-                localVotes.emplace_back(mn.first, (VoteInfo::VoteDirection) it.second.GetDirection(), mn.second);
-                break;
+    {
+        LOCK(g_budgetman.cs_proposals); // future: encapsulate this mutex lock.
+        // Get the budget proposal, get the votes, then loop over it and return the ones that correspond to the local masternodes here.
+        CBudgetProposal* prop = g_budgetman.FindProposal(propInfo.id);
+        const auto& mapVotes = prop->GetVotes();
+        for (const auto& it : mapVotes) {
+            for (const auto& mn : vecLocalMn) {
+                if (it.first == mn.first && it.second.IsValid()) {
+                    localVotes.emplace_back(mn.first, (VoteInfo::VoteDirection) it.second.GetDirection(), mn.second);
+                    break;
+                }
             }
         }
     }

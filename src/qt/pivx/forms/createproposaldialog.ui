@@ -883,7 +883,7 @@
                    </size>
                   </property>
                   <property name="text">
-                   <string>Proposal Recipient</string>
+                   <string>Proposal Payee</string>
                   </property>
                  </widget>
                 </item>
@@ -896,7 +896,7 @@
                    </sizepolicy>
                   </property>
                   <property name="text">
-                   <string>Add the amount per month, the months that will remain active and the recipient address</string>
+                   <string>Add the requested number of payments, the amount per payment, and the payee address.</string>
                   </property>
                   <property name="alignment">
                    <set>Qt::AlignCenter</set>

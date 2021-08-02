@@ -147,7 +147,7 @@ private:
     void stopPolling();
 
     // Util function to create a ProposalInfo object
-    ProposalInfo buidProposalInfo(const CBudgetProposal* prop, bool isPassing, bool isPending);
+    ProposalInfo buildProposalInfo(const CBudgetProposal* prop, bool isPassing, bool isPending);
 };
 
 #endif // GOVERNANCEMODEL_H
