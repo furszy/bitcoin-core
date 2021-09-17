@@ -432,7 +432,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
         }
 
         pfrom->FulfilledRequest(NetMsgType::GETMNWINNERS);
-        masternodePayments.Sync(pfrom, nCountNeeded);
+        Sync(pfrom, nCountNeeded);
         LogPrint(BCLog::MASTERNODE, "mnget - Sent Masternode winners to peer %i\n", pfrom->GetId());
     } else if (strCommand == NetMsgType::MNWINNER) { //Masternode Payments Declare Winner
         //this is required in litemodef
@@ -443,7 +443,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
 
         int nHeight = mnodeman.GetBestHeight();
 
-        if (masternodePayments.mapMasternodePayeeVotes.count(winner.GetHash())) {
+        if (mapMasternodePayeeVotes.count(winner.GetHash())) {
             LogPrint(BCLog::MASTERNODE, "mnw - Already seen - %s bestHeight %d\n", winner.GetHash().ToString().c_str(), nHeight);
             masternodeSync.AddedMasternodeWinner(winner.GetHash());
             return;
@@ -467,7 +467,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
             return;
         }
 
-        if (!masternodePayments.CanVote(winner.vinMasternode.prevout, winner.nBlockHeight)) {
+        if (!CanVote(winner.vinMasternode.prevout, winner.nBlockHeight)) {
             //  LogPrint(BCLog::MASTERNODE,"mnw - masternode already voted - %s\n", winner.vinMasternode.prevout.ToStringShort());
             return;
         }
@@ -494,10 +494,13 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
                 LOCK(cs_main);
                 Misbehaving(pfrom->GetId(), 20);
             } else {
-                // If it's not a DMN, then it could be a non-synced MN.
-                // Let's try to request the MN to the node.
-                // (the AskForMN() will only broadcast it every 10 min).
-                mnodeman.AskForMN(pfrom, winner.vinMasternode);
+                // Only if already received the initial sync.
+                if (masternodeSync.IsMasternodeListSynced()) {
+                    // If it's not a DMN, then it could be a non-synced MN.
+                    // Let's try to request the MN to the node.
+                    // (the AskForMN() will only broadcast it every 10 min).
+                    mnodeman.AskForMN(pfrom, winner.vinMasternode);
+                }
             }
             return;
         }
@@ -509,7 +512,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
             return;
         }
 
-        if (masternodePayments.AddWinningMasternode(winner)) {
+        if (AddWinningMasternode(winner)) {
             winner.Relay();
             masternodeSync.AddedMasternodeWinner(winner.GetHash());
         }
