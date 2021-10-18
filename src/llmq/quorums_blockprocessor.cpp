@@ -187,13 +187,8 @@ bool CQuorumBlockProcessor::ProcessCommitment(int nHeight, const uint256& blockH
         return state.DoS(100, false, REJECT_INVALID, "bad-qc-block");
     }
 
-    // index of quorumHash already checked
+    // index of quorumHash (and commitment signature) already checked
     const CBlockIndex* quorumIndex = mapBlockIndex.at(quorumHash);
-
-    // Verify signatures
-    if (!qc.Verify(quorumIndex, true)) {
-        return state.DoS(100, false, REJECT_INVALID, "bad-qc-invalid");
-    }
 
     if (fJustCheck || qc.IsNull()) {
         return true;
