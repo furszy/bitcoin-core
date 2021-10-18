@@ -518,29 +518,21 @@ struct VarIntFormatter
     }
 };
 
-// !TODO: update to new serialization
-#define FIXEDBITSET(obj, size) CFixedBitSet(REF(obj), (size))
-#define DYNBITSET(obj) CDynamicBitSet(REF(obj))
+#define FIXEDBITSET(obj, size) Using<BitSetFormatter<size>>(obj)
+#define DYNBITSET(obj) Using<BitSetFormatter<0>>(obj)
 
-// !TODO: temporarily reintroduced - removed in the following commits
-template <typename T>
-inline T& REF(const T& val)
+/* Formatter for fixed (size N), or dynamic (size 0) bitsets */
+
+template<size_t N>
+struct BitSetFormatter
 {
-    return const_cast<T&>(val);
-}
-
-class CFixedBitSet
-{
-protected:
-    std::vector<bool>& vec;
-    size_t size;
-
-public:
-    CFixedBitSet(std::vector<bool>& vecIn, size_t sizeIn) : vec(vecIn), size(sizeIn) {}
-
     template<typename Stream>
-    void Serialize(Stream& s) const
+    void Ser(Stream& s, const std::vector<bool>& vec)
     {
+        size_t size = (N == 0 ? vec.size() : N);
+        if (N == 0) {
+            WriteCompactSize(s, size);
+        }
         std::vector<unsigned char> vBytes((size + 7) / 8);
         size_t ms = std::min(size, vec.size());
         for (size_t p = 0; p < ms; p++)
@@ -549,10 +541,10 @@ public:
     }
 
     template<typename Stream>
-    void Unserialize(Stream& s)
+    void Unser(Stream& s, std::vector<bool>& vec)
     {
+        size_t size = (N == 0 ? ReadCompactSize(s) : N);
         vec.resize(size);
-
         std::vector<unsigned char> vBytes((size + 7) / 8);
         s.read((char*)vBytes.data(), vBytes.size());
         for (size_t p = 0; p < size; p++)
@@ -564,29 +556,6 @@ public:
                 throw std::ios_base::failure("Out-of-range bits set");
             }
         }
-    }
-};
-
-class CDynamicBitSet
-{
-protected:
-    std::vector<bool>& vec;
-
-public:
-    explicit CDynamicBitSet(std::vector<bool>& vecIn) : vec(vecIn) {}
-
-    template<typename Stream>
-    void Serialize(Stream& s) const
-    {
-        WriteCompactSize(s, vec.size());
-        CFixedBitSet(REF(vec), vec.size()).Serialize(s);
-    }
-
-    template<typename Stream>
-    void Unserialize(Stream& s)
-    {
-        vec.resize(ReadCompactSize(s));
-        CFixedBitSet(vec, vec.size()).Unserialize(s);
     }
 };
 
