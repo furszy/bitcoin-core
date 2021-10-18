@@ -48,23 +48,18 @@ public:
     bool Verify(const CBlockIndex* pQuorumIndex, bool checkSigs) const;
     bool VerifySizes(const Consensus::LLMQParams& params) const;
 
-    /* !TODO: fix with new serialization
-    ADD_SERIALIZE_METHODS
-
-    template<typename Stream, typename Operation>
-    inline void SerializationOp(Stream& s, Operation ser_action)
+    SERIALIZE_METHODS(CFinalCommitment, obj)
     {
-        READWRITE(nVersion);
-        READWRITE(llmqType);
-        READWRITE(quorumHash);
-        READWRITE(DYNBITSET(signers));
-        READWRITE(DYNBITSET(validMembers));
-        READWRITE(quorumPublicKey);
-        READWRITE(quorumVvecHash);
-        READWRITE(quorumSig);
-        READWRITE(membersSig);
+        READWRITE(obj.nVersion);
+        READWRITE(obj.llmqType);
+        READWRITE(obj.quorumHash);
+        READWRITE(DYNBITSET(obj.signers));
+        READWRITE(DYNBITSET(obj.validMembers));
+        READWRITE(obj.quorumPublicKey);
+        READWRITE(obj.quorumVvecHash);
+        READWRITE(obj.quorumSig);
+        READWRITE(obj.membersSig);
     }
-    */
 };
 
 } // namespace llmq
