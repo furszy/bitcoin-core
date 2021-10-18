@@ -45,8 +45,9 @@ public:
     bool ProcessBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck);
     bool UndoBlock(const CBlock& block, const CBlockIndex* pindex);
 
-    void AddMinableCommitment(const CFinalCommitment& fqc);
+    void AddAndRelayMinableCommitment(const CFinalCommitment& fqc);
     bool HasMinableCommitment(const uint256& hash);
+    bool HasBetterMinableCommitment(const CFinalCommitment& qc);
     bool GetMinableCommitmentByHash(const uint256& commitmentHash, CFinalCommitment& ret);
     bool GetMinableCommitment(Consensus::LLMQType llmqType, int nHeight, CFinalCommitment& ret);
     bool GetMinableCommitmentTx(Consensus::LLMQType llmqType, int nHeight, CTransactionRef& ret);

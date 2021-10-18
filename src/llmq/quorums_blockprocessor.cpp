@@ -85,21 +85,13 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
             return;
         }
     }
-    {
-        // Check if we already got a better one locally
-        // We do this before verifying the commitment to avoid DoS
-        LOCK(minableCommitmentsCs);
-        auto k = std::make_pair(type, qc.quorumHash);
-        auto it = minableCommitmentsByQuorum.find(k);
-        if (it != minableCommitmentsByQuorum.end()) {
-            auto jt = minableCommitments.find(it->second);
-            if (jt != minableCommitments.end()) {
-                if (jt->second.CountSigners() > qc.CountSigners()) {
-                    return;
-                }
-            }
-        }
+
+    // Check if we already got a better one locally
+    // We do this before verifying the commitment to avoid DoS
+    if (HasBetterMinableCommitment(qc)) {
+        return;
     }
+
     if (!qc.Verify(pquorumIndex, true)) {
         SetMisbehaving(pfrom, 100, "invalid commtiment for quorum", qc.quorumHash.ToString());
         return;
@@ -108,7 +100,7 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
     LogPrintf("%s :received commitment for quorum %s:%d, validMembers=%d, signers=%d, peer=%d\n", __func__,
               qc.quorumHash.ToString(), qc.llmqType, qc.CountValidMembers(), qc.CountSigners(), pfrom->GetId());
 
-    AddMinableCommitment(qc);
+    AddAndRelayMinableCommitment(qc);
 }
 
 bool CQuorumBlockProcessor::ProcessBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck)
@@ -236,7 +228,9 @@ bool CQuorumBlockProcessor::UndoBlock(const CBlock& block, const CBlockIndex* pi
         }
 
         // if a reorg happened, we should allow to mine this commitment later
-        AddMinableCommitment(qc);
+        if (!HasBetterMinableCommitment(qc)) {
+            AddAndRelayMinableCommitment(qc);
+        }
     }
 
     return true;
@@ -402,36 +396,36 @@ bool CQuorumBlockProcessor::HasMinableCommitment(const uint256& hash)
     return minableCommitments.count(hash) != 0;
 }
 
-void CQuorumBlockProcessor::AddMinableCommitment(const CFinalCommitment& fqc)
+bool CQuorumBlockProcessor::HasBetterMinableCommitment(const CFinalCommitment& qc)
 {
-    bool relay = false;
-    uint256 commitmentHash = ::SerializeHash(fqc);
+    LOCK(minableCommitmentsCs);
+    auto it = minableCommitmentsByQuorum.find(std::make_pair(qc.llmqType, qc.quorumHash));
+    if (it != minableCommitmentsByQuorum.end()) {
+        auto jt = minableCommitments.find(it->second);
+        return jt != minableCommitments.end() && jt->second.CountSigners() >= qc.CountSigners();
+    }
+    return false;
+}
 
+void CQuorumBlockProcessor::AddAndRelayMinableCommitment(const CFinalCommitment& fqc)
+{
+    const uint256& commitmentHash = ::SerializeHash(fqc);
     {
         LOCK(minableCommitmentsCs);
-
         auto k = std::make_pair(fqc.llmqType, fqc.quorumHash);
         auto ins = minableCommitmentsByQuorum.emplace(k, commitmentHash);
-        if (ins.second) {
-            minableCommitments.emplace(commitmentHash, fqc);
-            relay = true;
-        } else {
-            auto& oldFqc = minableCommitments.at(ins.first->second);
-            if (fqc.CountSigners() > oldFqc.CountSigners()) {
-                // new commitment has more signers, so override the known one
-                ins.first->second = commitmentHash;
-                minableCommitments.erase(ins.first->second);
-                minableCommitments.emplace(commitmentHash, fqc);
-                relay = true;
-            }
+        if (!ins.second) {
+            // remove old commitment
+            minableCommitments.erase(ins.first->second);
+            // update commitment hash to the new one
+            ins.first->second = commitmentHash;
         }
+        // add new commitment
+        minableCommitments.emplace(commitmentHash, fqc);
     }
-
-    // We only relay the new commitment if it's new or better then the old one
-    if (relay) {
-        CInv inv(MSG_QUORUM_FINAL_COMMITMENT, commitmentHash);
-        g_connman->RelayInv(inv);
-    }
+    // relay commitment inv
+    CInv inv(MSG_QUORUM_FINAL_COMMITMENT, commitmentHash);
+    g_connman->RelayInv(inv);
 }
 
 bool CQuorumBlockProcessor::GetMinableCommitmentByHash(const uint256& commitmentHash, llmq::CFinalCommitment& ret)
