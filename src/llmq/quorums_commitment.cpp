@@ -197,7 +197,7 @@ bool CheckLLMQCommitment(const CTransaction& tx, const CBlockIndex* pindexPrev, 
             return state.DoS(100, false, REJECT_INVALID, "bad-qc-quorum-hash");
         }
 
-        if (!pl.commitment.Verify(pindexQuorum, false)) {
+        if (!pl.commitment.Verify(pindexQuorum, true)) {
             return state.DoS(100, false, REJECT_INVALID, "bad-qc-invalid");
         }
     }
