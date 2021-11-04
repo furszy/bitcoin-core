@@ -50,6 +50,12 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
     CFinalCommitment qc;
     vRecv >> qc;
 
+    uint256 qfc_hash{::SerializeHash(qc)};
+    {
+        LOCK(cs_main);
+        g_connman->RemoveAskFor(qfc_hash, MSG_QUORUM_FINAL_COMMITMENT);
+    }
+
     if (qc.IsNull()) {
         SetMisbehaving(pfrom, 100, "null commitment");
         return;
@@ -100,7 +106,7 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
     LogPrintf("%s :received commitment for quorum %s:%d, validMembers=%d, signers=%d, peer=%d\n", __func__,
               qc.quorumHash.ToString(), qc.llmqType, qc.CountValidMembers(), qc.CountSigners(), pfrom->GetId());
 
-    AddAndRelayMinableCommitment(qc);
+    AddAndRelayMinableCommitment(qc, &qfc_hash);
 }
 
 bool CQuorumBlockProcessor::ProcessBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck)
@@ -407,9 +413,9 @@ bool CQuorumBlockProcessor::HasBetterMinableCommitment(const CFinalCommitment& q
     return false;
 }
 
-void CQuorumBlockProcessor::AddAndRelayMinableCommitment(const CFinalCommitment& fqc)
+void CQuorumBlockProcessor::AddAndRelayMinableCommitment(const CFinalCommitment& fqc, uint256* cached_fqc_hash)
 {
-    const uint256& commitmentHash = ::SerializeHash(fqc);
+    const uint256& commitmentHash = cached_fqc_hash ? *cached_fqc_hash : ::SerializeHash(fqc);
     {
         LOCK(minableCommitmentsCs);
         auto k = std::make_pair(fqc.llmqType, fqc.quorumHash);
