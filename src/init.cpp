@@ -1364,14 +1364,6 @@ bool AppInitMain()
         }
     }
 
-    for (const auto& net : gArgs.GetArgs("-whitelist")) {
-        CSubNet subnet;
-        LookupSubNet(net, subnet);
-        if (!subnet.IsValid())
-            return UIError(strprintf(_("Invalid netmask specified in %s: '%s'"), "-whitelist", net));
-        connman.AddWhitelistedRange(subnet);
-    }
-
     // Check for host lookup allowed before parsing any network related parameters
     fNameLookup = gArgs.GetBoolArg("-dns", DEFAULT_NAME_LOOKUP);
 
@@ -1957,6 +1949,14 @@ bool AppInitMain()
     connOptions.m_msgproc = peerLogic.get();
     connOptions.nSendBufferMaxSize = 1000*gArgs.GetArg("-maxsendbuffer", DEFAULT_MAXSENDBUFFER);
     connOptions.nReceiveFloodSize = 1000*gArgs.GetArg("-maxreceivebuffer", DEFAULT_MAXRECEIVEBUFFER);
+
+    for (const auto& net : gArgs.GetArgs("-whitelist")) {
+        CSubNet subnet;
+        LookupSubNet(net, subnet);
+        if (!subnet.IsValid())
+            return UIError(strprintf(_("Invalid netmask specified in %s: '%s'"), "-whitelist", net));
+        connOptions.vWhitelistedRange.emplace_back(subnet);
+    }
 
     if (!connman.Start(scheduler, strNodeError, connOptions))
         return UIError(strNodeError);

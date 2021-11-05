@@ -142,6 +142,7 @@ public:
         unsigned int nSendBufferMaxSize = 0;
         unsigned int nReceiveFloodSize = 0;
         std::vector<bool> m_asmap;
+        std::vector<CSubNet> vWhitelistedRange;
     };
     CConnman(uint64_t seed0, uint64_t seed1);
     ~CConnman();
@@ -284,8 +285,6 @@ public:
 
     unsigned int GetSendBufferSize() const;
 
-    void AddWhitelistedRange(const CSubNet& subnet);
-
     ServiceFlags GetLocalServices() const;
 
     uint64_t GetTotalBytesRecv();
@@ -360,7 +359,6 @@ private:
     // Whitelisted ranges. Any node connecting from these is automatically
     // whitelisted (as well as those connecting to whitelisted binds).
     std::vector<CSubNet> vWhitelistedRange;
-    RecursiveMutex cs_vWhitelistedRange;
 
     unsigned int nSendBufferMaxSize{0};
     unsigned int nReceiveFloodSize{0};

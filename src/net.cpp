@@ -607,20 +607,12 @@ void CConnman::SetBannedSetDirty(bool dirty)
 
 bool CConnman::IsWhitelistedRange(const CNetAddr& addr)
 {
-    LOCK(cs_vWhitelistedRange);
     for (const CSubNet& subnet : vWhitelistedRange) {
         if (subnet.Match(addr))
             return true;
     }
     return false;
 }
-
-void CConnman::AddWhitelistedRange(const CSubNet& subnet)
-{
-    LOCK(cs_vWhitelistedRange);
-    vWhitelistedRange.push_back(subnet);
-}
-
 
 std::string CNode::GetAddrName() const {
     LOCK(cs_addrName);
@@ -1955,6 +1947,8 @@ bool CConnman::Start(CScheduler& scheduler, std::string& strNodeError, Options c
     nReceiveFloodSize = connOptions.nReceiveFloodSize;
 
     SetBestHeight(connOptions.nBestHeight);
+
+    vWhitelistedRange = connOptions.vWhitelistedRange;
 
     clientInterface = connOptions.uiInterface;
     if (clientInterface)
