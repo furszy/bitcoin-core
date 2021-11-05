@@ -1914,7 +1914,9 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
             disconnectpool->removeEntry(it);
         }
     }
+
     // Update MN manager cache
+    deterministicMNManager->UpdatedBlockTip(pindexDelete->pprev);
     // replace the cached hash of pindexDelete with the hash of the block
     // at depth CACHED_BLOCK_HASHES if it exists, or empty hash otherwise.
     if ((unsigned) pindexDelete->nHeight >= CACHED_BLOCK_HASHES) {
@@ -2058,6 +2060,7 @@ bool static ConnectTip(CValidationState& state, CBlockIndex* pindexNew, const st
     // Update MN manager cache
     mnodeman.CacheBlockHash(pindexNew);
     mnodeman.CheckSpentCollaterals(blockConnecting.vtx);
+    deterministicMNManager->UpdatedBlockTip(pindexNew);
 
     int64_t nTime6 = GetTimeMicros();
     nTimePostConnect += nTime6 - nTime5;

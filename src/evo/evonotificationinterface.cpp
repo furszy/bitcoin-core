@@ -10,12 +10,12 @@
 void EvoNotificationInterface::InitializeCurrentBlockTip()
 {
     LOCK(cs_main);
-    UpdatedBlockTip(chainActive.Tip(), nullptr, IsInitialBlockDownload());
+    deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
 }
 
 void EvoNotificationInterface::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload)
 {
-    deterministicMNManager->UpdatedBlockTip(pindexNew);
+    // !TODO background thread updates
 }
 
 void EvoNotificationInterface::NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff)
