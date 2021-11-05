@@ -1999,6 +1999,10 @@ bool CConnman::Start(CScheduler& scheduler, Options connOptions)
 
     vWhitelistedRange = connOptions.vWhitelistedRange;
 
+    for (const auto& strDest : connOptions.vSeedNodes) {
+        AddOneShot(strDest);
+    }
+
     if (clientInterface)
         clientInterface->InitMessage(_("Loading addresses..."));
     m_msgproc = connOptions.m_msgproc;
