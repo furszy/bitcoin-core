@@ -115,14 +115,6 @@ static EvoNotificationInterface* pEvoNotificationInterface = nullptr;
 
 static const char* DEFAULT_ASMAP_FILENAME="ip_asn.map";
 
-/** Used to pass flags to the Bind() function */
-enum BindFlags {
-    BF_NONE = 0,
-    BF_EXPLICIT = (1U << 0),
-    BF_REPORT_ERROR = (1U << 1),
-    BF_WHITELIST = (1U << 2),
-};
-
 static const char* FEE_ESTIMATES_FILENAME = "fee_estimates.dat";
 CClientUIInterface uiInterface;  // Declared but not defined in guiinterface.h
 
@@ -359,19 +351,6 @@ static void registerSignalHandler(int signal, void(*handler)(int))
     sigaction(signal, &sa, nullptr);
 }
 #endif
-
-bool static Bind(CConnman& connman, const CService& addr, unsigned int flags)
-{
-    if (!(flags & BF_EXPLICIT) && !IsReachable(addr))
-        return false;
-    std::string strError;
-    if (!connman.BindListenPort(addr, strError, (flags & BF_WHITELIST) != 0)) {
-        if (flags & BF_REPORT_ERROR)
-            return UIError(strError);
-        return false;
-    }
-    return true;
-}
 
 void OnRPCStarted()
 {
@@ -1017,11 +996,14 @@ bool AppInitParameterInteraction()
     // Make sure enough file descriptors are available
 
     // -bind and -whitebind can't be set when not listening
-    size_t nUserBind = gArgs.GetArgs("-bind").size() + gArgs.GetArgs("-whitebind").size();
+    size_t nUserBind =
+            (gArgs.IsArgSet("-bind") ? gArgs.GetArgs("-bind").size() : 0) +
+            (gArgs.IsArgSet("-whitebind") ? gArgs.GetArgs("-whitebind").size() : 0);
     if (nUserBind != 0 && !gArgs.GetBoolArg("-listen", DEFAULT_LISTEN)) {
         return UIError(strprintf(_("Cannot set %s or %s together with %s"), "-bind", "-whitebind", "-listen=0"));
     }
 
+    // Make sure enough file descriptors are available
     int nBind = std::max(nUserBind, size_t(1));
     nUserMaxConnections = gArgs.GetArg("-maxconnections", DEFAULT_MAX_PEER_CONNECTIONS);
     nMaxConnections = std::max(nUserMaxConnections, 0);
@@ -1412,32 +1394,6 @@ bool AppInitMain()
     // see Step 2: parameter interactions for more information about these
     fListen = gArgs.GetBoolArg("-listen", DEFAULT_LISTEN);
     fDiscover = gArgs.GetBoolArg("-discover", true);
-
-    bool fBound = false;
-    if (fListen) {
-        for (const std::string& strBind : gArgs.GetArgs("-bind")) {
-            CService addrBind;
-            if (!Lookup(strBind, addrBind, GetListenPort(), false))
-                return UIError(ResolveErrMsg("bind", strBind));
-            fBound |= Bind(connman, addrBind, (BF_EXPLICIT | BF_REPORT_ERROR));
-        }
-        for (const std::string& strBind : gArgs.GetArgs("-whitebind")) {
-            CService addrBind;
-            if (!Lookup(strBind, addrBind, 0, false))
-                return UIError(ResolveErrMsg("whitebind", strBind));
-            if (addrBind.GetPort() == 0)
-                return UIError(strprintf(_("Need to specify a port with %s: '%s'"), "-whitebind", strBind));
-            fBound |= Bind(connman, addrBind, (BF_EXPLICIT | BF_REPORT_ERROR | BF_WHITELIST));
-        }
-        if (!gArgs.IsArgSet("-bind") && !gArgs.IsArgSet("-whitebind")) {
-            struct in_addr inaddr_any;
-            inaddr_any.s_addr = INADDR_ANY;
-            fBound |= Bind(connman, CService((in6_addr)IN6ADDR_ANY_INIT, GetListenPort()), BF_NONE);
-            fBound |= Bind(connman, CService(inaddr_any, GetListenPort()), !fBound ? BF_REPORT_ERROR : BF_NONE);
-        }
-        if (!fBound)
-            return UIError(strprintf(_("Failed to listen on any port. Use %s if you want this."), "-listen=0"));
-    }
 
     for (const std::string& strAddr : gArgs.GetArgs("-externalip")) {
         CService addrLocal;
@@ -1936,7 +1892,6 @@ bool AppInitMain()
     // Map ports with UPnP or NAT-PMP
     StartMapPort(gArgs.GetBoolArg("-upnp", DEFAULT_UPNP), gArgs.GetBoolArg("-natpmp", DEFAULT_NATPMP));
 
-    std::string strNodeError;
     CConnman::Options connOptions;
     connOptions.nLocalServices = nLocalServices;
     connOptions.nRelevantServices = nRelevantServices;
@@ -1950,6 +1905,28 @@ bool AppInitMain()
     connOptions.nSendBufferMaxSize = 1000*gArgs.GetArg("-maxsendbuffer", DEFAULT_MAXSENDBUFFER);
     connOptions.nReceiveFloodSize = 1000*gArgs.GetArg("-maxreceivebuffer", DEFAULT_MAXRECEIVEBUFFER);
 
+    if (gArgs.IsArgSet("-bind")) {
+        for (const std::string& strBind : gArgs.GetArgs("-bind")) {
+            CService addrBind;
+            if (!Lookup(strBind, addrBind, GetListenPort(), false)) {
+                return UIError(ResolveErrMsg("bind", strBind));
+            }
+            connOptions.vBinds.emplace_back(addrBind);
+        }
+    }
+    if (gArgs.IsArgSet("-whitebind")) {
+        for (const std::string& strBind : gArgs.GetArgs("-whitebind")) {
+            CService addrBind;
+            if (!Lookup(strBind, addrBind, 0, false)) {
+                return UIError(ResolveErrMsg("whitebind", strBind));
+            }
+            if (addrBind.GetPort() == 0) {
+                return UIError(strprintf(_("Need to specify a port with %s: '%s'"), "-whitebind", strBind));
+            }
+            connOptions.vWhiteBinds.emplace_back(addrBind);
+        }
+    }
+
     for (const auto& net : gArgs.GetArgs("-whitelist")) {
         CSubNet subnet;
         LookupSubNet(net, subnet);
@@ -1958,8 +1935,9 @@ bool AppInitMain()
         connOptions.vWhitelistedRange.emplace_back(subnet);
     }
 
-    if (!connman.Start(scheduler, strNodeError, connOptions))
-        return UIError(strNodeError);
+    if (!connman.Start(scheduler, connOptions)) {
+        return false;
+    }
 
 #ifdef ENABLE_WALLET
     // Generate coins in the background (disabled on mainnet. use only wallet 0)
