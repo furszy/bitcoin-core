@@ -85,7 +85,7 @@ OperationResult CActiveDeterministicMasternodeManager::GetOperatorKey(CBLSSecret
     return OperationResult(true);
 }
 
-void CActiveDeterministicMasternodeManager::Init()
+void CActiveDeterministicMasternodeManager::Init(const CBlockIndex* pindexTip)
 {
     // set masternode arg if called from RPC
     if (!fMasterNode) {
@@ -93,7 +93,7 @@ void CActiveDeterministicMasternodeManager::Init()
         fMasterNode = true;
     }
 
-    if (!deterministicMNManager->IsDIP3Enforced()) {
+    if (!deterministicMNManager->IsDIP3Enforced(pindexTip->nHeight)) {
         state = MASTERNODE_ERROR;
         strError = "Evo upgrade is not active yet.";
         LogPrintf("%s -- ERROR: %s\n", __func__, strError);
@@ -118,7 +118,7 @@ void CActiveDeterministicMasternodeManager::Init()
         return;
     }
 
-    CDeterministicMNList mnList = deterministicMNManager->GetListAtChainTip();
+    CDeterministicMNList mnList = deterministicMNManager->GetListForBlock(pindexTip);
 
     CDeterministicMNCPtr dmn = mnList.GetMNByOperatorKey(info.pubKeyOperator);
     if (!dmn) {
@@ -161,12 +161,12 @@ void CActiveDeterministicMasternodeManager::Init()
     state = MASTERNODE_READY;
 }
 
-void CActiveDeterministicMasternodeManager::Reset(masternode_state_t _state)
+void CActiveDeterministicMasternodeManager::Reset(masternode_state_t _state, const CBlockIndex* pindexTip)
 {
     state = _state;
     SetNullProTx();
     // MN might have reappeared in same block with a new ProTx
-    Init();
+    Init(pindexTip);
 }
 
 void CActiveDeterministicMasternodeManager::UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload)
@@ -174,14 +174,14 @@ void CActiveDeterministicMasternodeManager::UpdatedBlockTip(const CBlockIndex* p
     if (fInitialDownload)
         return;
 
-    if (!fMasterNode || !deterministicMNManager->IsDIP3Enforced())
+    if (!fMasterNode || !deterministicMNManager->IsDIP3Enforced(pindexNew->nHeight))
         return;
 
     if (state == MASTERNODE_READY) {
         auto newDmn = deterministicMNManager->GetListForBlock(pindexNew).GetValidMN(info.proTxHash);
         if (newDmn == nullptr) {
             // MN disappeared from MN list
-            Reset(MASTERNODE_REMOVED);
+            Reset(MASTERNODE_REMOVED, pindexNew);
             return;
         }
 
@@ -195,19 +195,19 @@ void CActiveDeterministicMasternodeManager::UpdatedBlockTip(const CBlockIndex* p
 
         if (newDmn->pdmnState->pubKeyOperator != oldDmn->pdmnState->pubKeyOperator) {
             // MN operator key changed or revoked
-            Reset(MASTERNODE_OPERATOR_KEY_CHANGED);
+            Reset(MASTERNODE_OPERATOR_KEY_CHANGED, pindexNew);
             return;
         }
 
         if (newDmn->pdmnState->addr != oldDmn->pdmnState->addr) {
             // MN IP changed
-            Reset(MASTERNODE_PROTX_IP_CHANGED);
+            Reset(MASTERNODE_PROTX_IP_CHANGED, pindexNew);
             return;
         }
     } else {
         // MN might have (re)appeared with a new ProTx or we've found some peers
         // and figured out our local address
-        Init();
+        Init(pindexNew);
     }
 }
 

@@ -56,8 +56,8 @@ public:
     virtual ~CActiveDeterministicMasternodeManager() = default;
     virtual void UpdatedBlockTip(const CBlockIndex* pindexNew, const CBlockIndex* pindexFork, bool fInitialDownload);
 
-    void Init();
-    void Reset(masternode_state_t _state);
+    void Init(const CBlockIndex* pindexTip);
+    void Reset(masternode_state_t _state, const CBlockIndex* pindexTip);
     // Sets the Deterministic Masternode Operator's private/public key
     OperationResult SetOperatorKey(const std::string& strMNOperatorPrivKey);
     // If the active masternode is ready, and the keyID matches with the registered one,

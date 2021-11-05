@@ -99,7 +99,8 @@ UniValue initmasternode(const JSONRPCRequest& request)
         }
         auto res = activeMasternodeManager->SetOperatorKey(_strMasterNodePrivKey);
         if (!res) throw std::runtime_error(res.getError());
-        activeMasternodeManager->Init();
+        const CBlockIndex* pindexTip = WITH_LOCK(cs_main, return chainActive.Tip(); );
+        activeMasternodeManager->Init(pindexTip);
         if (activeMasternodeManager->GetState() == CActiveDeterministicMasternodeManager::MASTERNODE_ERROR) {
             throw std::runtime_error(activeMasternodeManager->GetStatus());
         }

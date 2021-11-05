@@ -1861,7 +1861,8 @@ bool AppInitMain()
             if (!res) { return UIError(res.getError()); }
             RegisterValidationInterface(activeMasternodeManager);
             // Init active masternode
-            activeMasternodeManager->Init();
+            const CBlockIndex* pindexTip = WITH_LOCK(cs_main, return chainActive.Tip(); );
+            activeMasternodeManager->Init(pindexTip);
         } else {
             // Check enforcement
             if (deterministicMNManager->LegacyMNObsolete()) {
