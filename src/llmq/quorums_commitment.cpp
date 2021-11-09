@@ -65,7 +65,7 @@ static bool errorFinalCommitment(const char* fmt, const Args&... args)
     return false;
 }
 
-bool CFinalCommitment::Verify(const CBlockIndex* pQuorumIndex, bool checkSigs) const
+bool CFinalCommitment::Verify(const CBlockIndex* pQuorumIndex) const
 {
     if (nVersion == 0 || nVersion > CURRENT_VERSION) {
         return errorFinalCommitment("version (%d)", nVersion);
@@ -107,7 +107,7 @@ bool CFinalCommitment::Verify(const CBlockIndex* pQuorumIndex, bool checkSigs) c
     }
 
     auto members = utils::GetAllQuorumMembers(params.type, pQuorumIndex);
-    for (size_t i = members.size(); i < params.size; i++) {
+    for (int i = members.size(); i < params.size; i++) {
         if (validMembers[i]) {
             return errorFinalCommitment("validMembers bitset (bit %d should not be set)", i);
         }
@@ -116,25 +116,20 @@ bool CFinalCommitment::Verify(const CBlockIndex* pQuorumIndex, bool checkSigs) c
         }
     }
 
-    // sigs are only checked when the block is processed
-    if (checkSigs) {
-        uint256 commitmentHash = utils::BuildCommitmentHash(params.type, quorumHash, validMembers, quorumPublicKey, quorumVvecHash);
-
-        std::vector<CBLSPublicKey> memberPubKeys;
-        for (size_t i = 0; i < members.size(); i++) {
-            if (!signers[i]) {
-                continue;
-            }
-            memberPubKeys.emplace_back(members[i]->pdmnState->pubKeyOperator.Get());
+    // check signatures
+    uint256 commitmentHash = utils::BuildCommitmentHash(params.type, quorumHash, validMembers, quorumPublicKey, quorumVvecHash);
+    std::vector<CBLSPublicKey> memberPubKeys;
+    for (size_t i = 0; i < members.size(); i++) {
+        if (!signers[i]) {
+            continue;
         }
-
-        if (!membersSig.VerifySecureAggregated(memberPubKeys, commitmentHash)) {
-            return errorFinalCommitment("aggregated members signature");
-        }
-
-        if (!quorumSig.VerifyInsecure(quorumPublicKey, commitmentHash)) {
-            return errorFinalCommitment("invalid quorum signature");
-        }
+        memberPubKeys.emplace_back(members[i]->pdmnState->pubKeyOperator.Get());
+    }
+    if (!membersSig.VerifySecureAggregated(memberPubKeys, commitmentHash)) {
+        return errorFinalCommitment("aggregated members signature");
+    }
+    if (!quorumSig.VerifyInsecure(quorumPublicKey, commitmentHash)) {
+        return errorFinalCommitment("invalid quorum signature");
     }
 
     return true;
@@ -196,7 +191,7 @@ bool CheckLLMQCommitment(const CTransaction& tx, const CBlockIndex* pindexPrev, 
             return state.DoS(100, false, REJECT_INVALID, "bad-qc-quorum-hash");
         }
 
-        if (!pl.commitment.Verify(pindexQuorum, true)) {
+        if (!pl.commitment.Verify(pindexQuorum)) {
             return state.DoS(100, false, REJECT_INVALID, "bad-qc-invalid");
         }
     }
