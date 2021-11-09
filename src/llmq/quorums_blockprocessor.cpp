@@ -99,7 +99,7 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
         return;
     }
 
-    if (!qc.Verify(pquorumIndex, true)) {
+    if (!qc.Verify(pquorumIndex)) {
         SetMisbehaving(pfrom, 100, "invalid commtiment for quorum", qc.quorumHash.ToString());
         return;
     }

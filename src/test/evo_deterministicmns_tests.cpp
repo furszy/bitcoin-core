@@ -928,10 +928,10 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
     // create final commitment
     llmq::CFinalCommitment qfc = CreateFinalCommitment(pkeys, skeys, quorumHash);
     BOOST_CHECK(!qfc.IsNull());
-    BOOST_CHECK(qfc.Verify(quorumIndex, true));
+    BOOST_CHECK(qfc.Verify(quorumIndex));
     // verify that it fails against a different quorumHash
     SyncWithValidationInterfaceQueue();
-    BOOST_CHECK(!qfc.Verify(quorumIndex->pprev, true));
+    BOOST_CHECK(!qfc.Verify(quorumIndex->pprev));
 
     // receive final commitment message
     CNode dummyNode(id++, NODE_NETWORK, 0, INVALID_SOCKET, CAddress(ip(0xa0b0c001), NODE_NONE), 0, 0, "", true);
@@ -993,7 +993,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
     std::vector<CBLSSecretKey> skeys2(skeys.begin(), skeys.end()-1);
     llmq::CFinalCommitment qfc2 = CreateFinalCommitment(pkeys2, skeys2, quorumHash);
     BOOST_CHECK(!qfc2.IsNull());
-    BOOST_CHECK(qfc2.Verify(quorumIndex, true));
+    BOOST_CHECK(qfc2.Verify(quorumIndex));
     {
         CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
         vRecv << qfc2;
@@ -1005,7 +1005,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
     // Now receive another commitment for the same quorum hash, but with all 3 signatures
     qfc = CreateFinalCommitment(pkeys, skeys, quorumHash);
     BOOST_CHECK(!qfc.IsNull());
-    BOOST_CHECK(qfc.Verify(quorumIndex, true));
+    BOOST_CHECK(qfc.Verify(quorumIndex));
     {
         CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
         vRecv << qfc;
