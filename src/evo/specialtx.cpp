@@ -58,67 +58,17 @@ static bool CheckSpecialTxBasic(const CTransaction& tx, CValidationState& state)
     return true;
 }
 
-bool CheckSpecialTxNoContext(const CTransaction& tx, CValidationState& state)
+// contextual and non-contextual per-type checks
+// - pindexPrev=null: CheckBlock-->CheckSpecialTxNoContext
+// - pindexPrev=chainActive.Tip: AcceptToMemoryPoolWorker-->CheckSpecialTx
+// - pindexPrev=pindex->pprev: ConnectBlock-->ProcessSpecialTxsInBlock-->CheckSpecialTx
+static bool CheckTxByPayloadType(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
 {
-    if (!CheckSpecialTxBasic(tx, state)) {
-        // pass the state returned by the function above
-        return false;
-    }
-
-    // non-contextual per-type checks
     switch (tx.nType) {
         case CTransaction::TxType::NORMAL: {
             // nothing to check
             return true;
         }
-        case CTransaction::TxType::PROREG: {
-            // provider-register
-            return CheckProRegTx(tx, nullptr, state);
-        }
-        case CTransaction::TxType::PROUPSERV: {
-            // provider-update-service
-            return CheckProUpServTx(tx, nullptr, state);
-        }
-        case CTransaction::TxType::PROUPREG: {
-            // provider-update-registrar
-            return CheckProUpRegTx(tx, nullptr, state);
-        }
-        case CTransaction::TxType::PROUPREV: {
-            // provider-update-revoke
-            return CheckProUpRevTx(tx, nullptr, state);
-        }
-        case CTransaction::TxType::LLMQCOMM: {
-            // quorum commitment
-            return llmq::CheckLLMQCommitment(tx, nullptr, state);
-        }
-    }
-
-    return state.DoS(10, error("%s: special tx %s with invalid type %d", __func__, tx.GetHash().ToString(), tx.nType),
-                     REJECT_INVALID, "bad-tx-type");
-}
-
-bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
-{
-    // This function is not called when connecting the genesis block
-    assert(pindexPrev != nullptr);
-
-    if (!CheckSpecialTxBasic(tx, state)) {
-        // pass the state returned by the function above
-        return false;
-    }
-
-    if (tx.IsNormalType()) {
-        // nothing to check
-        return true;
-    }
-
-    if (!Params().GetConsensus().NetworkUpgradeActive(pindexPrev->nHeight + 1, Consensus::UPGRADE_V6_0)) {
-        return state.DoS(100, error("%s: Special tx when v6 upgrade not enforced yet", __func__),
-                         REJECT_INVALID, "bad-txns-v6-not-active");
-    }
-
-    // contextual and non-contextual per-type checks
-    switch (tx.nType) {
         case CTransaction::TxType::PROREG: {
             // provider-register
             return CheckProRegTx(tx, pindexPrev, state);
@@ -143,6 +93,39 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVali
 
     return state.DoS(10, error("%s: special tx %s with invalid type %d", __func__, tx.GetHash().ToString(), tx.nType),
                      REJECT_INVALID, "bad-tx-type");
+}
+
+bool CheckSpecialTxNoContext(const CTransaction& tx, CValidationState& state)
+{
+    if (!CheckSpecialTxBasic(tx, state)) {
+        // pass the state returned by the function above
+        return false;
+    }
+
+    return CheckTxByPayloadType(tx, nullptr, state);
+}
+
+bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
+{
+    // This function is not called when connecting the genesis block
+    assert(pindexPrev != nullptr);
+
+    if (!CheckSpecialTxBasic(tx, state)) {
+        // pass the state returned by the function above
+        return false;
+    }
+
+    if (tx.IsNormalType()) {
+        // nothing to check
+        return true;
+    }
+
+    if (!Params().GetConsensus().NetworkUpgradeActive(pindexPrev->nHeight + 1, Consensus::UPGRADE_V6_0)) {
+        return state.DoS(100, error("%s: Special tx when v6 upgrade not enforced yet", __func__),
+                         REJECT_INVALID, "bad-txns-v6-not-active");
+    }
+
+    return CheckTxByPayloadType(tx, pindexPrev, state);
 }
 
 bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck)
