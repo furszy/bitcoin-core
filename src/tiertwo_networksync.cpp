@@ -48,6 +48,8 @@ bool CMasternodeSync::MessageDispatcher(CNode* pfrom, std::string& strCommand, C
     }
 
     if (strCommand == NetMsgType::QFCOMMITMENT) {
+        // Only process qfc if v6.0.0 is enforced.
+        if (!deterministicMNManager->IsDIP3Enforced()) return true; // nothing to do.
         llmq::quorumBlockProcessor->ProcessMessage(pfrom, vRecv);
         return true;
     }

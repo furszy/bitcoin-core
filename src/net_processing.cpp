@@ -871,6 +871,8 @@ bool static PushTierTwoGetDataRequest(const CInv& inv,
     }
 
     if (inv.type == MSG_QUORUM_FINAL_COMMITMENT) {
+        // Only respond if v6.0.0 is enforced.
+        if (!deterministicMNManager->IsDIP3Enforced()) return false;
         llmq::CFinalCommitment o;
         if (llmq::quorumBlockProcessor->GetMinableCommitmentByHash(inv.hash, o)) {
             connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::QFCOMMITMENT, o));
@@ -1405,6 +1407,16 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                 static std::set<int> allowWhileInIBDObjs = {
                         MSG_SPORK
                 };
+
+                // Can be safely removed post v6.0.0 enforcement
+                // Disallowed inv request
+                static std::set<int> disallowedRequestsUntilV6 = {
+                        MSG_QUORUM_FINAL_COMMITMENT
+                };
+                if (disallowedRequestsUntilV6.count(inv.type) &&
+                    !deterministicMNManager->IsDIP3Enforced()) {
+                    continue; // Move to next inv
+                }
 
                 // If we don't have it, check if we should ask for it now or
                 // wait until we are sync
