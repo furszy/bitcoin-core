@@ -98,8 +98,12 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         // Gather all connected peers first, so we don't
         // try to connect to an already connected peer
         std::vector<PeerData> connectedNodes;
+        std::set<uint256> connectedProRegTxHashes;
         connman->ForEachNode([&](const CNode* pnode) {
             connectedNodes.emplace_back(PeerData{pnode->addr, pnode->fDisconnect, pnode->m_masternode_connection});
+            if (!pnode->verifiedProRegTxHash.IsNull()) {
+                connectedProRegTxHashes.emplace(pnode->verifiedProRegTxHash);
+            }
         });
 
         // Try to connect to a single MN per cycle
@@ -112,6 +116,10 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
             std::vector<CDeterministicMNCPtr> pending;
             for (const auto& group: masternodeQuorumNodes) {
                 for (const auto& proRegTxHash: group.second) {
+                    // Skip if already have this member connected
+                    if (connectedProRegTxHashes.count(proRegTxHash)) continue;
+
+                    // Check if DMN exists in tip list
                     const auto& dmn = mnList.GetValidMN(proRegTxHash);
                     if (!dmn) continue;
                     auto peerData = std::find(connectedNodes.begin(), connectedNodes.end(), dmn->pdmnState->addr);
