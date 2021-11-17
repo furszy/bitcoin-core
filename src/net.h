@@ -544,7 +544,12 @@ public:
     double dPingWait;
     std::string addrLocal;
     uint32_t m_mapped_as;
+    // In case this is a MN-only connection.
     bool m_masternode_connection;
+    // In case this is a verified MN, this value is the proTx of the MN
+    uint256 verifiedProRegTxHash;
+    // In case this is a verified MN, this value is the hashed operator pubkey of the MN
+    uint256 verifiedPubKeyHash;
 };
 
 
@@ -710,6 +715,13 @@ public:
     std::atomic<int64_t> nMinPingUsecTime;
     // Whether a ping is requested.
     std::atomic<bool> fPingQueued;
+
+    // Challenge sent in VERSION to be answered with MNAUTH (only happens between MNs)
+    mutable Mutex cs_mnauth;
+    uint256 sentMNAuthChallenge;
+    uint256 receivedMNAuthChallenge;
+    uint256 verifiedProRegTxHash; // MN provider register tx hash
+    uint256 verifiedPubKeyHash; // MN operator pubkey hash
 
     CNode(NodeId id, ServiceFlags nLocalServicesIn, int nMyStartingHeightIn, SOCKET hSocketIn, const CAddress& addrIn, uint64_t nKeyedNetGroupIn, uint64_t nLocalHostNonceIn, const std::string& addrNameIn = "", bool fInboundIn = false);
     ~CNode();
