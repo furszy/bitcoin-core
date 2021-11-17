@@ -7,6 +7,7 @@
 
 #include "chainparams.h"
 #include "evo/deterministicmns.h"
+#include "scheduler.h"
 #include "util/system.h" // for gArgs
 #include "tiertwo/masternode_meta_manager.h" // for g_mmetaman
 #include "masternode-sync.h" // for IsBlockchainSynced
@@ -37,7 +38,37 @@ void TierTwoConnMan::removeQuorumNodes(Consensus::LLMQType llmqType, const uint2
     masternodeQuorumNodes.erase(std::make_pair(llmqType, quorumHash));
 }
 
-void TierTwoConnMan::start()
+bool TierTwoConnMan::isMasternodeQuorumNode(const CNode* pnode)
+{
+    // Let's see if this is an outgoing connection to an address that is known to be a masternode
+    // We however only need to know this if the node did not authenticate itself as a MN yet
+    uint256 assumedProTxHash;
+    if (pnode->verifiedProRegTxHash.IsNull() && !pnode->fInbound) {
+        auto mnList = deterministicMNManager->GetListAtChainTip();
+        auto dmn = mnList.GetMNByService(pnode->addr);
+        if (dmn == nullptr) {
+            // This is definitely not a masternode
+            return false;
+        }
+        assumedProTxHash = dmn->proTxHash;
+    }
+
+    LOCK(cs_vPendingMasternodes);
+    for (const auto& quorumConn : masternodeQuorumNodes) {
+        if (!pnode->verifiedProRegTxHash.IsNull()) {
+            if (quorumConn.second.count(pnode->verifiedProRegTxHash)) {
+                return true;
+            }
+        } else if (!assumedProTxHash.IsNull()) {
+            if (quorumConn.second.count(assumedProTxHash)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void TierTwoConnMan::start(CScheduler& scheduler)
 {
     // Must be started after connman
     assert(connman);
@@ -48,6 +79,8 @@ void TierTwoConnMan::start()
         return;
     // Initiate masternode connections
     threadOpenMasternodeConnections = std::thread(&TraceThread<std::function<void()> >, "mncon", std::function<void()>(std::bind(&TierTwoConnMan::ThreadOpenMasternodeConnections, this)));
+    // Cleanup process every 60 seconds
+    scheduler.scheduleEvery(std::bind(&TierTwoConnMan::doMaintenance, this), 60 * 1000);
 }
 
 void TierTwoConnMan::stop() {
@@ -172,5 +205,45 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
             g_mmetaman.GetMetaInfo(dmnToConnect->proTxHash)->SetLastOutboundSuccess(0);
         }
     }
+}
+
+static void ProcessMasternodeConnections(CConnman& connman, TierTwoConnMan& tierTwoConnMan)
+{
+    // Don't disconnect masternode connections when we have less than the desired amount of outbound nodes
+    int nonMasternodeCount = 0;
+    connman.ForEachNode([&](CNode* pnode) {
+        // future: add probe connection
+        if (!pnode->fInbound && !pnode->fFeeler && !pnode->fAddnode && !pnode->m_masternode_connection) {
+            nonMasternodeCount++;
+        }
+    });
+    if (nonMasternodeCount < (int) connman.GetMaxOutboundNodeCount()) {
+        return;
+    }
+
+    connman.ForEachNode([&](CNode* pnode) {
+        // we're only disconnecting m_masternode_connection connections
+        if (!pnode->m_masternode_connection) return;
+        // we're only disconnecting outbound connections (inbound connections are disconnected in AcceptConnection())
+        if (pnode->fInbound) return;
+        // we're not disconnecting LLMQ connections
+        if (tierTwoConnMan.isMasternodeQuorumNode(pnode)) return;
+        // future: add probe connection
+
+        if (fLogIPs) {
+            LogPrintf("Closing Masternode connection: peer=%d, addr=%s\n", pnode->GetId(), pnode->addr.ToString());
+        } else {
+            LogPrintf("Closing Masternode connection: peer=%d\n", pnode->GetId());
+        }
+        pnode->fDisconnect = true;
+    });
+}
+
+void TierTwoConnMan::doMaintenance()
+{
+    if(!masternodeSync.IsBlockchainSynced() || interruptNet) {
+        return;
+    }
+    ProcessMasternodeConnections(*connman, *this);
 }
 

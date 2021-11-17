@@ -2121,7 +2121,7 @@ bool CConnman::Start(CScheduler& scheduler, const Options& connOptions)
     threadOpenAddedConnections = std::thread(&TraceThread<std::function<void()> >, "addcon", std::function<void()>(std::bind(&CConnman::ThreadOpenAddedConnections, this)));
 
     // Start tier two connection manager
-    if (m_tiertwo_conn_man) m_tiertwo_conn_man->start();
+    if (m_tiertwo_conn_man) m_tiertwo_conn_man->start(scheduler);
 
     if (connOptions.m_use_addrman_outgoing && !connOptions.m_specified_outgoing.empty()) {
         if (clientInterface) {
@@ -2299,6 +2299,11 @@ bool CConnman::RemoveAddedNode(const std::string& strNode)
         }
     }
     return false;
+}
+
+size_t CConnman::GetMaxOutboundNodeCount()
+{
+    return nMaxOutbound;
 }
 
 size_t CConnman::GetNodeCount(NumConnections flags)
