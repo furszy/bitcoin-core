@@ -972,6 +972,27 @@ bool CConnman::AttemptToEvictConnection(bool fPreferNewConnection)
                 continue;
             if (node->fDisconnect)
                 continue;
+
+            // Protect verified MN-only connections
+            if (fMasterNode) {
+                // This handles eviction protected nodes. Nodes are always protected for a short time after the connection
+                // was accepted. This short time is meant for the VERSION/VERACK exchange and the possible MNAUTH that might
+                // follow when the incoming connection is from another masternode. When a message other than MNAUTH
+                // is received after VERSION/VERACK, the protection is lifted immediately.
+                bool isProtected = GetSystemTimeInSeconds() - node->nTimeConnected < INBOUND_EVICTION_PROTECTION_TIME;
+                if (node->fFirstMessageReceived && !node->fFirstMessageIsMNAUTH) {
+                    isProtected = false;
+                }
+                // if MNAUTH was valid, the node is always protected (and at the same time not accounted when
+                // checking incoming connection limits)
+                if (!node->verifiedProRegTxHash.IsNull()) {
+                    isProtected = true;
+                }
+                if (isProtected) {
+                    continue;
+                }
+            }
+
             NodeEvictionCandidate candidate = {node->GetId(), node->nTimeConnected, node->nMinPingUsecTime, node->addr, node->nKeyedNetGroup};
             vEvictionCandidates.push_back(candidate);
         }
@@ -1046,6 +1067,7 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
     SOCKET hSocket = accept(hListenSocket.socket, (struct sockaddr*)&sockaddr, &len);
     CAddress addr;
     int nInbound = 0;
+    int nVerifiedInboundMasternodes = 0;
     int nMaxInbound = nMaxConnections - (nMaxOutbound + nMaxFeeler);
 
     if (hSocket != INVALID_SOCKET)
@@ -1056,7 +1078,12 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
     {
         LOCK(cs_vNodes);
         for (const CNode* pnode : vNodes) {
-            if (pnode->fInbound) nInbound++;
+            if (pnode->fInbound) {
+                nInbound++;
+                if (!pnode->verifiedProRegTxHash.IsNull()) {
+                    nVerifiedInboundMasternodes++;
+                }
+            }
         }
     }
 
@@ -1079,13 +1106,20 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
         return;
     }
 
-    if (nInbound >= nMaxConnections - MAX_OUTBOUND_CONNECTIONS) {
+    // TODO: pending review.
+    // Evict connections until we are below nMaxInbound. In case eviction protection resulted in nodes to not be evicted
+    // before, they might get evicted in batches now (after the protection timeout).
+    // We don't evict verified MN connections and also don't take them into account when checking limits. We can do this
+    // because we know that such connections are naturally limited by the total number of MNs, so this is not usable
+    // for attacks.
+    while (nInbound - nVerifiedInboundMasternodes >= nMaxConnections - MAX_OUTBOUND_CONNECTIONS) {
         if (!AttemptToEvictConnection(whitelisted)) {
             // No connection to evict, disconnect the new connection
             LogPrint(BCLog::NET, "failed to find an eviction candidate - connection dropped (full)\n");
             CloseSocket(hSocket);
             return;
         }
+        nInbound--;
     }
 
     NodeId id = GetNewNodeId();
