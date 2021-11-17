@@ -684,6 +684,11 @@ void CNode::copyStats(CNodeStats& stats, const std::vector<bool>& m_asmap)
     }
     X(fWhitelisted);
     X(m_masternode_connection);
+    {
+        LOCK(cs_mnauth);
+        X(verifiedProRegTxHash);
+        X(verifiedPubKeyHash);
+    }
 
     // It is common for nodes with good ping times to suddenly become lagged,
     // due to a new block arriving or other large transfer.
