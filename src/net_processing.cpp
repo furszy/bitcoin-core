@@ -1353,6 +1353,13 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         return false;
     }
 
+    if (!pfrom->fFirstMessageReceived.exchange(true)) {
+        // First message after VERSION/VERACK
+        pfrom->fFirstMessageReceived = true;
+        pfrom->fFirstMessageIsMNAUTH = strCommand == NetMsgType::MNAUTH;
+        // future: add mn probe connection
+    }
+
 
     else if (strCommand == NetMsgType::ADDR || strCommand == NetMsgType::ADDRV2) {
         int stream_version = vRecv.GetVersion();
