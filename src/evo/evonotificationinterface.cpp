@@ -5,6 +5,7 @@
 #include "evo/evonotificationinterface.h"
 
 #include "evo/deterministicmns.h"
+#include "evo/mnauth.h"
 #include "validation.h"
 
 void EvoNotificationInterface::InitializeCurrentBlockTip()
@@ -20,5 +21,5 @@ void EvoNotificationInterface::UpdatedBlockTip(const CBlockIndex *pindexNew, con
 
 void EvoNotificationInterface::NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff)
 {
-    // !TODO
+    CMNAuth::NotifyMasternodeListChanged(undo, oldMNList, diff);
 }
