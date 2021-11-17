@@ -16,6 +16,7 @@
 #include "crypto/common.h"
 #include "crypto/sha256.h"
 #include "guiinterface.h"
+#include "masternode-sync.h"
 #include "netaddress.h"
 #include "netbase.h"
 #include "netmessagemaker.h"
@@ -1102,6 +1103,13 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
 
     if (IsBanned(addr) && !whitelisted) {
         LogPrint(BCLog::NET, "connection from %s dropped (banned)\n", addr.ToString());
+        CloseSocket(hSocket);
+        return;
+    }
+
+    // if we are a MN, don't accept incoming connections until fully synced
+    if(fMasterNode && !masternodeSync.IsSynced()) {
+        LogPrint(BCLog::NET, "AcceptConnection -- masternode is not synced yet, skipping inbound connection attempt\n");
         CloseSocket(hSocket);
         return;
     }
