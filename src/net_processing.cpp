@@ -9,6 +9,7 @@
 #include "budget/budgetmanager.h"
 #include "chain.h"
 #include "evo/deterministicmns.h"
+#include "evo/mnauth.h"
 #include "llmq/quorums_blockprocessor.h"
 #include "masternodeman.h"
 #include "masternode-payments.h"
@@ -264,8 +265,14 @@ void PushNodeVersion(CNode* pnode, CConnman* connman, int64_t nTime)
     CAddress addrYou = (addr.IsRoutable() && !IsProxy(addr) ? addr : CAddress(CService(), addr.nServices));
     CAddress addrMe = CAddress(CService(), nLocalNodeServices);
 
+    // MN auth
+    // future: create the challenge only for mn connections.
+    uint256 mnauthChallenge;
+    GetRandBytes(mnauthChallenge.begin(), (int)mnauthChallenge.size());
+    WITH_LOCK(pnode->cs_mnauth, pnode->sentMNAuthChallenge = mnauthChallenge);
+
     connman->PushMessage(pnode, CNetMsgMaker(INIT_PROTO_VERSION).Make(NetMsgType::VERSION, PROTOCOL_VERSION, (uint64_t)nLocalNodeServices, nTime, addrYou, addrMe,
-            nonce, strSubVersion, nNodeStartingHeight, true, pnode->m_masternode_connection));
+            nonce, strSubVersion, nNodeStartingHeight, true, pnode->m_masternode_connection, pnode->sentMNAuthChallenge));
 
     if (fLogIPs)
         LogPrint(BCLog::NET, "send version message: version %d, blocks=%d, us=%s, them=%s, peer=%d\n", PROTOCOL_VERSION, nNodeStartingHeight, addrMe.ToString(), addrYou.ToString(), nodeid);
@@ -1178,6 +1185,9 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                 }
             }
         }
+        if (!vRecv.empty()) {
+            WITH_LOCK(pfrom->cs_mnauth, vRecv >> pfrom->receivedMNAuthChallenge;);
+        }
 
         // Disconnect if we connected to ourself
         if (pfrom->fInbound && !connman->CheckIncomingNonce(nNonce)) {
@@ -1316,6 +1326,13 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             LOCK(cs_main);
             State(pfrom->GetId())->fCurrentlyConnected = true;
         }
+
+        // future: add mn probe connection
+        if (pfrom->nVersion >= MNAUTH_NODE_VER_VERSION) {
+            // Only relayed if this is a mn connection
+            CMNAuth::PushMNAUTH(pfrom, *connman);
+        }
+
         pfrom->fSuccessfullyConnected = true;
         LogPrintf("New outbound peer connected: version: %d, blocks=%d, peer=%d%s\n",
                   pfrom->nVersion.load(), pfrom->nStartingHeight, pfrom->GetId(),
@@ -2003,6 +2020,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                     WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), dosScore));
                     return false;
                 }
+                CMNAuth::ProcessMessage(pfrom, strCommand, vRecv, *connman);
             }
         } else {
             // Ignore unknown commands for extensibility

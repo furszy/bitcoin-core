@@ -278,6 +278,10 @@ extern const char* SYNCSTATUSCOUNT;
  * The qfcommit message is used to propagate LLMQ final commitments
  */
 extern const char* QFCOMMITMENT;
+/**
+ * The mnauth message is used authenticate MN connections
+ */
+extern const char* MNAUTH;
 }; // namespace NetMsgType
 
 /* Get a vector of all valid message types (see above) */

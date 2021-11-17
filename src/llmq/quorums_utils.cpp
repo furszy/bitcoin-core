@@ -54,6 +54,28 @@ std::string ToHexStr(const std::vector<bool>& vBits)
     return HexStr(vBytes);
 }
 
+uint256 DeterministicOutboundConnection(const uint256& proTxHash1, const uint256& proTxHash2)
+{
+    // We need to deterministically select who is going to initiate the connection. The naive way would be to simply
+    // return the min(proTxHash1, proTxHash2), but this would create a bias towards MNs with a numerically low
+    // hash. To fix this, we return the proTxHash that has the lowest value of:
+    //   hash(min(proTxHash1, proTxHash2), max(proTxHash1, proTxHash2), proTxHashX)
+    // where proTxHashX is the proTxHash to compare
+    uint256 h1;
+    uint256 h2;
+    if (proTxHash1 < proTxHash2) {
+        h1 = ::SerializeHash(std::make_tuple(proTxHash1, proTxHash2, proTxHash1));
+        h2 = ::SerializeHash(std::make_tuple(proTxHash1, proTxHash2, proTxHash2));
+    } else {
+        h1 = ::SerializeHash(std::make_tuple(proTxHash2, proTxHash1, proTxHash1));
+        h2 = ::SerializeHash(std::make_tuple(proTxHash2, proTxHash1, proTxHash2));
+    }
+    if (h1 < h2) {
+        return proTxHash1;
+    }
+    return proTxHash2;
+}
+
 } // namespace llmq::utils
 
 } // namespace llmq
