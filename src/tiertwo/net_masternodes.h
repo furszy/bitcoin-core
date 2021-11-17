@@ -16,6 +16,8 @@
 class CAddress;
 class CConnman;
 class CChainParams;
+class CNode;
+class CScheduler;
 
 class TierTwoConnMan
 {
@@ -34,10 +36,12 @@ public:
     // Remove the registered quorum from the pending/protected MN connections
     void removeQuorumNodes(Consensus::LLMQType llmqType, const uint256& quorumHash);
 
+    // Returns true if the node has the same address as a MN.
+    bool isMasternodeQuorumNode(const CNode* pnode);
 
     // Manages the MN connections
     void ThreadOpenMasternodeConnections();
-    void start();
+    void start(CScheduler& scheduler);
     void stop();
     void interrupt();
 
@@ -54,6 +58,7 @@ private:
     CConnman* connman;
 
     void openConnection(const CAddress& addrConnect);
+    void doMaintenance();
 };
 
 #endif //PIVX_NET_MASTERNODES_H
