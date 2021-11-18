@@ -38,9 +38,9 @@ public:
 
     const uint256& GetProTxHash() const { return proTxHash; }
     void SetLastOutboundAttempt(int64_t t) { LOCK(cs); lastOutboundAttempt = t; }
-    int64_t GetLastOutboundAttempt() { LOCK(cs); return lastOutboundAttempt; }
+    int64_t GetLastOutboundAttempt() const { LOCK(cs); return lastOutboundAttempt; }
     void SetLastOutboundSuccess(int64_t t) { LOCK(cs); lastOutboundSuccess = t; }
-    int64_t GetLastOutboundSuccess() { LOCK(cs); return lastOutboundSuccess; }
+    int64_t GetLastOutboundSuccess() const { LOCK(cs); return lastOutboundSuccess; }
 };
 
 typedef std::shared_ptr<CMasternodeMetaInfo> CMasternodeMetaInfoPtr;
