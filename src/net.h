@@ -178,7 +178,15 @@ public:
     void Interrupt();
     bool GetNetworkActive() const { return fNetworkActive; };
     void SetNetworkActive(bool active);
-    void OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant* grantOutbound = nullptr, const char* strDest = nullptr, bool fOneShot = false, bool fFeeler = false, bool fAddnode = false, bool masternode_connection = false);
+    void OpenNetworkConnection(const CAddress& addrConnect,
+                               bool fCountFailure,
+                               CSemaphoreGrant* grantOutbound = nullptr,
+                               const char* strDest = nullptr,
+                               bool fOneShot = false,
+                               bool fFeeler = false,
+                               bool fAddnode = false,
+                               bool masternode_connection = false,
+                               bool masternode_probe_connection = false);
     bool CheckIncomingNonce(uint64_t nonce);
 
     struct CFullyConnectedOnly {
@@ -554,7 +562,9 @@ public:
     std::string addrLocal;
     uint32_t m_mapped_as;
     // In case this is a MN-only connection.
-    bool m_masternode_connection;
+    bool m_masternode_connection{false};
+    // If 'true' this node will be disconnected after MNAUTH
+    bool m_masternode_probe_connection{false};
     // In case this is a verified MN, this value is the proTx of the MN
     uint256 verifiedProRegTxHash;
     // In case this is a verified MN, this value is the hashed operator pubkey of the MN
@@ -651,6 +661,7 @@ public:
     bool fOneShot;
     bool fAddnode;
     bool m_masternode_connection{false}; // If true this node is only used for quorum related messages.
+    bool m_masternode_probe_connection{false}; // If true this will be disconnected right after the verack
     bool fClient;
     const bool fInbound;
     /**
