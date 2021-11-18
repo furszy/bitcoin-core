@@ -39,6 +39,9 @@ public:
     // Returns true if the node has the same address as a MN.
     bool isMasternodeQuorumNode(const CNode* pnode);
 
+    // Adds the DMNs to the pending to probe list
+    void addPendingProbeConnections(const std::set<uint256>& proTxHashes);
+
     // Manages the MN connections
     void ThreadOpenMasternodeConnections();
     void start(CScheduler& scheduler);
@@ -53,11 +56,12 @@ private:
     std::vector<uint256> vPendingMasternodes GUARDED_BY(cs_vPendingMasternodes);
     typedef std::pair<Consensus::LLMQType, uint256> QuorumTypeAndHash;
     std::map<QuorumTypeAndHash, std::set<uint256>> masternodeQuorumNodes GUARDED_BY(cs_vPendingMasternodes);
+    std::set<uint256> masternodePendingProbes GUARDED_BY(cs_vPendingMasternodes);
 
     // parent connections manager
     CConnman* connman;
 
-    void openConnection(const CAddress& addrConnect);
+    void openConnection(const CAddress& addrConnect, bool isProbe);
     void doMaintenance();
 };
 
