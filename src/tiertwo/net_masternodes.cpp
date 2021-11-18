@@ -68,6 +68,16 @@ bool TierTwoConnMan::isMasternodeQuorumNode(const CNode* pnode)
     return false;
 }
 
+bool TierTwoConnMan::addPendingMasternode(const uint256& proTxHash)
+{
+    LOCK(cs_vPendingMasternodes);
+    if (std::find(vPendingMasternodes.begin(), vPendingMasternodes.end(), proTxHash) != vPendingMasternodes.end()) {
+        return false;
+    }
+    vPendingMasternodes.emplace_back(proTxHash);
+    return true;
+}
+
 void TierTwoConnMan::addPendingProbeConnections(const std::set<uint256>& proTxHashes)
 {
     LOCK(cs_vPendingMasternodes);
@@ -160,40 +170,61 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         bool isProbe = false;
         {
             LOCK(cs_vPendingMasternodes);
-            std::vector<CDeterministicMNCPtr> pending;
-            for (const auto& group: masternodeQuorumNodes) {
-                for (const auto& proRegTxHash: group.second) {
-                    // Skip if already have this member connected
-                    if (std::count(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), proRegTxHash) > 0) continue;
 
-                    // Check if DMN exists in tip list
-                    const auto& dmn = mnList.GetValidMN(proRegTxHash);
-                    if (!dmn) continue;
+            // First try to connect to pending MNs
+            if (!vPendingMasternodes.empty()) {
+                auto dmn = mnList.GetValidMN(vPendingMasternodes.front());
+                vPendingMasternodes.erase(vPendingMasternodes.begin());
+                if (dmn) {
                     auto peerData = std::find(connectedNodes.begin(), connectedNodes.end(), dmn->pdmnState->addr);
-
-                    // Skip already connected nodes.
-                    if (peerData != std::end(connectedNodes) && (peerData->f_disconnect || peerData->f_is_mn_conn)) {
-                        continue;
+                    if (peerData == std::end(connectedNodes)) {
+                        dmnToConnect = dmn;
+                        LogPrint(BCLog::NET_MN, "%s -- opening pending masternode connection to %s, service=%s\n",
+                                 __func__, dmn->proTxHash.ToString(), dmn->pdmnState->addr.ToString());
                     }
-
-                    // Check if we already tried this connection recently to not retry too often
-                    int64_t lastAttempt = g_mmetaman.GetMetaInfo(dmn->proTxHash)->GetLastOutboundAttempt();
-                    // back off trying connecting to an address if we already tried recently
-                    if (currentTime - lastAttempt < chainParams.LLMQConnectionRetryTimeout()) {
-                        continue;
-                    }
-                    pending.emplace_back(dmn);
                 }
             }
-            // Select a random node to connect
-            if (!pending.empty()) {
-                dmnToConnect = pending[GetRandInt((int)pending.size())];
-                LogPrint(BCLog::NET_MN, "TierTwoConnMan::%s -- opening quorum connection to %s, service=%s\n",
-                         __func__, dmnToConnect->proTxHash.ToString(), dmnToConnect->pdmnState->addr.ToString());
+
+            // Secondly, try to connect quorum members
+            if (!dmnToConnect) {
+                std::vector<CDeterministicMNCPtr> pending;
+                for (const auto& group: masternodeQuorumNodes) {
+                    for (const auto& proRegTxHash: group.second) {
+                        // Skip if already have this member connected
+                        if (std::count(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), proRegTxHash) > 0)
+                            continue;
+
+                        // Check if DMN exists in tip list
+                        const auto& dmn = mnList.GetValidMN(proRegTxHash);
+                        if (!dmn) continue;
+                        auto peerData = std::find(connectedNodes.begin(), connectedNodes.end(), dmn->pdmnState->addr);
+
+                        // Skip already connected nodes.
+                        if (peerData != std::end(connectedNodes) &&
+                            (peerData->f_disconnect || peerData->f_is_mn_conn)) {
+                            continue;
+                        }
+
+                        // Check if we already tried this connection recently to not retry too often
+                        int64_t lastAttempt = g_mmetaman.GetMetaInfo(dmn->proTxHash)->GetLastOutboundAttempt();
+                        // back off trying connecting to an address if we already tried recently
+                        if (currentTime - lastAttempt < chainParams.LLMQConnectionRetryTimeout()) {
+                            continue;
+                        }
+                        pending.emplace_back(dmn);
+                    }
+                }
+                // Select a random node to connect
+                if (!pending.empty()) {
+                    dmnToConnect = pending[GetRandInt((int) pending.size())];
+                    LogPrint(BCLog::NET_MN, "TierTwoConnMan::%s -- opening quorum connection to %s, service=%s\n",
+                             __func__, dmnToConnect->proTxHash.ToString(), dmnToConnect->pdmnState->addr.ToString());
+                }
             }
 
             // If no node was selected, let's try to probe nodes connection
             if (!dmnToConnect) {
+                std::vector<CDeterministicMNCPtr> pending;
                 for (auto it = masternodePendingProbes.begin(); it != masternodePendingProbes.end(); ) {
                     auto dmn = mnList.GetMN(*it);
                     if (!dmn) {
