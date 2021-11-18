@@ -68,6 +68,12 @@ bool TierTwoConnMan::isMasternodeQuorumNode(const CNode* pnode)
     return false;
 }
 
+void TierTwoConnMan::addPendingProbeConnections(const std::set<uint256>& proTxHashes)
+{
+    LOCK(cs_vPendingMasternodes);
+    masternodePendingProbes.insert(proTxHashes.begin(), proTxHashes.end());
+}
+
 void TierTwoConnMan::start(CScheduler& scheduler)
 {
     // Must be started after connman
@@ -94,10 +100,10 @@ void TierTwoConnMan::interrupt()
     interruptNet();
 }
 
-void TierTwoConnMan::openConnection(const CAddress& addrConnect)
+void TierTwoConnMan::openConnection(const CAddress& addrConnect, bool isProbe)
 {
     if (interruptNet) return;
-    connman->OpenNetworkConnection(addrConnect, false, nullptr, nullptr, false, false, false, true);
+    connman->OpenNetworkConnection(addrConnect, false, nullptr, nullptr, false, false, false, true, isProbe);
 }
 
 class PeerData {
@@ -107,6 +113,13 @@ public:
     bool f_disconnect{false};
     bool f_is_mn_conn{false};
     bool operator==(const CService& s) const { return service == s; }
+};
+
+struct MnService {
+public:
+    uint256 verif_proreg_tx_hash{UINT256_ZERO};
+    bool is_inbound{false};
+    bool operator==(const uint256& hash) const { return verif_proreg_tx_hash == hash; }
 };
 
 void TierTwoConnMan::ThreadOpenMasternodeConnections()
@@ -131,11 +144,11 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         // Gather all connected peers first, so we don't
         // try to connect to an already connected peer
         std::vector<PeerData> connectedNodes;
-        std::set<uint256> connectedProRegTxHashes;
+        std::vector<MnService> connectedProRegTxHashes;
         connman->ForEachNode([&](const CNode* pnode) {
             connectedNodes.emplace_back(PeerData{pnode->addr, pnode->fDisconnect, pnode->m_masternode_connection});
             if (!pnode->verifiedProRegTxHash.IsNull()) {
-                connectedProRegTxHashes.emplace(pnode->verifiedProRegTxHash);
+                connectedProRegTxHashes.emplace_back(MnService{pnode->verifiedProRegTxHash, pnode->fInbound});
             }
         });
 
@@ -144,13 +157,14 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         // Current list
         auto mnList = deterministicMNManager->GetListAtChainTip();
         int64_t currentTime = GetAdjustedTime();
+        bool isProbe = false;
         {
             LOCK(cs_vPendingMasternodes);
             std::vector<CDeterministicMNCPtr> pending;
             for (const auto& group: masternodeQuorumNodes) {
                 for (const auto& proRegTxHash: group.second) {
                     // Skip if already have this member connected
-                    if (connectedProRegTxHashes.count(proRegTxHash)) continue;
+                    if (std::count(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), proRegTxHash) > 0) continue;
 
                     // Check if DMN exists in tip list
                     const auto& dmn = mnList.GetValidMN(proRegTxHash);
@@ -171,12 +185,51 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
                     pending.emplace_back(dmn);
                 }
             }
-            // todo: add proving system.
             // Select a random node to connect
             if (!pending.empty()) {
                 dmnToConnect = pending[GetRandInt((int)pending.size())];
                 LogPrint(BCLog::NET_MN, "TierTwoConnMan::%s -- opening quorum connection to %s, service=%s\n",
                          __func__, dmnToConnect->proTxHash.ToString(), dmnToConnect->pdmnState->addr.ToString());
+            }
+
+            // If no node was selected, let's try to probe nodes connection
+            if (!dmnToConnect) {
+                for (auto it = masternodePendingProbes.begin(); it != masternodePendingProbes.end(); ) {
+                    auto dmn = mnList.GetMN(*it);
+                    if (!dmn) {
+                        it = masternodePendingProbes.erase(it);
+                        continue;
+                    }
+
+                    // Discard already connected outbound MNs
+                    auto mnService = std::find(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), dmn->proTxHash);
+                    bool connectedAndOutbound = mnService != std::end(connectedProRegTxHashes) && !mnService->is_inbound;
+                    if (connectedAndOutbound) {
+                        // we already have an outbound connection to this MN so there is no eed to probe it again
+                        g_mmetaman.GetMetaInfo(dmn->proTxHash)->SetLastOutboundSuccess(currentTime);
+                        it = masternodePendingProbes.erase(it);
+                        continue;
+                    }
+
+                    ++it;
+
+                    int64_t lastAttempt = g_mmetaman.GetMetaInfo(dmn->proTxHash)->GetLastOutboundAttempt();
+                    // back off trying connecting to an address if we already tried recently
+                    if (currentTime - lastAttempt < chainParams.LLMQConnectionRetryTimeout()) {
+                        continue;
+                    }
+                    pending.emplace_back(dmn);
+                }
+
+                // Select a random node to connect
+                if (!pending.empty()) {
+                    dmnToConnect = pending[GetRandInt((int)pending.size())];
+                    masternodePendingProbes.erase(dmnToConnect->proTxHash);
+                    isProbe = true;
+
+                    LogPrint(BCLog::NET_MN, "CConnman::%s -- probing masternode %s, service=%s\n",
+                             __func__, dmnToConnect->proTxHash.ToString(), dmnToConnect->pdmnState->addr.ToString());
+                }
             }
         }
 
@@ -190,7 +243,7 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         triedConnect = true;
 
         // Now connect
-        openConnection(CAddress(dmnToConnect->pdmnState->addr, NODE_NETWORK));
+        openConnection(CAddress(dmnToConnect->pdmnState->addr, NODE_NETWORK), isProbe);
         // should be in the list now if connection was opened
         bool connected = connman->ForNode(dmnToConnect->pdmnState->addr, CConnman::AllNodes, [&](CNode* pnode) {
             if (pnode->fDisconnect) {
