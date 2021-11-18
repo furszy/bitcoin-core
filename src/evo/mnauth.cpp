@@ -128,7 +128,12 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
 
         if (!pnode->fInbound) {
             g_mmetaman.GetMetaInfo(mnauth.proRegTxHash)->SetLastOutboundSuccess(GetAdjustedTime());
-            // todo: disconnect if connection is a "probe connection"
+            if (pnode->m_masternode_probe_connection) {
+                LogPrint(BCLog::NET_MN, "%s -- Masternode probe successful for %s, disconnecting. peer=%d\n",
+                         __func__, mnauth.proRegTxHash.ToString(), pnode->GetId());
+                pnode->fDisconnect = true;
+                return;
+            }
         }
 
         // future: Move this to the first line of this function..
