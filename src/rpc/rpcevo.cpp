@@ -19,6 +19,7 @@
 #include "pubkey.h" // COMPACT_SIGNATURE_SIZE
 #include "rpc/server.h"
 #include "script/sign.h"
+#include "tiertwo/masternode_meta_manager.h"
 #include "util/validation.h"
 #include "utilmoneystr.h"
 
@@ -691,6 +692,17 @@ static bool CheckWalletOwnsScript(CWallet* pwallet, const CScript& script)
 #endif
 }
 
+static UniValue ToJson(const CMasternodeMetaInfoPtr& info)
+{
+    UniValue ret(UniValue::VOBJ);
+    auto now = GetAdjustedTime();
+    ret.pushKV("last_outbound_attempt", info->GetLastOutboundAttempt());
+    ret.pushKV("last_outbound_attempt_elapsed", now - info->GetLastOutboundAttempt());
+    ret.pushKV("last_outbound_success", info->GetLastOutboundSuccess());
+    ret.pushKV("last_outbound_success_elapsed", now - info->GetLastOutboundSuccess());
+    return ret;
+}
+
 static void AddDMNEntryToList(UniValue& ret, CWallet* pwallet, const CDeterministicMNCPtr& dmn, bool fVerbose, bool fFromWallet)
 {
     assert(!fFromWallet || pwallet);
@@ -729,6 +741,9 @@ static void AddDMNEntryToList(UniValue& ret, CWallet* pwallet, const CDeterminis
         o.pushKV("hasVotingKey", hasVotingKey);
         o.pushKV("ownsCollateral", ownsCollateral);
         o.pushKV("ownsPayeeScript", ownsPayeeScript);
+        // net info
+        auto metaInfo = g_mmetaman.GetMetaInfo(dmn->proTxHash);
+        if (metaInfo) o.pushKV("metaInfo", ToJson(metaInfo));
         ret.push_back(o);
     } else {
         ret.push_back(dmn->proTxHash.ToString());
