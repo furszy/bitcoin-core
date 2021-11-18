@@ -1327,8 +1327,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             State(pfrom->GetId())->fCurrentlyConnected = true;
         }
 
-        // future: add mn probe connection
-        if (pfrom->nVersion >= MNAUTH_NODE_VER_VERSION) {
+        if (pfrom->nVersion >= MNAUTH_NODE_VER_VERSION && !pfrom->m_masternode_probe_connection) {
             // Only relayed if this is a mn connection
             CMNAuth::PushMNAUTH(pfrom, *connman);
         }
@@ -1356,7 +1355,11 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         // First message after VERSION/VERACK
         pfrom->fFirstMessageReceived = true;
         pfrom->fFirstMessageIsMNAUTH = strCommand == NetMsgType::MNAUTH;
-        // future: add mn probe connection
+        if (pfrom->m_masternode_probe_connection && !pfrom->fFirstMessageIsMNAUTH) {
+            LogPrint(BCLog::NET, "masternode probe connection first received message is not a MNAUTH, disconnecting peer=%d\n", pfrom->GetId());
+            pfrom->fDisconnect = true;
+            return false;
+        }
     }
 
 
