@@ -39,6 +39,9 @@ public:
     // Returns true if the node has the same address as a MN.
     bool isMasternodeQuorumNode(const CNode* pnode);
 
+    // Add DMN to the pending connection list
+    bool addPendingMasternode(const uint256& proTxHash);
+
     // Adds the DMNs to the pending to probe list
     void addPendingProbeConnections(const std::set<uint256>& proTxHashes);
 
