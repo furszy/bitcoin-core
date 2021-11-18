@@ -212,8 +212,7 @@ static void ProcessMasternodeConnections(CConnman& connman, TierTwoConnMan& tier
     // Don't disconnect masternode connections when we have less than the desired amount of outbound nodes
     int nonMasternodeCount = 0;
     connman.ForEachNode([&](CNode* pnode) {
-        // future: add probe connection
-        if (!pnode->fInbound && !pnode->fFeeler && !pnode->fAddnode && !pnode->m_masternode_connection) {
+        if (!pnode->fInbound && !pnode->fFeeler && !pnode->fAddnode && !pnode->m_masternode_connection && !pnode->m_masternode_probe_connection) {
             nonMasternodeCount++;
         }
     });
@@ -228,7 +227,8 @@ static void ProcessMasternodeConnections(CConnman& connman, TierTwoConnMan& tier
         if (pnode->fInbound) return;
         // we're not disconnecting LLMQ connections
         if (tierTwoConnMan.isMasternodeQuorumNode(pnode)) return;
-        // future: add probe connection
+        // we're not disconnecting masternode probes for at least a few seconds
+        if (pnode->m_masternode_probe_connection && GetSystemTimeInSeconds() - pnode->nTimeConnected < 5) return;
 
         if (fLogIPs) {
             LogPrintf("Closing Masternode connection: peer=%d, addr=%s\n", pnode->GetId(), pnode->addr.ToString());
