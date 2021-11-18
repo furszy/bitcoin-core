@@ -736,10 +736,10 @@ static void AddDMNEntryToList(UniValue& ret, CWallet* pwallet, const CDeterminis
         dmn->ToJson(o);
         Optional<int> confirmations = GetUTXOConfirmations(dmn->collateralOutpoint);
         o.pushKV("confirmations", confirmations ? *confirmations : -1);
-        o.pushKV("hasOwnerKey", hasOwnerKey);
-        o.pushKV("hasVotingKey", hasVotingKey);
-        o.pushKV("ownsCollateral", ownsCollateral);
-        o.pushKV("ownsPayeeScript", ownsPayeeScript);
+        o.pushKV("has_owner_key", hasOwnerKey);
+        o.pushKV("has_voting_key", hasVotingKey);
+        o.pushKV("owns_collateral", ownsCollateral);
+        o.pushKV("owns_payee_script", ownsPayeeScript);
         // net info
         auto metaInfo = g_mmetaman.GetMetaInfo(dmn->proTxHash);
         if (metaInfo) o.pushKV("metaInfo", ToJson(metaInfo));
