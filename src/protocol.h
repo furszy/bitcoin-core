@@ -282,6 +282,10 @@ extern const char* SYNCSTATUSCOUNT;
  */
 extern const char* QFCOMMITMENT;
 /**
+ * The qsendrecsigs message is used to propagate LLMQ intra-quorum partial recovered signatures
+ */
+extern const char* QSENDRECSIGS;
+/**
  * The mnauth message is used authenticate MN connections
  */
 extern const char* MNAUTH;
