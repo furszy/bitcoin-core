@@ -8,7 +8,6 @@
 #include "chainparams.h"
 #include "evo/deterministicmns.h"
 #include "scheduler.h"
-#include "util/system.h" // for gArgs
 #include "tiertwo/masternode_meta_manager.h" // for g_mmetaman
 #include "masternode-sync.h" // for IsBlockchainSynced
 
@@ -84,15 +83,14 @@ void TierTwoConnMan::addPendingProbeConnections(const std::set<uint256>& proTxHa
     masternodePendingProbes.insert(proTxHashes.begin(), proTxHashes.end());
 }
 
-void TierTwoConnMan::start(CScheduler& scheduler)
+void TierTwoConnMan::start(CScheduler& scheduler, const TierTwoConnMan::Options& options)
 {
     // Must be started after connman
     assert(connman);
     interruptNet.reset();
 
     // Connecting to specific addresses, no masternode connections available
-    if (gArgs.IsArgSet("-connect") && gArgs.GetArgs("-connect").size() > 0)
-        return;
+    if (options.m_has_specified_outgoing) return;
     // Initiate masternode connections
     threadOpenMasternodeConnections = std::thread(&TraceThread<std::function<void()> >, "mncon", std::function<void()>(std::bind(&TierTwoConnMan::ThreadOpenMasternodeConnections, this)));
     // Cleanup process every 60 seconds

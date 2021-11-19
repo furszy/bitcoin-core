@@ -2158,7 +2158,11 @@ bool CConnman::Start(CScheduler& scheduler, const Options& connOptions)
     threadOpenAddedConnections = std::thread(&TraceThread<std::function<void()> >, "addcon", std::function<void()>(std::bind(&CConnman::ThreadOpenAddedConnections, this)));
 
     // Start tier two connection manager
-    if (m_tiertwo_conn_man) m_tiertwo_conn_man->start(scheduler);
+    if (m_tiertwo_conn_man) {
+        TierTwoConnMan::Options opts;
+        opts.m_has_specified_outgoing = !connOptions.m_specified_outgoing.empty();
+        m_tiertwo_conn_man->start(scheduler, opts);
+    }
 
     if (connOptions.m_use_addrman_outgoing && !connOptions.m_specified_outgoing.empty()) {
         if (clientInterface) {
