@@ -1813,6 +1813,10 @@ bool AppInitMain()
                                    "Please add %s to your configuration and start with %s"), "txindex=1", "-reindex"));
     }
 
+    if (fMasterNode && gArgs.IsArgSet("-connect") && gArgs.GetArgs("-connect").size() > 0) {
+        return UIError("Cannot be a masternode and only connect to specific nodes");
+    }
+
     if (fMasterNode) {
         const std::string& mnoperatorkeyStr = gArgs.GetArg("-mnoperatorprivatekey", "");
         const bool fDeterministic = !mnoperatorkeyStr.empty();
