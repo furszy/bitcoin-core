@@ -22,6 +22,10 @@ class CScheduler;
 class TierTwoConnMan
 {
 public:
+    struct Options {
+        bool m_has_specified_outgoing;
+    };
+
     TierTwoConnMan(CConnman* _connman);
     ~TierTwoConnMan();
 
@@ -47,7 +51,7 @@ public:
 
     // Manages the MN connections
     void ThreadOpenMasternodeConnections();
-    void start(CScheduler& scheduler);
+    void start(CScheduler& scheduler, const TierTwoConnMan::Options& options);
     void stop();
     void interrupt();
 
