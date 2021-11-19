@@ -40,8 +40,14 @@ public:
     // Remove the registered quorum from the pending/protected MN connections
     void removeQuorumNodes(Consensus::LLMQType llmqType, const uint256& quorumHash);
 
+    // Add MNs to the active quorum relay members map and push QSENDRECSIGS to the verified connected peers that are part of this new quorum.
+    void setMasternodeQuorumRelayMembers(Consensus::LLMQType llmqType, const uint256& quorumHash, const std::set<uint256>& proTxHashes);
+
     // Returns true if the node has the same address as a MN.
     bool isMasternodeQuorumNode(const CNode* pnode);
+
+    // Whether protxHash an active quorum relay member
+    bool isMasternodeQuorumRelayMember(const uint256& protxHash);
 
     // Add DMN to the pending connection list
     bool addPendingMasternode(const uint256& proTxHash);
@@ -63,6 +69,7 @@ private:
     std::vector<uint256> vPendingMasternodes GUARDED_BY(cs_vPendingMasternodes);
     typedef std::pair<Consensus::LLMQType, uint256> QuorumTypeAndHash;
     std::map<QuorumTypeAndHash, std::set<uint256>> masternodeQuorumNodes GUARDED_BY(cs_vPendingMasternodes);
+    std::map<QuorumTypeAndHash, std::set<uint256>> masternodeQuorumRelayMembers GUARDED_BY(cs_vPendingMasternodes);
     std::set<uint256> masternodePendingProbes GUARDED_BY(cs_vPendingMasternodes);
 
     // parent connections manager
