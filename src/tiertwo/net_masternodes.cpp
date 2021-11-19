@@ -10,6 +10,7 @@
 #include "scheduler.h"
 #include "tiertwo/masternode_meta_manager.h" // for g_mmetaman
 #include "masternode-sync.h" // for IsBlockchainSynced
+#include "netmessagemaker.h"
 
 TierTwoConnMan::TierTwoConnMan(CConnman* _connman) : connman(_connman) {}
 TierTwoConnMan::~TierTwoConnMan() { connman = nullptr; }
@@ -37,6 +38,30 @@ void TierTwoConnMan::removeQuorumNodes(Consensus::LLMQType llmqType, const uint2
     masternodeQuorumNodes.erase(std::make_pair(llmqType, quorumHash));
 }
 
+void TierTwoConnMan::setMasternodeQuorumRelayMembers(Consensus::LLMQType llmqType, const uint256& quorumHash, const std::set<uint256>& proTxHashes)
+{
+    {
+        LOCK(cs_vPendingMasternodes);
+        auto it = masternodeQuorumRelayMembers.emplace(std::make_pair(llmqType, quorumHash), proTxHashes);
+        if (!it.second) {
+            it.first->second = proTxHashes;
+        }
+    }
+
+    // Update existing connections
+    connman->ForEachNode([&](CNode* pnode) {
+        if (!pnode->verifiedProRegTxHash.IsNull() && !pnode->m_masternode_iqr_connection && isMasternodeQuorumRelayMember(pnode->verifiedProRegTxHash)) {
+            // Tell our peer that we're interested in plain LLMQ recovered signatures.
+            // Otherwise, the peer would only announce/send messages resulting from QRECSIG,
+            // future e.g. tx locks or chainlocks. SPV and regular full nodes should not send
+            // this message as they are usually only interested in the higher level messages.
+            CNetMsgMaker msgMaker(pnode->GetSendVersion());
+            connman->PushMessage(pnode, msgMaker.Make(NetMsgType::QSENDRECSIGS, true));
+            pnode->m_masternode_iqr_connection = true;
+        }
+    });
+}
+
 bool TierTwoConnMan::isMasternodeQuorumNode(const CNode* pnode)
 {
     // Let's see if this is an outgoing connection to an address that is known to be a masternode
@@ -62,6 +87,20 @@ bool TierTwoConnMan::isMasternodeQuorumNode(const CNode* pnode)
             if (quorumConn.second.count(assumedProTxHash)) {
                 return true;
             }
+        }
+    }
+    return false;
+}
+
+bool TierTwoConnMan::isMasternodeQuorumRelayMember(const uint256& protxHash)
+{
+    if (protxHash.IsNull()) {
+        return false;
+    }
+    LOCK(cs_vPendingMasternodes);
+    for (const auto& p : masternodeQuorumRelayMembers) {
+        if (p.second.count(protxHash) > 0) {
+            return true;
         }
     }
     return false;
