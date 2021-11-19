@@ -13,6 +13,7 @@
 #include "llmq/quorums_utils.h"
 #include "util/system.h" // for fMasternode and gArgs access
 #include "net_processing.h" // for cs_main
+#include "tiertwo/net_masternodes.h"
 #include "version.h" // for MNAUTH_NODE_VER_VERSION
 
 void CMNAuth::PushMNAUTH(CNode* pnode, CConnman& connman)
@@ -189,7 +190,15 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
             pnode->verifiedPubKeyHash = dmn->pdmnState->pubKeyOperator.GetHash();
         }
 
-        // todo: add iqr connection, send interest in plain LLMQ recovered signatures.
+        if (!pnode->m_masternode_iqr_connection && connman.GetTierTwoConnMan()->isMasternodeQuorumRelayMember(pnode->verifiedProRegTxHash)) {
+            // Tell our peer that we're interested in plain LLMQ recovered signatures.
+            // Otherwise, the peer would only announce/send messages resulting from QRECSIG,
+            // future e.g. tx locks or chainlocks. SPV and regular full nodes should not send
+            // this message as they are usually only interested in the higher level messages.
+            CNetMsgMaker msgMaker(pnode->GetSendVersion());
+            connman.PushMessage(pnode, msgMaker.Make(NetMsgType::QSENDRECSIGS, true));
+            pnode->m_masternode_iqr_connection = true;
+        }
 
         LogPrint(BCLog::NET_MN, "CMNAuth::%s -- Valid MNAUTH for %s, peer=%d\n", __func__, mnauth.proRegTxHash.ToString(), pnode->GetId());
     }
