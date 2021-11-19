@@ -129,6 +129,11 @@ bool InitActiveMN()
     }
 
     if (fMasterNode) {
+
+        if (gArgs.IsArgSet("-connect") && gArgs.GetArgs("-connect").size() > 0) {
+            return UIError("Cannot be a masternode and only connect to specific nodes");
+        }
+
         const std::string& mnoperatorkeyStr = gArgs.GetArg("-mnoperatorprivatekey", "");
         const bool fDeterministic = !mnoperatorkeyStr.empty();
         LogPrintf("IS %s MASTERNODE\n", (fDeterministic ? "DETERMINISTIC " : ""));
