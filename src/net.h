@@ -341,6 +341,8 @@ public:
     unsigned int GetReceiveFloodSize() const;
 
     void SetAsmap(std::vector<bool> asmap) { addrman.m_asmap = std::move(asmap); }
+    /** Unique tier two connections manager */
+    TierTwoConnMan* GetTierTwoConnMan() { return m_tiertwo_conn_man.get(); };
 private:
     struct ListenSocket {
         SOCKET socket;
@@ -559,6 +561,8 @@ public:
     bool m_masternode_connection{false};
     // If 'true' this node will be disconnected after MNAUTH
     bool m_masternode_probe_connection{false};
+    // If 'true', we identified it as an intra-quorum relay connection
+    bool m_masternode_iqr_connection{false};
     // In case this is a verified MN, this value is the proTx of the MN
     uint256 verifiedProRegTxHash;
     // In case this is a verified MN, this value is the hashed operator pubkey of the MN
@@ -655,7 +659,8 @@ public:
     bool fOneShot;
     bool fAddnode;
     bool m_masternode_connection{false}; // If true this node is only used for quorum related messages.
-    bool m_masternode_probe_connection{false}; // If true this will be disconnected right after the verack
+    bool m_masternode_probe_connection{false}; // If true this will be disconnected right after the verack.
+    bool m_masternode_iqr_connection{false}; // If 'true', we identified it as an intra-quorum relay connection.
     bool fClient;
     const bool fInbound;
     /**
@@ -911,8 +916,7 @@ public:
     //! Sets the addrName only if it was not previously set
     void MaybeSetAddrName(const std::string& addrNameIn);
 
-    // todo: add iqr connection
-    bool CanRelay() const { return !m_masternode_connection; }
+    bool CanRelay() const { return !m_masternode_connection || m_masternode_iqr_connection; }
 };
 
 class CExplicitNetCleanup
