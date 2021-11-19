@@ -679,6 +679,8 @@ public:
     std::atomic_bool fPauseRecv;
     std::atomic_bool fPauseSend;
 
+    // If true, we will announce/send him plain recovered sigs (usually true for full nodes)
+    std::atomic<bool> m_wants_recsigs{false};
     // True when the first message after the verack is received
     std::atomic<bool> fFirstMessageReceived{false};
     // True only if the first message received after verack is a mnauth

@@ -54,6 +54,7 @@ const char* FINALBUDGETVOTE = "fbvote";
 const char* SYNCSTATUSCOUNT = "ssc";
 const char* GETMNLIST = "dseg";
 const char* QFCOMMITMENT = "qfcommit";
+const char* QSENDRECSIGS="qsendrecsigs";
 const char* MNAUTH="mnauth";
 }; // namespace NetMsgType
 
@@ -105,6 +106,7 @@ const static std::string allNetMessageTypes[] = {
     NetMsgType::SYNCSTATUSCOUNT,
     NetMsgType::MNBROADCAST2,
     NetMsgType::QFCOMMITMENT,
+    NetMsgType::QSENDRECSIGS,
     NetMsgType::MNAUTH
 };
 const static std::vector<std::string> allNetMessageTypesVec(allNetMessageTypes, allNetMessageTypes + ARRAYLEN(allNetMessageTypes));
