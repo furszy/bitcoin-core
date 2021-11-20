@@ -180,6 +180,13 @@ UniValue getpeerinfo(const JSONRPCRequest& request)
         }
         obj.pushKV("bytesrecv_per_msg", recvPerMsgCmd);
 
+        // DMN data
+        if (stats.m_masternode_connection) {
+            obj.pushKV("masternode_iqr_conn", stats.m_masternode_iqr_connection);
+            obj.pushKV("verif_mn_proreg_tx_hash", stats.verifiedProRegTxHash.GetHex());
+            obj.pushKV("verif_mn_operator_pubkey_hash", stats.verifiedPubKeyHash.GetHex());
+        }
+
         ret.push_back(obj);
     }
 
