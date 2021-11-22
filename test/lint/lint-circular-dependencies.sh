@@ -18,7 +18,6 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "chain -> legacy/stakemodifier -> chain"
     "chainparams -> checkpoints -> chainparams"
     "chainparamsbase -> util/system -> chainparamsbase"
-    "checkpoints -> validation -> checkpoints"
     "consensus/params -> consensus/upgrades -> consensus/params"
     "crypter -> wallet/wallet -> crypter"
     "evo/deterministicmns -> masternodeman -> evo/deterministicmns"
@@ -54,7 +53,6 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "chain -> chainparams -> checkpoints -> chain"
     "chain -> legacy/stakemodifier -> stakeinput -> chain"
     "chain -> legacy/stakemodifier -> validation -> chain"
-    "chainparams -> checkpoints -> validation -> chainparams"
     "chainparamsbase -> util/system -> logging -> chainparamsbase"
     "consensus/zerocoin_verify -> spork -> validation -> consensus/zerocoin_verify"
     "evo/deterministicmns -> masternode -> masternode-sync -> evo/deterministicmns"
@@ -74,17 +72,10 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "chain -> legacy/stakemodifier -> validation -> undo -> chain"
     "chain -> legacy/stakemodifier -> validation -> pow -> chain"
     "chain -> legacy/stakemodifier -> validation -> zpivchain -> chain"
-    "chainparams -> checkpoints -> validation -> consensus/tx_verify -> chainparams"
-    "chainparams -> checkpoints -> validation -> evo/specialtx_validation -> chainparams"
-    "chainparams -> checkpoints -> validation -> pow -> chainparams"
-    "chainparams -> checkpoints -> validation -> zpiv/zpivmodule -> chainparams"
     "consensus/tx_verify -> consensus/zerocoin_verify -> spork -> validation -> consensus/tx_verify"
     "evo/deterministicmns -> masternodeman -> net_processing -> validationinterface -> evo/deterministicmns"
     "evo/deterministicmns -> masternodeman -> validation -> evo/specialtx_validation -> evo/deterministicmns"
-    "addrman -> timedata -> chainparams -> checkpoints -> validation -> addrman"
     "chain -> legacy/stakemodifier -> stakeinput -> wallet/wallet -> spork -> net_processing -> chain"
-    "chainparams -> checkpoints -> validation -> evo/specialtx_validation -> evo/providertx -> key_io -> chainparams"
-    "base58 -> chainparams -> checkpoints -> validation -> evo/specialtx_validation -> evo/providertx -> key_io -> base58"
 )
 
 EXIT_CODE=0
