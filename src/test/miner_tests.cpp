@@ -6,6 +6,7 @@
 #include "wallet/test/wallet_test_fixture.h"
 
 #include "blockassembler.h"
+#include "checkpoints.h"
 #include "consensus/merkle.h"
 #include "miner.h"
 #include "pubkey.h"

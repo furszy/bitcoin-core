@@ -12,6 +12,7 @@
 #include "wallet/wallet.h"
 
 #include "budget/budgetmanager.h"
+#include "checkpoints.h"
 #include "coincontrol.h"
 #include "evo/deterministicmns.h"
 #include "guiinterfaceutil.h"

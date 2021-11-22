@@ -18,14 +18,6 @@ class CBlockIndex;
  */
 namespace Checkpoints
 {
-typedef std::map<int, uint256> MapCheckpoints;
-
-struct CCheckpointData {
-    const MapCheckpoints* mapCheckpoints;
-    int64_t nTimeLastCheckpoint;
-    int64_t nTransactionsLastCheckpoint;
-    double fTransactionsPerDay;
-};
 
 //! Returns true if block passes checkpoint checks
 bool CheckBlock(int nHeight, const uint256& hash, bool fMatchesCheckpoint = false);
