@@ -1290,6 +1290,11 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                   (fLogIPs ? strprintf(", peeraddr=%s", pfrom->addr.ToString()) : ""));
     }
 
+    else if (strCommand == NetMsgType::SENDADDRV2) {
+        pfrom->m_wants_addrv2 = true;
+        return true;
+    }
+
     else if (!pfrom->fSuccessfullyConnected)
     {
         // Must have a verack message before anything else
@@ -1345,11 +1350,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             pfrom->fGetAddr = false;
         if (pfrom->fOneShot)
             pfrom->fDisconnect = true;
-    }
-
-    else if (strCommand == NetMsgType::SENDADDRV2) {
-            pfrom->m_wants_addrv2 = true;
-            return true;
     }
 
     else if (strCommand == NetMsgType::INV) {
