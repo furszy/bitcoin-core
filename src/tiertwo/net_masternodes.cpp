@@ -180,7 +180,7 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
     while (!interruptNet) {
 
         // Retry every 5 seconds if a connection was created, otherwise 30 seconds
-        int sleepTime = triedConnect ? 5000 : 30000;
+        int sleepTime = triedConnect ? 5000 : (chainParams.IsRegTestNet() ? 5000 : 30000);
         if (!interruptNet.sleep_for(std::chrono::milliseconds(sleepTime))) {
             return;
         }
