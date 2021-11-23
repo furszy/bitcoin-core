@@ -346,6 +346,8 @@ public:
     void SetAsmap(std::vector<bool> asmap) { addrman.m_asmap = std::move(asmap); }
     /** Unique tier two connections manager */
     TierTwoConnMan* GetTierTwoConnMan() { return m_tiertwo_conn_man.get(); };
+    /** Update the node to be a iqr member if needed */
+    void UpdateQuorumRelayMemberIfNeeded(CNode* pnode);
 private:
     struct ListenSocket {
         SOCKET socket;
@@ -661,9 +663,10 @@ public:
     bool fFeeler;      // If true this node is being used as a short lived feeler.
     bool fOneShot;
     bool fAddnode;
-    bool m_masternode_connection{false}; // If true this node is only used for quorum related messages.
-    bool m_masternode_probe_connection{false}; // If true this will be disconnected right after the verack.
-    bool m_masternode_iqr_connection{false}; // If 'true', we identified it as an intra-quorum relay connection.
+    std::atomic<bool> m_masternode_connection{false}; // If true this node is only used for quorum related messages.
+    std::atomic<bool> m_masternode_probe_connection{false}; // If true this will be disconnected right after the verack.
+    std::atomic<bool> m_masternode_iqr_connection{false}; // If 'true', we identified it as an intra-quorum relay connection.
+    std::atomic<int64_t> m_last_wants_recsigs_recv{0}; // the last time that a recsigs msg was received, used to avoid spam.
     bool fClient;
     const bool fInbound;
     /**
