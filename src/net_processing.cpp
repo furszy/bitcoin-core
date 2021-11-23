@@ -1348,11 +1348,13 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         // Must have a verack message before anything else
         LOCK(cs_main);
         Misbehaving(pfrom->GetId(), 1);
+        LogPrintf("ERROR Received %s before verack\n", strCommand);
         return false;
     }
 
-    if (!pfrom->fFirstMessageReceived.exchange(true)) {
-        // First message after VERSION/VERACK
+    if (strCommand != NetMsgType::SENDADDRV2 && // todo: remove this..
+        !pfrom->fFirstMessageReceived.exchange(true)) {
+        // First message after VERSION/VERACK (without counting the SENDADDRV2)
         pfrom->fFirstMessageReceived = true;
         pfrom->fFirstMessageIsMNAUTH = strCommand == NetMsgType::MNAUTH;
         if (pfrom->m_masternode_probe_connection && !pfrom->fFirstMessageIsMNAUTH) {

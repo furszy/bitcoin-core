@@ -13,6 +13,7 @@
 #include "messagesigner.h"
 #include "net.h"
 #include "netbase.h"
+#include "tiertwo/net_masternodes.h"
 #include "rpc/server.h"
 #include "spork.h"
 #include "timedata.h"
@@ -20,7 +21,6 @@
 #ifdef ENABLE_WALLET
 #include "wallet/rpcwallet.h"
 #include "wallet/wallet.h"
-#include "wallet/walletdb.h"
 #endif
 #include "warnings.h"
 
@@ -753,6 +753,72 @@ UniValue echo(const JSONRPCRequest& request)
     return request.params;
 }
 
+std::set<uint256> parseProRegTxHashes(const UniValue& obj, int arrPos)
+{
+    if (!obj[arrPos].isArray()) throw std::runtime_error("error: mnconnect arg1 must be an array of proreg txes hashes");
+    const auto& array{obj[arrPos].get_array()};
+    std::set<uint256> vec_dmn_protxhash;
+    for (unsigned int i = 0; i < array.size(); i++) {
+        vec_dmn_protxhash.emplace(uint256S(array[i].get_str()));
+    }
+    return vec_dmn_protxhash;
+}
+
+// mnconnect command operation types
+const char* SINGLE_CONN = "single_conn";
+const char* QUORUM_MEMBERS_CONN = "quorum_members_conn";
+const char* IQR_MEMBERS_CONN = "iqr_members_conn";
+const char* PROBE_CONN = "probe_conn";
+
+/* What essentially does is add a pending MN connection
+ * Can be in the following forms:
+ * 1) Direct single DMN connection.
+ * 2) Quorum members connection (set of DMNs to connect).
+ * 3) Quorum relay members connections (set of DMNs to connect and relay intra-quorum messages).
+ * 4) Probe DMN connection.
+**/
+UniValue mnconnect(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 4) {
+        throw std::runtime_error(
+                "mnconnect \"op_type\" \"[pro_tx_hash, pro_tx_hash,..]\"\n"
+                // todo: complete me..
+        );
+    }
+
+    const auto& chainparams = Params();
+    if (!chainparams.IsRegTestNet())
+        throw std::runtime_error("mnconnect for regression testing (-regtest mode) only");
+
+    // First obtain the connection type
+    const std::string& op_type = request.params[0].get_str();
+
+    const auto& mn_connan =  g_connman->GetTierTwoConnMan();
+    std::set<uint256> vec_dmn_protxhash{parseProRegTxHashes(request.params, 1)};
+    if (op_type == SINGLE_CONN) {
+        for (const auto& protxhash : vec_dmn_protxhash) {
+            // if the connection exist or if the dmn doesn't exist,
+            // it will simply not even try to connect to it.
+            mn_connan->addPendingMasternode(protxhash);
+        }
+        return true;
+    } else if (op_type == QUORUM_MEMBERS_CONN) {
+        Consensus::LLMQType llmq_type = (Consensus::LLMQType) request.params[2].get_int();
+        const uint256& quorum_hash = uint256S(request.params[3].get_str());
+        mn_connan->setQuorumNodes(llmq_type, quorum_hash, vec_dmn_protxhash);
+        return true;
+    } else if (op_type == IQR_MEMBERS_CONN) {
+        Consensus::LLMQType llmq_type = (Consensus::LLMQType) request.params[2].get_int();
+        const uint256& quorum_hash = uint256S(request.params[3].get_str());
+        mn_connan->setMasternodeQuorumRelayMembers(llmq_type, quorum_hash, vec_dmn_protxhash);
+        return true;
+    } else if (op_type == PROBE_CONN) {
+        mn_connan->addPendingProbeConnections(vec_dmn_protxhash);
+        return true;
+    }
+    return false;
+}
+
 static const CRPCCommand commands[] =
 { //  category              name                      actor (function)         okSafe argNames
   //  --------------------- ------------------------  -----------------------  ------ --------
@@ -770,6 +836,7 @@ static const CRPCCommand commands[] =
     { "hidden",             "echo",                   &echo,                   true,  {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
     { "hidden",             "echojson",               &echo,                   true,  {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
     { "hidden",             "setmocktime",            &setmocktime,            true,  {"timestamp"} },
+    { "hidden",             "mnconnect",              &mnconnect,              true,  {"op_type", "arg1"} },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &tableRPC)
