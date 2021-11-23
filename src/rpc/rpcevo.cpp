@@ -242,6 +242,22 @@ static CBLSSecretKey GetBLSSecretKey(const std::string& hexKey)
     return sk;
 }
 
+static UniValue DmnToJson(const CDeterministicMNCPtr dmn)
+{
+    UniValue ret(UniValue::VOBJ);
+    dmn->ToJson(ret);
+    Coin coin;
+    if (!WITH_LOCK(cs_main, return pcoinsTip->GetUTXOCoin(dmn->collateralOutpoint, coin); )) {
+        return ret;
+    }
+    CTxDestination dest;
+    if (!ExtractDestination(coin.out.scriptPubKey, dest)) {
+        return ret;
+    }
+    ret.pushKV("collateralAddress", EncodeDestination(dest));
+    return ret;
+}
+
 #ifdef ENABLE_WALLET
 
 template<typename SpecialTxPayload>
@@ -493,12 +509,8 @@ static UniValue ProTxRegister(const JSONRPCRequest& request, bool fSignAndSend)
 
     // referencing unspent collateral outpoint
     Coin coin;
-    {
-        LOCK(cs_main);
-        CCoinsViewCache view(pcoinsTip.get());
-        if (!view.GetUTXOCoin(pl.collateralOutpoint, coin)) {
-            throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("collateral not found: %s-%d", collateralHash.ToString(), collateralIndex));
-        }
+    if (!WITH_LOCK(cs_main, return pcoinsTip->GetUTXOCoin(pl.collateralOutpoint, coin); )) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("collateral not found: %s-%d", collateralHash.ToString(), collateralIndex));
     }
     if (coin.out.nValue != Params().GetConsensus().nMNCollateralAmt) {
         throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("collateral %s-%d with invalid value %d", collateralHash.ToString(), collateralIndex, coin.out.nValue));
@@ -710,8 +722,7 @@ static void AddDMNEntryToList(UniValue& ret, CWallet* pwallet, const CDeterminis
     }
 
     if (fVerbose) {
-        UniValue o(UniValue::VOBJ);
-        dmn->ToJson(o);
+        UniValue o = DmnToJson(dmn);
         int confs = WITH_LOCK(cs_main, return pcoinsTip->GetCoinDepthAtHeight(dmn->collateralOutpoint, chainActive.Height()); );
         o.pushKV("confirmations", confs);
         o.pushKV("hasOwnerKey", hasOwnerKey);

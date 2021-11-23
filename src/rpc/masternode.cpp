@@ -22,6 +22,23 @@
 
 #include <boost/tokenizer.hpp>
 
+// Duplicated from rpcevo.cpp for the compatibility phase. Remove after v6
+static UniValue DmnToJson(const CDeterministicMNCPtr dmn)
+{
+    UniValue ret(UniValue::VOBJ);
+    dmn->ToJson(ret);
+    Coin coin;
+    if (!WITH_LOCK(cs_main, return pcoinsTip->GetUTXOCoin(dmn->collateralOutpoint, coin); )) {
+        return ret;
+    }
+    CTxDestination dest;
+    if (!ExtractDestination(coin.out.scriptPubKey, dest)) {
+        return ret;
+    }
+    ret.pushKV("collateralAddress", EncodeDestination(dest));
+    return ret;
+}
+
 UniValue mnping(const JSONRPCRequest& request)
 {
     if (request.fHelp || !request.params.empty()) {
@@ -175,8 +192,7 @@ UniValue listmasternodes(const JSONRPCRequest& request)
     if (deterministicMNManager->LegacyMNObsolete()) {
         auto mnList = deterministicMNManager->GetListAtChainTip();
         mnList.ForEachMN(false, [&](const CDeterministicMNCPtr& dmn) {
-            UniValue obj(UniValue::VOBJ);
-            dmn->ToJson(obj);
+            UniValue obj = DmnToJson(dmn);
             if (filterMasternode(obj, strFilter, !dmn->IsPoSeBanned())) {
                 ret.push_back(obj);
             }
@@ -201,8 +217,7 @@ UniValue listmasternodes(const JSONRPCRequest& request)
             // Deterministic masternode
             auto dmn = mnList.GetMNByCollateral(mn.vin.prevout);
             if (dmn) {
-                UniValue obj(UniValue::VOBJ);
-                dmn->ToJson(obj);
+                UniValue obj = DmnToJson(dmn);
                 bool fEnabled = !dmn->IsPoSeBanned();
                 if (filterMasternode(obj, strFilter, fEnabled)) {
                     // Added for backward compatibility with legacy masternodes

@@ -5,6 +5,8 @@
 
 #include "evo/deterministicmns.h"
 
+#include "chain.h"
+#include "coins.h"
 #include "chainparams.h"
 #include "consensus/upgrades.h"
 #include "core_io.h"
@@ -16,7 +18,6 @@
 #include "script/standard.h"
 #include "spork.h"
 #include "sync.h"
-#include "validation.h"
 
 #include <univalue.h>
 
@@ -90,18 +91,6 @@ void CDeterministicMN::ToJson(UniValue& obj) const
     obj.pushKV("proTxHash", proTxHash.ToString());
     obj.pushKV("collateralHash", collateralOutpoint.hash.ToString());
     obj.pushKV("collateralIndex", (int)collateralOutpoint.n);
-
-    std::string collateralAddressStr = "";
-    /* !TODO: remove from here, and retrieve the collateral destination from the RPC
-    Coin coin;
-    if (GetUTXOCoin(collateralOutpoint, coin)) {
-        CTxDestination dest;
-        if (ExtractDestination(coin.out.scriptPubKey, dest)) {
-            collateralAddressStr = EncodeDestination(dest);
-        }
-    }
-    */
-    obj.pushKV("collateralAddress", collateralAddressStr);
     obj.pushKV("operatorReward", (double)nOperatorReward / 100);
     obj.pushKV("dmnstate", stateObj);
 }

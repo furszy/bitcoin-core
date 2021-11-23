@@ -5,6 +5,8 @@
 
 #include "evo/providertx.h"
 
+#include "chain.h"
+#include "coins.h"
 #include "core_io.h"
 #include "evo/deterministicmns.h"
 #include "key_io.h"
@@ -12,7 +14,6 @@
 #include "evo/specialtx.h"
 #include "tinyformat.h"
 #include "utilstrencodings.h"
-#include "validation.h"
 
 /* -- Helper static functions -- */
 
