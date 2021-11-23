@@ -76,6 +76,7 @@ BASE_SCRIPTS= [
     'p2p_addr_relay.py',
     'p2p_addrv2_relay.py',
     'p2p_invalid_messages.py',
+    'p2p_quorum_connect.py',
     'feature_reindex.py',                       # ~ 205 sec
     'feature_logging.py',                       # ~ 195 sec
     'wallet_multiwallet.py',                    # ~ 190 sec
