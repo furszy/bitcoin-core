@@ -2420,6 +2420,15 @@ void CConnman::RemoveAskFor(const uint256& invHash, int invType)
     }
 }
 
+void CConnman::UpdateQuorumRelayMemberIfNeeded(CNode* pnode)
+{
+    bool hash_verif = WITH_LOCK(pnode->cs_mnauth, return !pnode->verifiedProRegTxHash.IsNull(););
+    if (hash_verif && !pnode->m_masternode_iqr_connection && pnode->m_masternode_connection &&
+        m_tiertwo_conn_man->isMasternodeQuorumRelayMember(pnode->verifiedProRegTxHash)) {
+        pnode->m_masternode_iqr_connection = true;
+    }
+}
+
 void CConnman::RecordBytesRecv(uint64_t bytes)
 {
     LOCK(cs_totalBytesRecv);
