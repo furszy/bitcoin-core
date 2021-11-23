@@ -273,7 +273,7 @@ void PushNodeVersion(CNode* pnode, CConnman* connman, int64_t nTime)
     WITH_LOCK(pnode->cs_mnauth, pnode->sentMNAuthChallenge = mnauthChallenge);
 
     connman->PushMessage(pnode, CNetMsgMaker(INIT_PROTO_VERSION).Make(NetMsgType::VERSION, PROTOCOL_VERSION, (uint64_t)nLocalNodeServices, nTime, addrYou, addrMe,
-            nonce, strSubVersion, nNodeStartingHeight, true, pnode->m_masternode_connection, pnode->sentMNAuthChallenge));
+            nonce, strSubVersion, nNodeStartingHeight, true, pnode->m_masternode_connection.load(), pnode->sentMNAuthChallenge));
 
     if (fLogIPs)
         LogPrint(BCLog::NET, "send version message: version %d, blocks=%d, us=%s, them=%s, peer=%d\n", PROTOCOL_VERSION, nNodeStartingHeight, addrMe.ToString(), addrYou.ToString(), nodeid);
@@ -1353,6 +1353,27 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         return false;
     }
 
+    else if (strCommand == NetMsgType::QSENDRECSIGS) {
+        bool b;
+        vRecv >> b;
+        if (pfrom->m_wants_recsigs == b) return true;
+        // Only accept recsigs messages every 20 min to prevent spam.
+        int64_t nNow = GetAdjustedTime();
+        if (pfrom->m_last_wants_recsigs_recv > 0 &&
+            nNow - pfrom->m_last_wants_recsigs_recv < 20 * 60) {
+            LOCK(cs_main);
+            Misbehaving(pfrom->GetId(), 20, "sendrecssigs msg is only accepted every 20 minutes");
+            return false;
+        }
+        pfrom->m_wants_recsigs = b;
+        pfrom->m_last_wants_recsigs_recv = nNow;
+        // Check if this is a iqr connection, and update the value
+        // if we haven't updated the connection during:
+        // (1) the relay quorum set function call, and (2) the verack receive.
+        connman->UpdateQuorumRelayMemberIfNeeded(pfrom);
+        return true;
+    }
+
     if (strCommand != NetMsgType::SENDADDRV2 && // todo: remove this..
         !pfrom->fFirstMessageReceived.exchange(true)) {
         // First message after VERSION/VERACK (without counting the SENDADDRV2)
@@ -1412,13 +1433,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             pfrom->fGetAddr = false;
         if (pfrom->fOneShot)
             pfrom->fDisconnect = true;
-    }
-
-    else if (strCommand == NetMsgType::QSENDRECSIGS) {
-        bool b;
-        vRecv >> b;
-        pfrom->m_wants_recsigs = b;
-        return true;
     }
 
     else if (strCommand == NetMsgType::INV) {
