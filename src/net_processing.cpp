@@ -1337,6 +1337,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         LogPrintf("New outbound peer connected: version: %d, blocks=%d, peer=%d%s\n",
                   pfrom->nVersion.load(), pfrom->nStartingHeight, pfrom->GetId(),
                   (fLogIPs ? strprintf(", peeraddr=%s", pfrom->addr.ToString()) : ""));
+        return true;
     }
 
     else if (strCommand == NetMsgType::SENDADDRV2) {
@@ -1349,7 +1350,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         // Must have a verack message before anything else
         LOCK(cs_main);
         Misbehaving(pfrom->GetId(), 1);
-        LogPrintf("ERROR Received %s before verack\n", strCommand);
         return false;
     }
 
@@ -1374,9 +1374,10 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         return true;
     }
 
-    if (strCommand != NetMsgType::SENDADDRV2 && // todo: remove this..
+    if (strCommand != NetMsgType::GETSPORKS &&
+        strCommand != NetMsgType::SPORK &&
         !pfrom->fFirstMessageReceived.exchange(true)) {
-        // First message after VERSION/VERACK (without counting the SENDADDRV2)
+        // First message after VERSION/VERACK (without counting the GETSPORKS/SPORK messages)
         pfrom->fFirstMessageReceived = true;
         pfrom->fFirstMessageIsMNAUTH = strCommand == NetMsgType::MNAUTH;
         if (pfrom->m_masternode_probe_connection && !pfrom->fFirstMessageIsMNAUTH) {
@@ -1386,8 +1387,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         }
     }
 
-
-    else if (strCommand == NetMsgType::ADDR || strCommand == NetMsgType::ADDRV2) {
+    if (strCommand == NetMsgType::ADDR || strCommand == NetMsgType::ADDRV2) {
         int stream_version = vRecv.GetVersion();
         if (strCommand == NetMsgType::ADDRV2) {
             // Add ADDRV2_FORMAT to the version so that the CNetAddr and CAddress
