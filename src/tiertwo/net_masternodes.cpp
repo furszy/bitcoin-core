@@ -150,7 +150,10 @@ void TierTwoConnMan::interrupt()
 void TierTwoConnMan::openConnection(const CAddress& addrConnect, bool isProbe)
 {
     if (interruptNet) return;
-    connman->OpenNetworkConnection(addrConnect, false, nullptr, nullptr, false, false, false, true, isProbe);
+    // Note: using ip:port string connection instead of the addr to bypass the "only connect to single IPs" validation.
+    std::string conn = addrConnect.ToStringIPPort();
+    CAddress dummyAddr;
+    connman->OpenNetworkConnection(dummyAddr, false, nullptr, conn.data(), false, false, false, true, isProbe);
 }
 
 class PeerData {
@@ -228,8 +231,9 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
                 for (const auto& group: masternodeQuorumNodes) {
                     for (const auto& proRegTxHash: group.second) {
                         // Skip if already have this member connected
-                        if (std::count(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), proRegTxHash) > 0)
+                        if (std::count(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), proRegTxHash) > 0) {
                             continue;
+                        }
 
                         // Check if DMN exists in tip list
                         const auto& dmn = mnList.GetValidMN(proRegTxHash);
@@ -314,7 +318,7 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         openConnection(CAddress(dmnToConnect->pdmnState->addr, NODE_NETWORK), isProbe);
         // should be in the list now if connection was opened
         bool connected = connman->ForNode(dmnToConnect->pdmnState->addr, CConnman::AllNodes, [&](CNode* pnode) {
-            if (pnode->fDisconnect) {
+            if (pnode->fDisconnect) { LogPrintf("about to be disconnected\n");
                 return false;
             }
             return true;
