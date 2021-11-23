@@ -685,6 +685,8 @@ void CNode::copyStats(CNodeStats& stats, const std::vector<bool>& m_asmap)
     }
     X(fWhitelisted);
     X(m_masternode_connection);
+    X(m_masternode_iqr_connection);
+    X(m_masternode_probe_connection);
     {
         LOCK(cs_mnauth);
         X(verifiedProRegTxHash);
