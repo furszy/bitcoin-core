@@ -5,6 +5,7 @@
 
 #include "tiertwo/net_masternodes.h"
 
+#include "activemasternode.h"
 #include "chainparams.h"
 #include "evo/deterministicmns.h"
 #include "scheduler.h"
@@ -232,6 +233,11 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
                     for (const auto& proRegTxHash: group.second) {
                         // Skip if already have this member connected
                         if (std::count(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), proRegTxHash) > 0) {
+                            continue;
+                        }
+
+                        // Don't try to connect to ourselves
+                        if (activeMasternodeManager && activeMasternodeManager->GetInfo()->proTxHash == proRegTxHash) {
                             continue;
                         }
 
