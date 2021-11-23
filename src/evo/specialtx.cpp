@@ -71,7 +71,7 @@ bool CheckSpecialTxNoContext(const CTransaction& tx, CValidationState& state)
         }
         case CTransaction::TxType::PROREG: {
             // provider-register
-            return CheckProRegTx(tx, nullptr, state);
+            return CheckProRegTx(tx, nullptr, nullptr, state);
         }
         case CTransaction::TxType::PROUPSERV: {
             // provider-update-service
@@ -79,7 +79,7 @@ bool CheckSpecialTxNoContext(const CTransaction& tx, CValidationState& state)
         }
         case CTransaction::TxType::PROUPREG: {
             // provider-update-registrar
-            return CheckProUpRegTx(tx, nullptr, state);
+            return CheckProUpRegTx(tx, nullptr, nullptr, state);
         }
         case CTransaction::TxType::PROUPREV: {
             // provider-update-revoke
@@ -91,7 +91,7 @@ bool CheckSpecialTxNoContext(const CTransaction& tx, CValidationState& state)
                      REJECT_INVALID, "bad-tx-type");
 }
 
-bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
+bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, const CCoinsViewCache* view, CValidationState& state)
 {
     // This function is not called when connecting the genesis block
     assert(pindexPrev != nullptr);
@@ -115,7 +115,7 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVali
     switch (tx.nType) {
         case CTransaction::TxType::PROREG: {
             // provider-register
-            return CheckProRegTx(tx, pindexPrev, state);
+            return CheckProRegTx(tx, pindexPrev, view, state);
         }
         case CTransaction::TxType::PROUPSERV: {
             // provider-update-service
@@ -123,7 +123,7 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVali
         }
         case CTransaction::TxType::PROUPREG: {
             // provider-update-registrar
-            return CheckProUpRegTx(tx, pindexPrev, state);
+            return CheckProUpRegTx(tx, pindexPrev, view, state);
         }
         case CTransaction::TxType::PROUPREV: {
             // provider-update-revoke
@@ -135,11 +135,11 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVali
                      REJECT_INVALID, "bad-tx-type");
 }
 
-bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck)
+bool ProcessSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex, const CCoinsViewCache* view, CValidationState& state, bool fJustCheck)
 {
     // check special txes
     for (const CTransactionRef& tx: block.vtx) {
-        if (!CheckSpecialTx(*tx, pindex->pprev, state)) {
+        if (!CheckSpecialTx(*tx, pindex->pprev, view, state)) {
             // pass the state returned by the function above
             return false;
         }

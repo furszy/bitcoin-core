@@ -294,6 +294,8 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
     auto utxos = BuildSimpleUtxoMap(coinbaseTxns);
 
     CBlockIndex* chainTip = chainActive.Tip();
+    CCoinsViewCache* view = pcoinsTip.get();
+
     int nHeight = chainTip->nHeight;
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_V6_0, nHeight + 2);
 
@@ -326,7 +328,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         operatorKeys.emplace(txid, operatorKey);
 
         CValidationState dummyState;
-        BOOST_CHECK(CheckSpecialTx(tx, chainTip, dummyState));
+        BOOST_CHECK(CheckSpecialTx(tx, chainTip, view, dummyState));
         BOOST_CHECK(CheckTransactionSignature(tx));
 
         // also verify that payloads are not malleable after they have been signed
@@ -335,7 +337,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         // into account
         auto tx2 = MalleateProTxPayout<ProRegPL>(tx);
         // Technically, the payload is still valid...
-        BOOST_CHECK(CheckSpecialTx(tx2, chainTip, dummyState));
+        BOOST_CHECK(CheckSpecialTx(tx2, chainTip, view, dummyState));
         // But the signature should not verify anymore
         BOOST_CHECK(!CheckTransactionSignature(tx2));
 
@@ -378,7 +380,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         const CKey& ownerKey = ownerKeys.at(dmnHashes[InsecureRandRange(dmnHashes.size())]);
         auto tx = CreateProRegTx(nullopt, utxos, port, GenerateRandomAddress(), coinbaseKey, ownerKey, GetRandomBLSKey().GetPublicKey());
         CValidationState state;
-        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, state));
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-owner-key");
     }
     // Try to register used operator key
@@ -386,14 +388,14 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         const CBLSSecretKey& operatorKey = operatorKeys.at(dmnHashes[InsecureRandRange(dmnHashes.size())]);
         auto tx = CreateProRegTx(nullopt, utxos, port, GenerateRandomAddress(), coinbaseKey, GetRandomKey(), operatorKey.GetPublicKey());
         CValidationState state;
-        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, state));
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-operator-key");
     }
     // Try to register used IP address
     {
         auto tx = CreateProRegTx(nullopt, utxos, 1 + InsecureRandRange(port-1), GenerateRandomAddress(), coinbaseKey, GetRandomKey(), GetRandomBLSKey().GetPublicKey());
         CValidationState state;
-        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, state));
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-IP-address");
     }
     // Block with two ProReg txes using same owner key
@@ -408,7 +410,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         indexFake.nHeight = nHeight;
         indexFake.pprev = chainTip;
         CValidationState state;
-        BOOST_CHECK(!ProcessSpecialTxsInBlock(block, &indexFake, state, true));
+        BOOST_CHECK(!ProcessSpecialTxsInBlock(block, &indexFake, view, state, true));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-owner-key");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to check reject reason
         BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
@@ -425,7 +427,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         indexFake.nHeight = nHeight;
         indexFake.pprev = chainTip;
         CValidationState state;
-        BOOST_CHECK(!ProcessSpecialTxsInBlock(block, &indexFake, state, true));
+        BOOST_CHECK(!ProcessSpecialTxsInBlock(block, &indexFake, view, state, true));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-operator-key");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to check reject reason
         BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
@@ -439,7 +441,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         indexFake.nHeight = nHeight;
         indexFake.pprev = chainTip;
         CValidationState state;
-        BOOST_CHECK(!ProcessSpecialTxsInBlock(block, &indexFake, state, true));
+        BOOST_CHECK(!ProcessSpecialTxsInBlock(block, &indexFake, view, state, true));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-IP-address");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to check reject reason
         BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
@@ -458,7 +460,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
             operatorKeys.emplace(txid, operatorKey);
 
             CValidationState dummyState;
-            BOOST_CHECK(CheckSpecialTx(tx, chainActive.Tip(), dummyState));
+            BOOST_CHECK(CheckSpecialTx(tx, chainActive.Tip(), view, dummyState));
             BOOST_CHECK(CheckTransactionSignature(tx));
             txns.emplace_back(tx);
         }
@@ -522,11 +524,11 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         auto tx = CreateProUpServTx(utxos, proTx, operatorKeys.at(proTx), 1000, CScript(), coinbaseKey);
 
         CValidationState dummyState;
-        BOOST_CHECK(CheckSpecialTx(tx, chainTip, dummyState));
+        BOOST_CHECK(CheckSpecialTx(tx, chainTip, view, dummyState));
         BOOST_CHECK(CheckTransactionSignature(tx));
         // also verify that payloads are not malleable after they have been signed
         auto tx2 = MalleateProUpServTx(tx);
-        BOOST_CHECK(!CheckSpecialTx(tx2, chainTip, dummyState));
+        BOOST_CHECK(!CheckSpecialTx(tx2, chainTip, view, dummyState));
         BOOST_CHECK_EQUAL(dummyState.GetRejectReason(), "bad-protx-sig");
 
         CreateAndProcessBlock({tx}, coinbaseKey);
@@ -552,7 +554,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         auto tx = CreateProUpServTx(utxos, proTx, operatorKeys.at(proTx), new_port, CScript(), coinbaseKey);
 
         CValidationState state;
-        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, state));
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-addr");
     }
 
@@ -562,7 +564,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         auto tx = CreateProUpServTx(utxos, GetRandHash(), operatorKey, port, CScript(), coinbaseKey);
 
         CValidationState state;
-        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, state));
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-hash");
     }
 
@@ -600,7 +602,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         const CScript& operatorPayee = GenerateRandomAddress();
         auto tx = CreateProUpServTx(utxos, dmnHashes[0], operatorKeys.at(dmnHashes[0]), 1, operatorPayee, coinbaseKey);
         CValidationState state;
-        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, state));
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-operator-payee");
     }
 
@@ -616,7 +618,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         indexFake.nHeight = nHeight;
         indexFake.pprev = chainTip;
         CValidationState state;
-        BOOST_CHECK(!ProcessSpecialTxsInBlock(block, &indexFake, state, true));
+        BOOST_CHECK(!ProcessSpecialTxsInBlock(block, &indexFake, view, state, true));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-addr");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to ProcessBlockAndCheckRejectionReason.
         BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
@@ -631,16 +633,16 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         // try first with wrong owner key
         CValidationState state;
         auto tx = CreateProUpRegTx(utxos, proTx, GetRandomKey(), new_operatorKey.GetPublicKey(), new_votingKey, new_payee, coinbaseKey);
-        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx, chainTip, state), "ProUpReg verifies with wrong owner key");
+        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx, chainTip, view, state), "ProUpReg verifies with wrong owner key");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-sig");
         // then use the proper key
         state = CValidationState();
         tx = CreateProUpRegTx(utxos, proTx, ownerKeys.at(proTx), new_operatorKey.GetPublicKey(), new_votingKey, new_payee, coinbaseKey);
-        BOOST_CHECK_MESSAGE(CheckSpecialTx(tx, chainTip, state), state.GetRejectReason());
+        BOOST_CHECK_MESSAGE(CheckSpecialTx(tx, chainTip, view, state), state.GetRejectReason());
         BOOST_CHECK_MESSAGE(CheckTransactionSignature(tx), "ProUpReg signature verification failed");
         // also verify that payloads are not malleable after they have been signed
         auto tx2 = MalleateProTxPayout<ProUpRegPL>(tx);
-        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx2, chainTip, state), "Malleated ProUpReg accepted");
+        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx2, chainTip, view, state), "Malleated ProUpReg accepted");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-sig");
 
         CreateAndProcessBlock({tx}, coinbaseKey);
@@ -699,7 +701,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         auto tx = CreateProUpRegTx(utxos, GetRandHash(), GetRandomKey(), operatorKey.GetPublicKey(), votingKey, GenerateRandomAddress(), coinbaseKey);
 
         CValidationState state;
-        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx, chainTip, state), "Accepted ProUpReg with invalid protx hash");
+        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx, chainTip, view, state), "Accepted ProUpReg with invalid protx hash");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-hash");
     }
 
@@ -714,7 +716,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         auto tx = CreateProUpRegTx(utxos, proTx, ownerKeys.at(proTx), new_operatorKey.GetPublicKey(), GetRandomKey(), GenerateRandomAddress(), coinbaseKey);
 
         CValidationState state;
-        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx, chainTip, state), "Accepted ProUpReg with duplicate operator key");
+        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx, chainTip, view, state), "Accepted ProUpReg with duplicate operator key");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-key");
     }
 
@@ -736,7 +738,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         indexFake.nHeight = nHeight;
         indexFake.pprev = chainTip;
         CValidationState state;
-        BOOST_CHECK_MESSAGE(!ProcessSpecialTxsInBlock(block, &indexFake, state, true),
+        BOOST_CHECK_MESSAGE(!ProcessSpecialTxsInBlock(block, &indexFake, view, state, true),
                             "Accepted block with duplicate operator key in ProUpReg txes");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-operator-key");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr);
@@ -756,7 +758,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         indexFake.nHeight = nHeight;
         indexFake.pprev = chainTip;
         CValidationState state;
-        BOOST_CHECK_MESSAGE(!ProcessSpecialTxsInBlock(block, &indexFake, state, true),
+        BOOST_CHECK_MESSAGE(!ProcessSpecialTxsInBlock(block, &indexFake, view, state, true),
                             "Accepted block with duplicate operator key in ProReg+ProUpReg txes");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-operator-key");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr);
@@ -770,16 +772,16 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         // try first with wrong operator key
         CValidationState state;
         auto tx = CreateProUpRevTx(utxos, proTx, reason, GetRandomBLSKey(), coinbaseKey);
-        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx, chainTip, state), "ProUpReg verifies with wrong owner key");
+        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx, chainTip, view, state), "ProUpReg verifies with wrong owner key");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-sig");
         // then use the proper key
         state = CValidationState();
         tx = CreateProUpRevTx(utxos, proTx, reason, operatorKeys.at(proTx), coinbaseKey);
-        BOOST_CHECK_MESSAGE(CheckSpecialTx(tx, chainTip, state), state.GetRejectReason());
+        BOOST_CHECK_MESSAGE(CheckSpecialTx(tx, chainTip, view, state), state.GetRejectReason());
         BOOST_CHECK_MESSAGE(CheckTransactionSignature(tx), "ProUpReg signature verification failed");
         // also verify that payloads are not malleable after they have been signed
         auto tx2 = MalleateProUpRevTx(tx);
-        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx2, chainTip, state), "Malleated ProUpReg accepted");
+        BOOST_CHECK_MESSAGE(!CheckSpecialTx(tx2, chainTip, view, state), "Malleated ProUpReg accepted");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-sig");
 
         CreateAndProcessBlock({tx}, coinbaseKey);

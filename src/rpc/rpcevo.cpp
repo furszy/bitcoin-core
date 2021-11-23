@@ -352,7 +352,8 @@ static std::string SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransact
     SetTxPayload(tx, pl);
 
     CValidationState state;
-    if (!CheckSpecialTx(tx, GetChainTip(), state)) {
+    CCoinsViewCache view(pcoinsTip.get());
+    if (!CheckSpecialTx(tx, GetChainTip(), &view, state)) {
         throw JSONRPCError(RPC_MISC_ERROR, FormatStateMessage(state));
     }
 
@@ -494,7 +495,8 @@ static UniValue ProTxRegister(const JSONRPCRequest& request, bool fSignAndSend)
     Coin coin;
     {
         LOCK(cs_main);
-        if (!GetUTXOCoin(pl.collateralOutpoint, coin)) {
+        CCoinsViewCache view(pcoinsTip.get());
+        if (!view.GetUTXOCoin(pl.collateralOutpoint, coin)) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("collateral not found: %s-%d", collateralHash.ToString(), collateralIndex));
         }
     }
@@ -680,13 +682,9 @@ static bool CheckWalletOwnsScript(CWallet* pwallet, const CScript& script)
 static Optional<int> GetUTXOConfirmations(const COutPoint& outpoint)
 {
     // nullopt means UTXO is yet unknown or already spent
-    Optional<int> coinHeight = GetUTXOHeight(outpoint);
-    if (coinHeight == nullopt || *coinHeight < 0)
-        return nullopt;
-    int nChainHeight(WITH_LOCK(cs_main, return chainActive.Height(); ));
-    if (nChainHeight < 0 || *coinHeight > nChainHeight)
-        return nullopt;
-    return Optional<int>(nChainHeight - *coinHeight + 1);
+    LOCK(cs_main);
+    int confirmations = pcoinsTip->GetCoinDepthAtHeight(outpoint, chainActive.Height());
+    return (confirmations == -1 ? nullopt : Optional<int>(confirmations));
 }
 
 static void AddDMNEntryToList(UniValue& ret, CWallet* pwallet, const CDeterministicMNCPtr& dmn, bool fVerbose, bool fFromWallet)

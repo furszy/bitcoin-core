@@ -261,11 +261,6 @@ void UpdateCoins(const CTransaction& tx, CCoinsViewCache& inputs, int nHeight, b
  */
 bool CheckFinalTx(const CTransactionRef& tx, int flags = -1);
 
-/*
- * Retrieve an unspent coin in pcoinsTip. Lock cs_main.
- */
-bool GetUTXOCoin(const COutPoint& outpoint, Coin& coin);
-Optional<int> GetUTXOHeight(const COutPoint& outpoint);
 
 /**
  * Closure representing one script verification

@@ -102,7 +102,7 @@ static bool CheckCollateralOut(const CTxOut& out, const ProRegPL& pl, CValidatio
     return true;
 }
 
-bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
+bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, const CCoinsViewCache* view, CValidationState& state)
 {
     assert(tx.nType == CTransaction::TxType::PROREG);
 
@@ -173,11 +173,9 @@ bool CheckProRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValid
         }
     } else if (pindexPrev != nullptr) {
         // Referenced external collateral.
-        // This is checked only when pindexPrev is not null (thus during ConnectBlock-->CheckSpecialTx),
-        // because this is a contextual check: we need the updated utxo set, to verify that
-        // the coin exists and it is unspent.
+        assert(view != nullptr);
         Coin coin;
-        if (!GetUTXOCoin(pl.collateralOutpoint, coin)) {
+        if (!view->GetUTXOCoin(pl.collateralOutpoint, coin)) {
             return state.DoS(10, false, REJECT_INVALID, "bad-protx-collateral");
         }
         CTxDestination collateralTxDest;
@@ -351,7 +349,7 @@ void ProUpServPL::ToJson(UniValue& obj) const
 
 // Provider Update Registrar Payload
 
-bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
+bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, const CCoinsViewCache* view, CValidationState& state)
 {
     assert(tx.nType == CTransaction::TxType::PROUPREG);
 
@@ -411,8 +409,9 @@ bool CheckProUpRegTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CVal
             return state.DoS(10, false, REJECT_INVALID, "bad-protx-payee-reuse");
         }
 
+        assert(view != nullptr);
         Coin coin;
-        if (!GetUTXOCoin(dmn->collateralOutpoint, coin)) {
+        if (!view->GetUTXOCoin(dmn->collateralOutpoint, coin)) {
             // this should never happen (there would be no dmn otherwise)
             return state.DoS(100, false, REJECT_INVALID, "bad-protx-collateral");
         }

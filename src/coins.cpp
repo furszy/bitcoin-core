@@ -581,3 +581,8 @@ bool CCoinsViewCache::HaveShieldedRequirements(const CTransaction& tx) const
 
     return true;
 }
+
+bool CCoinsViewCache::GetUTXOCoin(const COutPoint& outpoint, Coin& coin) const
+{
+    return GetCoin(outpoint, coin) && !coin.IsSpent();
+}
