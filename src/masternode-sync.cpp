@@ -284,7 +284,7 @@ bool CMasternodeSync::SyncWithNode(CNode* pnode, bool fLegacyMnObsolete)
         return false;
     }
 
-    if (pnode->nVersion < ActiveProtocol()) {
+    if (pnode->nVersion < ActiveProtocol() || !pnode->CanRelay()) {
         return true; // move to next peer
     }
 
