@@ -10,7 +10,6 @@
 #include "chainparams.h"
 #include "consensus/upgrades.h"
 #include "core_io.h"
-#include "evo/specialtx.h"
 #include "key_io.h"
 #include "guiinterface.h"
 #include "masternode.h" // for MasternodeCollateralMinConf
