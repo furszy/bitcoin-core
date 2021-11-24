@@ -337,6 +337,8 @@ public:
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
         consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
         consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
+
+        nLLMQConnectionRetryTimeout = 60;
     }
 
     const Checkpoints::CCheckpointData& Checkpoints() const
@@ -468,6 +470,8 @@ public:
         consensus.llmqs[Consensus::LLMQ_50_60] = llmq50_60;
         consensus.llmqs[Consensus::LLMQ_400_60] = llmq400_60;
         consensus.llmqs[Consensus::LLMQ_400_85] = llmq400_85;
+
+        nLLMQConnectionRetryTimeout = 60;
     }
 
     const Checkpoints::CCheckpointData& Checkpoints() const
@@ -597,6 +601,7 @@ public:
 
         // long living quorum params
         consensus.llmqs[Consensus::LLMQ_TEST] = llmq_test;
+        nLLMQConnectionRetryTimeout = 5;
     }
 
     const Checkpoints::CCheckpointData& Checkpoints() const
