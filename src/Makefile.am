@@ -193,6 +193,7 @@ BITCOIN_CORE_H = \
   llmq/quorums_init.h \
   llmq/quorums_utils.h \
   tiertwo/masternode_meta_manager.h \
+  tiertwo/net_masternodes.h \
   addressbook.h \
   wallet/db.h \
   flatfile.h \
@@ -359,6 +360,7 @@ libbitcoin_server_a_SOURCES = \
   llmq/quorums_init.cpp \
   llmq/quorums_utils.cpp \
   tiertwo/masternode_meta_manager.cpp \
+  tiertwo/net_masternodes.cpp \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
