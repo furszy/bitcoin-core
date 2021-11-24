@@ -25,6 +25,7 @@
 #include "consensus/upgrades.h"
 #include "evo/deterministicmns.h"
 #include "evo/evonotificationinterface.h"
+#include "flatdb.h"
 #include "fs.h"
 #include "httpserver.h"
 #include "httprpc.h"
@@ -49,6 +50,7 @@
 #include "spork.h"
 #include "sporkdb.h"
 #include "evo/evodb.h"
+#include "tiertwo/masternode_meta_manager.h"
 #include "txdb.h"
 #include "torcontrol.h"
 #include "guiinterface.h"
@@ -235,6 +237,8 @@ void Shutdown()
     if (::mempool.IsLoaded() && gArgs.GetBoolArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
         DumpMempool(::mempool);
     }
+    CFlatDB<CMasternodeMetaMan> metaDb("mnmetacache.dat", "magicMasternodeMetaCache");
+    metaDb.Dump(g_mmetaman);
 
     if (fFeeEstimatesInitialized) {
         fs::path est_path = GetDataDir() / FEE_ESTIMATES_FILENAME;
@@ -1783,6 +1787,23 @@ bool AppInitMain()
         LogPrintf("Missing masternode payment cache - mnpayments.dat, will try to recreate\n");
     else if (readResult3 != CMasternodePaymentDB::Ok) {
         LogPrintf("Error reading mnpayments.dat - cached data discarded\n");
+    }
+
+    // init mn metadata manager
+    bool fLoadCacheFiles = !(fReindex || fReindexChainState);
+    fs::path pathDB = GetDataDir();
+    std::string strDBName = "mnmetacache.dat";
+    uiInterface.InitMessage(_("Loading masternode cache..."));
+    CFlatDB<CMasternodeMetaMan> metadb(strDBName, "magicMasternodeMetaCache");
+    if (fLoadCacheFiles) {
+        if (!metadb.Load(g_mmetaman)) {
+            return UIError(_("Failed to load masternode metadata cache from") + "\n" + (pathDB / strDBName).string());
+        }
+    } else {
+        CMasternodeMetaMan mmetamanTmp;
+        if (!metadb.Dump(mmetamanTmp)) {
+            return UIError(_("Failed to clear masternode metadata cache at") + "\n" + (pathDB / strDBName).string());
+        }
     }
 
     fMasterNode = gArgs.GetBoolArg("-masternode", DEFAULT_MASTERNODE);
