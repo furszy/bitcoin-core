@@ -39,6 +39,7 @@ class CAddrMan;
 class CBlockIndex;
 class CScheduler;
 class CNode;
+class TierTwoConnMan;
 
 /** Time between pings automatically sent out for latency probing and keepalive (in seconds). */
 static const int PING_INTERVAL = 2 * 60;
@@ -176,7 +177,19 @@ public:
     void OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant* grantOutbound = nullptr, const char* strDest = nullptr, bool fOneShot = false, bool fFeeler = false, bool fAddnode = false, bool masternode_connection = false);
     bool CheckIncomingNonce(uint64_t nonce);
 
+    struct CFullyConnectedOnly {
+        bool operator() (const CNode* pnode) const {
+            return NodeFullyConnected(pnode);
+        }
+    };
+    struct CAllNodes {
+        bool operator() (const CNode*) const {return true;}
+    };
+    constexpr static const CFullyConnectedOnly FullyConnectedOnly{};
+    constexpr static const CAllNodes AllNodes{};
+
     bool ForNode(NodeId id, std::function<bool(CNode* pnode)> func);
+    bool ForNode(const CService& addr, const std::function<bool(const CNode* pnode)>& cond, const std::function<bool(CNode* pnode)>& func);
 
     void PushMessage(CNode* pnode, CSerializedNetMsg&& msg);
 
@@ -436,6 +449,8 @@ private:
     std::thread threadOpenAddedConnections;
     std::thread threadOpenConnections;
     std::thread threadMessageHandler;
+
+    std::unique_ptr<TierTwoConnMan> m_tiertwo_conn_man;
 };
 extern std::unique_ptr<CConnman> g_connman;
 void Discover();

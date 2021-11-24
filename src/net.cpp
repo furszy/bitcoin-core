@@ -22,6 +22,7 @@
 #include "optional.h"
 #include "primitives/transaction.h"
 #include "scheduler.h"
+#include "tiertwo/net_masternodes.h"
 #include "validation.h"
 
 #ifdef WIN32
@@ -68,6 +69,9 @@ enum BindFlags {
 };
 
 const static std::string NET_MESSAGE_COMMAND_OTHER = "*other*";
+
+constexpr const CConnman::CFullyConnectedOnly CConnman::FullyConnectedOnly;
+constexpr const CConnman::CAllNodes CConnman::AllNodes;
 
 static const uint64_t RANDOMIZER_ID_NETGROUP = 0x6c0edd8036ef4036ULL; // SHA256("netgroup")[0:8]
 static const uint64_t RANDOMIZER_ID_LOCALHOSTNONCE = 0xd93e69e2bbfa5735ULL; // SHA256("localhostnonce")[0:8]
@@ -1936,6 +1940,8 @@ CConnman::CConnman(uint64_t nSeed0In, uint64_t nSeed1In) : nSeed0(nSeed0In), nSe
 
     Options connOptions;
     Init(connOptions);
+    // init tier two connections manager
+    m_tiertwo_conn_man = std::make_unique<TierTwoConnMan>(this);
 }
 
 NodeId CConnman::GetNewNodeId()
@@ -2072,6 +2078,9 @@ bool CConnman::Start(CScheduler& scheduler, const Options& connOptions)
     // Initiate outbound connections from -addnode
     threadOpenAddedConnections = std::thread(&TraceThread<std::function<void()> >, "addcon", std::function<void()>(std::bind(&CConnman::ThreadOpenAddedConnections, this)));
 
+    // Start tier two connection manager
+    if (m_tiertwo_conn_man) m_tiertwo_conn_man->start();
+
     if (connOptions.m_use_addrman_outgoing && !connOptions.m_specified_outgoing.empty()) {
         if (clientInterface) {
             clientInterface->ThreadSafeMessageBox(
@@ -2126,6 +2135,7 @@ void CConnman::Interrupt()
     condMsgProc.notify_all();
 
     interruptNet();
+    if (m_tiertwo_conn_man) m_tiertwo_conn_man->interrupt();
     InterruptSocks5(true);
 
     if (semOutbound) {
@@ -2153,6 +2163,8 @@ void CConnman::Stop()
         threadDNSAddressSeed.join();
     if (threadSocketHandler.joinable())
         threadSocketHandler.join();
+    // Stop tier two connection manager
+    if (m_tiertwo_conn_man) m_tiertwo_conn_man->stop();
 
     if (fAddressesInitialized)
     {
@@ -2527,6 +2539,19 @@ bool CConnman::ForNode(NodeId id, std::function<bool(CNode* pnode)> func)
         }
     }
     return found != nullptr && NodeFullyConnected(found) && func(found);
+}
+
+bool CConnman::ForNode(const CService& addr, const std::function<bool(const CNode* pnode)>& cond, const std::function<bool(CNode* pnode)>& func)
+{
+    CNode* found = nullptr;
+    LOCK(cs_vNodes);
+    for (auto&& pnode : vNodes) {
+        if(static_cast<CService>(pnode->addr) == addr) {
+            found = pnode;
+            break;
+        }
+    }
+    return found != nullptr && cond(found) && func(found);
 }
 
 bool CConnman::IsNodeConnected(const CAddress& addr)
