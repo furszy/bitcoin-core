@@ -679,6 +679,7 @@ void CNode::copyStats(CNodeStats& stats, const std::vector<bool>& m_asmap)
         X(nRecvBytes);
     }
     X(fWhitelisted);
+    X(m_masternode_connection);
 
     // It is common for nodes with good ping times to suddenly become lagged,
     // due to a new block arriving or other large transfer.
@@ -1545,7 +1546,7 @@ void CConnman::ThreadOpenConnections(const std::vector<std::string> connect)
         {
             LOCK(cs_vNodes);
             for (const CNode* pnode : vNodes) {
-                if (!pnode->fInbound && !pnode->fAddnode) {
+                if (!pnode->fInbound && !pnode->fAddnode && !pnode->m_masternode_connection) {
                     // Netgroups for inbound and addnode peers are not excluded because our goal here
                     // is to not use multiple of our limited outbound slots on a single netgroup
                     // but inbound and addnode peers do not use our outbound slots. Inbound peers
@@ -1723,7 +1724,7 @@ void CConnman::ThreadOpenAddedConnections()
 }
 
 // if successful, this moves the passed grant to the constructed node
-void CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant* grantOutbound, const char* pszDest, bool fOneShot, bool fFeeler, bool fAddnode)
+void CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant* grantOutbound, const char* pszDest, bool fOneShot, bool fFeeler, bool fAddnode, bool masternode_connection)
 {
     //
     // Initiate outbound network connection
@@ -1751,6 +1752,8 @@ void CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
         pnode->fFeeler = true;
     if (fAddnode)
         pnode->fAddnode = true;
+    if (masternode_connection)
+        pnode->m_masternode_connection = true;
 
     m_msgproc->InitializeNode(pnode);
     {
@@ -1761,6 +1764,8 @@ void CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
 
 void CConnman::ThreadMessageHandler()
 {
+    int64_t nLastSendMessagesTimeMasternodes = 0;
+
     while (!flagInterruptMsgProc) {
         std::vector<CNode*> vNodesCopy;
         {
@@ -1773,6 +1778,13 @@ void CConnman::ThreadMessageHandler()
 
         bool fMoreWork = false;
 
+        // Don't send other messages to quorum nodes too often
+        bool fSkipSendMessagesForMasternodes = true;
+        if (GetTimeMillis() - nLastSendMessagesTimeMasternodes >= 100) {
+            fSkipSendMessagesForMasternodes = false;
+            nLastSendMessagesTimeMasternodes = GetTimeMillis();
+        }
+
         for (CNode* pnode : vNodesCopy) {
             if (pnode->fDisconnect)
                 continue;
@@ -1784,7 +1796,7 @@ void CConnman::ThreadMessageHandler()
                 return;
 
             // Send messages
-            {
+            if (!fSkipSendMessagesForMasternodes || !pnode->m_masternode_connection) {
                 LOCK(pnode->cs_sendProcessing);
                 m_msgproc->SendMessages(pnode, flagInterruptMsgProc);
             }
@@ -2316,6 +2328,7 @@ void CConnman::RelayInv(CInv& inv)
     for (CNode* pnode : vNodes){
         if (!pnode->fSuccessfullyConnected) continue;
         if ((pnode->nServices == NODE_BLOOM_WITHOUT_MN) && inv.IsMasterNodeType()) continue;
+        if (!pnode->CanRelay()) continue;
         if (pnode->nVersion >= ActiveProtocol())
             pnode->PushInventory(inv);
     }
@@ -2401,6 +2414,7 @@ CNode::CNode(NodeId idIn, ServiceFlags nLocalServicesIn, int nMyStartingHeightIn
     fWhitelisted = false;
     fOneShot = false;
     fAddnode = false;
+    m_masternode_connection = false;
     fClient = false; // set by version message
     fFeeler = false;
     fSuccessfullyConnected = false;

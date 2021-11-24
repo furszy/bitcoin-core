@@ -175,7 +175,7 @@ public:
     void Interrupt();
     bool GetNetworkActive() const { return fNetworkActive; };
     void SetNetworkActive(bool active);
-    void OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant* grantOutbound = nullptr, const char* strDest = nullptr, bool fOneShot = false, bool fFeeler = false, bool fAddnode = false);
+    void OpenNetworkConnection(const CAddress& addrConnect, bool fCountFailure, CSemaphoreGrant* grantOutbound = nullptr, const char* strDest = nullptr, bool fOneShot = false, bool fFeeler = false, bool fAddnode = false, bool masternode_connection = false);
     bool CheckIncomingNonce(uint64_t nonce);
 
     bool ForNode(NodeId id, std::function<bool(CNode* pnode)> func);
@@ -535,6 +535,7 @@ public:
     double dPingWait;
     std::string addrLocal;
     uint32_t m_mapped_as;
+    bool m_masternode_connection;
 };
 
 
@@ -626,6 +627,7 @@ public:
     bool fFeeler;      // If true this node is being used as a short lived feeler.
     bool fOneShot;
     bool fAddnode;
+    bool m_masternode_connection{false}; // If true this node is only used for quorum related messages.
     bool fClient;
     const bool fInbound;
     /**
@@ -866,6 +868,9 @@ public:
     std::string GetAddrName() const;
     //! Sets the addrName only if it was not previously set
     void MaybeSetAddrName(const std::string& addrNameIn);
+
+    // todo: add iqr connection
+    bool CanRelay() const { return !m_masternode_connection; }
 };
 
 class CExplicitNetCleanup
