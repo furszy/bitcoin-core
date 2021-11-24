@@ -187,6 +187,7 @@ BITCOIN_CORE_H = \
   evo/evonotificationinterface.h \
   evo/providertx.h \
   evo/specialtx_validation.h \
+  flatdb.h \
   llmq/quorums_blockprocessor.h \
   llmq/quorums_commitment.h \
   llmq/quorums_init.h \
