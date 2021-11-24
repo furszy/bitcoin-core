@@ -15,7 +15,7 @@ namespace boost {
 }
 
 /** Loads from disk all the tier two related objects */
-bool LoadTierTwo(int chain_active_height);
+bool LoadTierTwo(int chain_active_height, bool fReindexChainState);
 
 /** Register all tier two objects */
 void RegisterTierTwoValidationInterface();
