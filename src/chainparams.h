@@ -72,6 +72,8 @@ public:
     const CBlock& GenesisBlock() const { return genesis; }
     /** Policy: Filter transactions that do not match well-defined patterns */
     bool RequireStandard() const { return fRequireStandard; }
+    /** How long to wait until we allow retrying of a LLMQ connection  */
+    int LLMQConnectionRetryTimeout() const { return nLLMQConnectionRetryTimeout; }
     /** If this chain is exclusively used for testing */
     bool IsTestChain() const { return IsTestnet() || IsRegTestNet(); }
     /** Make miner wait to have peers to avoid wasting work */
@@ -106,6 +108,9 @@ protected:
     std::string bech32HRPs[MAX_BECH32_TYPES];
     std::vector<uint8_t> vFixedSeeds;
     bool fRequireStandard;
+
+    // Tier two
+    int nLLMQConnectionRetryTimeout;
 };
 
 /**

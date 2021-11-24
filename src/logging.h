@@ -67,6 +67,7 @@ namespace BCLog {
         SPORKS      = (1 << 27),
         VALIDATION  = (1 << 28),
         LLMQ        = (1 << 29),
+        NET_MN      = (1 << 30),
         ALL         = ~(uint32_t)0,
     };
 
