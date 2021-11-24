@@ -424,6 +424,8 @@ set(COMMON_SOURCES
         ./src/spork.cpp
         ./src/sporkdb.cpp
         ./src/tiertwo_networksync.cpp
+        ./src/tiertwo/masternode_meta_manager.cpp
+        ./src/tiertwo/net_masternodes.cpp
         ./src/warnings.cpp
         )
 add_library(COMMON_A STATIC ${BitcoinHeaders} ${COMMON_SOURCES})
