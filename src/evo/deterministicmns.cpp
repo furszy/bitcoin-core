@@ -9,6 +9,7 @@
 #include "coins.h"
 #include "chainparams.h"
 #include "consensus/upgrades.h"
+#include "consensus/validation.h"
 #include "core_io.h"
 #include "key_io.h"
 #include "guiinterface.h"

@@ -3,11 +3,13 @@
 // file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
 #include "test/test_pivx.h"
-#include "primitives/transaction.h"
+
+#include "consensus/validation.h"
 #include "evo/providertx.h"
 #include "evo/specialtx.h"
 #include "messagesigner.h"
 #include "netbase.h"
+#include "primitives/transaction.h"
 
 #include <boost/test/unit_test.hpp>
 
