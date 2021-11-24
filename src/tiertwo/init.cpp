@@ -5,11 +5,13 @@
 #include "tiertwo/init.h"
 
 #include "budget/budgetdb.h"
+#include "flatdb.h"
 #include "guiinterface.h"
 #include "guiinterfaceutil.h"
 #include "masternodeman.h"
 #include "masternode-payments.h"
 #include "masternodeconfig.h"
+#include "tiertwo/masternode_meta_manager.h"
 #include "validation.h"
 
 #include <boost/thread.hpp>
@@ -27,7 +29,7 @@ static void LoadBlockHashesCache(CMasternodeMan& man)
     }
 }
 
-bool LoadTierTwo(int chain_active_height)
+bool LoadTierTwo(int chain_active_height, bool fReindexChainState)
 {
     // ################################# //
     // ## Legacy Masternodes Manager ### //
@@ -77,6 +79,23 @@ bool LoadTierTwo(int chain_active_height)
         LogPrintf("Error reading mnpayments.dat - cached data discarded\n");
     }
 
+    // init mn metadata manager
+    bool fLoadCacheFiles = !(fReindex || fReindexChainState);
+    fs::path pathDB = GetDataDir();
+    std::string strDBName = "mnmetacache.dat";
+    uiInterface.InitMessage(_("Loading masternode cache..."));
+    CFlatDB<CMasternodeMetaMan> metadb(strDBName, "magicMasternodeMetaCache");
+    if (fLoadCacheFiles) {
+        if (!metadb.Load(g_mmetaman)) {
+            return UIError(_("Failed to load masternode metadata cache from") + "\n" + (pathDB / strDBName).string());
+        }
+    } else {
+        CMasternodeMetaMan mmetamanTmp;
+        if (!metadb.Dump(mmetamanTmp)) {
+            return UIError(_("Failed to clear masternode metadata cache at") + "\n" + (pathDB / strDBName).string());
+        }
+    }
+
     return true;
 }
 
@@ -92,6 +111,7 @@ void DumpTierTwo()
     DumpMasternodes();
     DumpBudgets(g_budgetman);
     DumpMasternodePayments();
+    CFlatDB<CMasternodeMetaMan>("mnmetacache.dat", "magicMasternodeMetaCache").Dump(g_mmetaman);
 }
 
 void SetBudgetFinMode(const std::string& mode)

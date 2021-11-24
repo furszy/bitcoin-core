@@ -1727,7 +1727,7 @@ bool AppInitMain()
 
     // ********************************************************* Step 10: setup layer 2 data
 
-    LoadTierTwo(chain_active_height);
+    LoadTierTwo(chain_active_height, fReindexChainState);
     if (!InitActiveMN()) return false;
     RegisterTierTwoValidationInterface();
 
