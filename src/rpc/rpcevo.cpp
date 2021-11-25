@@ -679,14 +679,6 @@ static bool CheckWalletOwnsScript(CWallet* pwallet, const CScript& script)
 #endif
 }
 
-static Optional<int> GetUTXOConfirmations(const COutPoint& outpoint)
-{
-    // nullopt means UTXO is yet unknown or already spent
-    LOCK(cs_main);
-    int confirmations = pcoinsTip->GetCoinDepthAtHeight(outpoint, chainActive.Height());
-    return (confirmations == -1 ? nullopt : Optional<int>(confirmations));
-}
-
 static void AddDMNEntryToList(UniValue& ret, CWallet* pwallet, const CDeterministicMNCPtr& dmn, bool fVerbose, bool fFromWallet)
 {
     assert(!fFromWallet || pwallet);
@@ -720,8 +712,8 @@ static void AddDMNEntryToList(UniValue& ret, CWallet* pwallet, const CDeterminis
     if (fVerbose) {
         UniValue o(UniValue::VOBJ);
         dmn->ToJson(o);
-        Optional<int> confirmations = GetUTXOConfirmations(dmn->collateralOutpoint);
-        o.pushKV("confirmations", confirmations ? *confirmations : -1);
+        int confs = WITH_LOCK(cs_main, return pcoinsTip->GetCoinDepthAtHeight(dmn->collateralOutpoint, chainActive.Height()); );
+        o.pushKV("confirmations", confs);
         o.pushKV("hasOwnerKey", hasOwnerKey);
         o.pushKV("hasVotingKey", hasVotingKey);
         o.pushKV("ownsCollateral", ownsCollateral);
