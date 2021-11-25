@@ -98,6 +98,24 @@ static void SignTransaction(CMutableTransaction& tx, const CKey& coinbaseKey)
     }
 }
 
+// Makes a new tx with a single out of given amount to given destination (or coinbase address, if nullopt)
+static COutPoint CreateNewUTXO(SimpleUTXOMap& utxos,
+                               CMutableTransaction& mtx,
+                               const CKey& coinbaseKey, CAmount amount,
+                               Optional<CScript> scriptDest = nullopt)
+{
+    const CScript& s = (scriptDest != nullopt ? *scriptDest
+                                              : GetScriptForDestination(coinbaseKey.GetPubKey().GetID()));
+    FundTransaction(mtx, utxos, s, s, amount);
+    SignTransaction(mtx, coinbaseKey);
+    int idx = -1;
+    for (size_t i = 0; i < mtx.vout.size() && idx < 0; i++) {
+        if (mtx.vout[i].nValue == amount) idx = i;
+    }
+    BOOST_CHECK(idx >= 0);
+    return COutPoint(mtx.GetHash(), idx);
+}
+
 static CKey GetRandomKey()
 {
     CKey keyRet;
@@ -115,7 +133,12 @@ static CBLSSecretKey GetRandomBLSKey()
 // Creates a ProRegTx.
 // - if optCollateralOut is nullopt, generate a new collateral in the first output of the tx
 // - otherwise reference *optCollateralOut as external collateral
-static CMutableTransaction CreateProRegTx(Optional<COutPoint> optCollateralOut, SimpleUTXOMap& utxos, int port, const CScript& scriptPayout, const CKey& coinbaseKey, const CKey& ownerKey, const CBLSPublicKey& operatorPubKey, uint16_t operatorReward = 0)
+static CMutableTransaction CreateProRegTx(Optional<COutPoint> optCollateralOut,
+                                          SimpleUTXOMap& utxos, int port, const CScript& scriptPayout, const CKey& coinbaseKey,
+                                          const CKey& ownerKey,
+                                          const CBLSPublicKey& operatorPubKey,
+                                          uint16_t operatorReward = 0,
+                                          bool fInvalidCollateral = false)
 {
     ProRegPL pl;
     pl.collateralOutpoint = (optCollateralOut ? *optCollateralOut : COutPoint(UINT256_ZERO, 0));
@@ -131,7 +154,7 @@ static CMutableTransaction CreateProRegTx(Optional<COutPoint> optCollateralOut, 
     tx.nType = CTransaction::TxType::PROREG;
     FundTransaction(tx, utxos, scriptPayout,
                     GetScriptForDestination(coinbaseKey.GetPubKey().GetID()),
-                    (optCollateralOut ? 0 : Params().GetConsensus().nMNCollateralAmt));
+                    (optCollateralOut ? 0 : Params().GetConsensus().nMNCollateralAmt - (fInvalidCollateral ? 1 : 0)));
 
     pl.inputsHash = CalcTxInputsHash(tx);
     SetTxPayload(tx, pl);
@@ -298,6 +321,8 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
 
     int nHeight = chainTip->nHeight;
     UpdateNetworkUpgradeParameters(Consensus::UPGRADE_V6_0, nHeight + 2);
+    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_POS, nHeight + 200);
+    UpdateNetworkUpgradeParameters(Consensus::UPGRADE_V3_4, nHeight + 200);
 
     // load empty list (last block before enforcement)
     CreateAndProcessBlock({}, coinbaseKey);
@@ -375,6 +400,92 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
     // 20 blocks, 6 masternodes. Must have been paid at least 3 times each.
     CheckPayments(mapPayments, 6, 3);
 
+
+    // Try to register with non-existent external collateral
+    {
+        Optional<COutPoint> o = COutPoint(UINT256_ONE, 0);
+        auto tx = CreateProRegTx(o, utxos, port, GenerateRandomAddress(), coinbaseKey, GetRandomKey(), GetRandomBLSKey().GetPublicKey());
+        CValidationState state;
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
+        BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-collateral");
+    }
+    // Try to register with invalid external collateral
+    {
+        // create an output of value 1 sat less than the required collateral amount
+        CMutableTransaction mtx;
+        const COutPoint& coll_out = CreateNewUTXO(utxos, mtx, coinbaseKey, Params().GetConsensus().nMNCollateralAmt-1);
+        CreateAndProcessBlock({mtx}, coinbaseKey);
+        chainTip = chainActive.Tip();
+        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+        Coin coll_coin;
+        BOOST_CHECK(view->GetUTXOCoin(coll_out, coll_coin));
+        BOOST_CHECK_EQUAL(coll_coin.out.nValue, Params().GetConsensus().nMNCollateralAmt-1);
+
+        // create the ProReg tx referencing the invalid collateral
+        auto tx = CreateProRegTx(Optional<COutPoint>(coll_out), utxos, port, GenerateRandomAddress(), coinbaseKey, GetRandomKey(), GetRandomBLSKey().GetPublicKey());
+        CValidationState state;
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
+        BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-collateral-amount");
+
+        // add the coin back to the utxo map
+        utxos.emplace(coll_out, std::make_pair(coll_coin.nHeight, coll_coin.out.nValue));
+    }
+    // Try to register with spent external collateral
+    {
+        // create an output of collateral amount
+        CMutableTransaction mtx;
+        const COutPoint& coll_out = CreateNewUTXO(utxos, mtx, coinbaseKey, Params().GetConsensus().nMNCollateralAmt);
+        CreateAndProcessBlock({mtx}, coinbaseKey);
+        chainTip = chainActive.Tip();
+        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+        Coin coll_coin;
+        BOOST_CHECK(view->GetUTXOCoin(coll_out, coll_coin));
+        BOOST_CHECK_EQUAL(coll_coin.out.nValue, Params().GetConsensus().nMNCollateralAmt);
+
+        // spend it
+        CMutableTransaction spendTx;
+        spendTx.vin.emplace_back(coll_out);
+        spendTx.vout.emplace_back(Params().GetConsensus().nMNCollateralAmt - 1000,
+                                  GetScriptForDestination(coinbaseKey.GetPubKey().GetID()));
+        SignTransaction(spendTx, coinbaseKey);
+        CreateAndProcessBlock({spendTx}, coinbaseKey);
+        chainTip = chainActive.Tip();
+        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+        BOOST_CHECK(!view->GetUTXOCoin(coll_out, coll_coin));
+
+        // create the ProReg tx referencing the spent collateral
+        auto tx = CreateProRegTx(Optional<COutPoint>(coll_out), utxos, port, GenerateRandomAddress(), coinbaseKey, GetRandomKey(), GetRandomBLSKey().GetPublicKey());
+        CValidationState state;
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
+        BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-collateral");
+    }
+    // Try to register with invalid internal collateral
+    {
+        auto tx = CreateProRegTx(nullopt, utxos, port, GenerateRandomAddress(), coinbaseKey, GetRandomKey(), GetRandomBLSKey().GetPublicKey(), 0, true);
+        CValidationState state;
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
+        BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-collateral-amount");
+    }
+    // Try to register reusing the collateral key as owner/voting key
+    {
+        const CKey& coll_key = GetRandomKey();
+        // create a valid collateral
+        CMutableTransaction mtx;
+        const COutPoint& coll_out = CreateNewUTXO(utxos, mtx, coinbaseKey, Params().GetConsensus().nMNCollateralAmt,
+                                    GetScriptForDestination(coll_key.GetPubKey().GetID()));
+        CreateAndProcessBlock({mtx}, coinbaseKey);
+        chainTip = chainActive.Tip();
+        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+        Coin coll_coin;
+        BOOST_CHECK(view->GetUTXOCoin(coll_out, coll_coin));
+        BOOST_CHECK_EQUAL(coll_coin.out.nValue, Params().GetConsensus().nMNCollateralAmt);
+
+        // create the ProReg tx reusing the collateral key
+        auto tx = CreateProRegTx(Optional<COutPoint>(coll_out), utxos, port, GenerateRandomAddress(), coinbaseKey, coll_key, GetRandomBLSKey().GetPublicKey());
+        CValidationState state;
+        BOOST_CHECK(!CheckSpecialTx(tx, chainTip, view, state));
+        BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-collateral-reuse");
+    }
     // Try to register used owner key
     {
         const CKey& ownerKey = ownerKeys.at(dmnHashes[InsecureRandRange(dmnHashes.size())]);
@@ -432,7 +543,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to check reject reason
         BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
     }
-    // Block with two ProReg txes using ip address
+    // Block with two ProReg txes using same ip address
     {
         auto tx1 = CreateProRegTx(nullopt, utxos, port, GenerateRandomAddress(), coinbaseKey, GetRandomKey(), GetRandomBLSKey().GetPublicKey());
         auto tx2 = CreateProRegTx(nullopt, utxos, port, GenerateRandomAddress(), coinbaseKey, GetRandomKey(), GetRandomBLSKey().GetPublicKey());
