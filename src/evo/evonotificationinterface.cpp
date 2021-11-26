@@ -10,7 +10,7 @@
 void EvoNotificationInterface::InitializeCurrentBlockTip()
 {
     LOCK(cs_main);
-    deterministicMNManager->UpdatedBlockTip(chainActive.Tip());
+    deterministicMNManager->SetTipIndex(chainActive.Tip());
 }
 
 void EvoNotificationInterface::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload)
