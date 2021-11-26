@@ -1915,15 +1915,6 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
         }
     }
 
-    // Update MN manager cache
-    deterministicMNManager->SetTipIndex(pindexDelete->pprev);
-    // replace the cached hash of pindexDelete with the hash of the block
-    // at depth CACHED_BLOCK_HASHES if it exists, or empty hash otherwise.
-    if ((unsigned) pindexDelete->nHeight >= CACHED_BLOCK_HASHES) {
-        mnodeman.CacheBlockHash(chainActive[pindexDelete->nHeight - CACHED_BLOCK_HASHES]);
-    } else {
-        mnodeman.UncacheBlockHash(pindexDelete);
-    }
     // Evict from mempool if the anchor changes
     if (saplingAnchorBeforeDisconnect != saplingAnchorAfterDisconnect) {
         // The anchor may not change between block disconnects,
@@ -1935,6 +1926,16 @@ bool static DisconnectTip(CValidationState& state, const CChainParams& chainpara
     // Let wallets know transactions went from 1-confirmed to
     // 0-confirmed or conflicted:
     GetMainSignals().BlockDisconnected(pblock, pindexDelete->GetBlockHash(), pindexDelete->nHeight, pindexDelete->GetBlockTime());
+
+    // Update MN manager cache
+    deterministicMNManager->SetTipIndex(pindexDelete->pprev);
+    // replace the cached hash of pindexDelete with the hash of the block
+    // at depth CACHED_BLOCK_HASHES if it exists, or empty hash otherwise.
+    if ((unsigned) pindexDelete->nHeight >= CACHED_BLOCK_HASHES) {
+        mnodeman.CacheBlockHash(chainActive[pindexDelete->nHeight - CACHED_BLOCK_HASHES]);
+    } else {
+        mnodeman.UncacheBlockHash(pindexDelete);
+    }
 
     return true;
 }
