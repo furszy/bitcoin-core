@@ -82,46 +82,33 @@ void CMasternodeSync::Reset()
     nAssetSyncStarted = GetTime();
 }
 
-void CMasternodeSync::AddedMasternodeList(const uint256& hash)
+static void UpdateLastTime(const uint256& hash, int64_t& last, std::map<uint256, int>& mapSeen)
 {
-    if (mnodeman.mapSeenMasternodeBroadcast.count(hash)) {
-        if (mapSeenSyncMNB[hash] < MASTERNODE_SYNC_THRESHOLD) {
-            lastMasternodeList = GetTime();
-            mapSeenSyncMNB[hash]++;
+    auto it = mapSeen.find(hash);
+    if (it != mapSeen.end()) {
+        if (it->second < MASTERNODE_SYNC_THRESHOLD) {
+            last = GetTime();
+            it->second++;
         }
     } else {
-        lastMasternodeList = GetTime();
-        mapSeenSyncMNB.emplace(hash, 1);
+        last = GetTime();
+        mapSeen.emplace(hash, 1);
     }
+}
+
+void CMasternodeSync::AddedMasternodeList(const uint256& hash)
+{
+    UpdateLastTime(hash, lastMasternodeList, mapSeenSyncMNB);
 }
 
 void CMasternodeSync::AddedMasternodeWinner(const uint256& hash)
 {
-    if (masternodePayments.mapMasternodePayeeVotes.count(hash)) {
-        if (mapSeenSyncMNW[hash] < MASTERNODE_SYNC_THRESHOLD) {
-            lastMasternodeWinner = GetTime();
-            mapSeenSyncMNW[hash]++;
-        }
-    } else {
-        lastMasternodeWinner = GetTime();
-        mapSeenSyncMNW.emplace(hash, 1);
-    }
+    UpdateLastTime(hash, lastMasternodeWinner, mapSeenSyncMNW);
 }
 
 void CMasternodeSync::AddedBudgetItem(const uint256& hash)
 {
-    if (g_budgetman.HaveProposal(hash) ||
-            g_budgetman.HaveSeenProposalVote(hash) ||
-            g_budgetman.HaveFinalizedBudget(hash) ||
-            g_budgetman.HaveSeenFinalizedBudgetVote(hash)) {
-        if (mapSeenSyncBudget[hash] < MASTERNODE_SYNC_THRESHOLD) {
-            lastBudgetItem = GetTime();
-            mapSeenSyncBudget[hash]++;
-        }
-    } else {
-        lastBudgetItem = GetTime();
-        mapSeenSyncBudget.emplace(hash, 1);
-    }
+    UpdateLastTime(hash, lastBudgetItem, mapSeenSyncBudget);
 }
 
 bool CMasternodeSync::IsBudgetPropEmpty()
