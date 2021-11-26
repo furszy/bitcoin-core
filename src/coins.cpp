@@ -6,7 +6,6 @@
 #include "coins.h"
 
 #include "consensus/consensus.h"
-#include "policy/fees.h"
 #include "invalid.h"
 #include "logging.h"
 #include "random.h"
