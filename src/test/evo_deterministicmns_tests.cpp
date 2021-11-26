@@ -737,7 +737,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
     // ProUpReg: change voting key, operator key and payout address
     {
         const uint256& proTx = dmnHashes[InsecureRandRange(dmnHashes.size())];            // pick one at random
-        const CBLSSecretKey& new_operatorKey = GetRandomBLSKey();
+        CBLSSecretKey new_operatorKey = GetRandomBLSKey();
         const CKey& new_votingKey = GetRandomKey();
         const CScript& new_payee = GenerateRandomAddress();
         // try first with wrong owner key
@@ -765,7 +765,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         BOOST_CHECK_MESSAGE(dmn->pdmnState->keyIDVoting == new_votingKey.GetPubKey().GetID(), "mn voting key not changed");
         BOOST_CHECK_MESSAGE(dmn->pdmnState->scriptPayout == new_payee, "mn script payout not changed");
 
-        operatorKeys.at(proTx) = new_operatorKey;
+        operatorKeys[proTx] = std::move(new_operatorKey);
 
         // check that changing the operator key puts the MN in PoSe banned state
         BOOST_CHECK_MESSAGE(dmn->pdmnState->addr == CService(), "IP address not cleared after changing operator");
