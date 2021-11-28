@@ -11,7 +11,6 @@
 #include "llmq/quorums_utils.h"
 #include "evo/evodb.h"
 #include "net.h"
-#include "net_processing.h"
 #include "primitives/block.h"
 #include "validation.h"
 
@@ -30,21 +29,18 @@ CQuorumBlockProcessor::CQuorumBlockProcessor(CEvoDB &_evoDb) :
 }
 
 template<typename... Args>
-static void SetMisbehaving(CNode* pfrom, int nDos, const char* fmt, const Args&... args)
+static int LogMisbehaving(CNode* pfrom, int nDoS, const char* fmt, const Args&... args)
 {
-    LOCK(cs_main);
     try {
         LogPrint(BCLog::LLMQ, "Invalid QFCOMMITMENT message from peer=%d (reason: %s)\n",
                 pfrom->GetId(), tfm::format(fmt, args...));
     } catch (tinyformat::format_error &e) {
         LogPrintf("Error (%s) while formatting message %s\n", std::string(e.what()), fmt);
     }
-    if (nDos > 0) {
-        Misbehaving(pfrom->GetId(), nDos);
-    }
+    return nDoS;
 }
 
-void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
+void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv, int& retMisbehavingScore)
 {
     AssertLockNotHeld(cs_main);
     CFinalCommitment qc;
@@ -57,11 +53,11 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
     }
 
     if (qc.IsNull()) {
-        SetMisbehaving(pfrom, 100, "null commitment");
+        retMisbehavingScore = LogMisbehaving(pfrom, 100, "null commitment");
         return;
     }
     if (!Params().GetConsensus().llmqs.count((Consensus::LLMQType)qc.llmqType)) {
-        SetMisbehaving(pfrom, 100, "invalid commitment type %d", qc.llmqType);
+        retMisbehavingScore = LogMisbehaving(pfrom, 100, "invalid commitment type %d", qc.llmqType);
         return;
     }
 
@@ -76,18 +72,18 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
         if (it == mapBlockIndex.end()) {
             // can't really punish the node here, as we might simply be the one that is on the wrong chain or not
             // fully synced
-            SetMisbehaving(pfrom, 0, "unknown block %s", qc.quorumHash.ToString());
+            retMisbehavingScore = LogMisbehaving(pfrom, 0, "unknown block %s", qc.quorumHash.ToString());
             return;
         }
         pquorumIndex = it->second;
         if (chainActive.Tip()->GetAncestor(pquorumIndex->nHeight) != pquorumIndex) {
             // same, can't punish
-            SetMisbehaving(pfrom, 0, "block %s not in active chain", qc.quorumHash.ToString());
+            retMisbehavingScore = LogMisbehaving(pfrom, 0, "block %s not in active chain", qc.quorumHash.ToString());
             return;
         }
         int quorumHeight = pquorumIndex->nHeight - (pquorumIndex->nHeight % llmq_params.dkgInterval);
         if (quorumHeight != pquorumIndex->nHeight) {
-            SetMisbehaving(pfrom, 100, "block %s is not the first in the DKG interval", qc.quorumHash.ToString());
+            retMisbehavingScore = LogMisbehaving(pfrom, 100, "block %s is not the first in the DKG interval", qc.quorumHash.ToString());
             return;
         }
     }
@@ -99,7 +95,7 @@ void CQuorumBlockProcessor::ProcessMessage(CNode* pfrom, CDataStream& vRecv)
     }
 
     if (!qc.Verify(pquorumIndex)) {
-        SetMisbehaving(pfrom, 100, "invalid commtiment for quorum", qc.quorumHash.ToString());
+        retMisbehavingScore = LogMisbehaving(pfrom, 100, "invalid commtiment for quorum", qc.quorumHash.ToString());
         return;
     }
 

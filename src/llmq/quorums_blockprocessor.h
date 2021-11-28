@@ -40,7 +40,7 @@ private:
 public:
     explicit CQuorumBlockProcessor(CEvoDB& _evoDb);
 
-    void ProcessMessage(CNode* pfrom, CDataStream& vRecv);
+    void ProcessMessage(CNode* pfrom, CDataStream& vRecv, int& retMisbehavingScore);
 
     bool ProcessBlock(const CBlock& block, const CBlockIndex* pindex, CValidationState& state, bool fJustCheck);
     bool UndoBlock(const CBlock& block, const CBlockIndex* pindex);
