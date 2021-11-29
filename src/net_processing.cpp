@@ -2050,7 +2050,15 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                     return false;
                 }
                 masternodeSync.ProcessMessage(pfrom, strCommand, vRecv);
-                CMNAuth::ProcessMessage(pfrom, strCommand, vRecv, *connman);
+
+                CValidationState mnauthState;
+                if (!CMNAuth::ProcessMessage(pfrom, strCommand, vRecv, *connman, mnauthState)) {
+                    int dosScore{0};
+                    if (mnauthState.IsInvalid(dosScore) && dosScore > 0) {
+                        LOCK(cs_main);
+                        Misbehaving(pfrom->GetId(), dosScore, mnauthState.GetRejectReason());
+                    }
+                }
             }
         } else {
             // Ignore unknown commands for extensibility
