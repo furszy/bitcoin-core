@@ -2028,14 +2028,18 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         if (std::find(allMessages.begin(), allMessages.end(), strCommand) != allMessages.end()) {
             // Check if the dispatcher can process this message first. If not, try going with the old flow.
             if (!masternodeSync.MessageDispatcher(pfrom, strCommand, vRecv)) {
-                // Probably one the extensions
+                // Probably one the extensions, future: encapsulate all of this inside tiertwo_networksync.
                 int dosScore{0};
                 if (!mnodeman.ProcessMessage(pfrom, strCommand, vRecv, dosScore) && dosScore > 0) {
                     WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), dosScore));
+                    return false;
                 }
                 g_budgetman.ProcessMessage(pfrom, strCommand, vRecv);
                 masternodePayments.ProcessMessageMasternodePayments(pfrom, strCommand, vRecv);
-                sporkManager.ProcessSpork(pfrom, strCommand, vRecv);
+                if (!sporkManager.ProcessSpork(pfrom, strCommand, vRecv, dosScore) && dosScore > 0) {
+                    WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), dosScore));
+                    return false;
+                }
                 masternodeSync.ProcessMessage(pfrom, strCommand, vRecv);
 
                 CValidationState mnauthState;
@@ -2045,6 +2049,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                         LOCK(cs_main);
                         Misbehaving(pfrom->GetId(), dosScore, mnauthState.GetRejectReason());
                     }
+                    return false;
                 }
             }
         } else {
