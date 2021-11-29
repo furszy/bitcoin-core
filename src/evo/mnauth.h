@@ -14,6 +14,7 @@ class CDataStream;
 class CDeterministicMNList;
 class CDeterministicMNListDiff;
 class CNode;
+class CValidationState;
 
 /**
  * This class handles the p2p message MNAUTH. MNAUTH is sent directly after VERACK and authenticates the sender as a
@@ -42,7 +43,7 @@ public:
     }
 
     static void PushMNAUTH(CNode* pnode, CConnman& connman);
-    static void ProcessMessage(CNode* pnode, const std::string& strCommand, CDataStream& vRecv, CConnman& connman);
+    static bool ProcessMessage(CNode* pnode, const std::string& strCommand, CDataStream& vRecv, CConnman& connman, CValidationState& state);
     static void NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff);
 };
 

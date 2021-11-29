@@ -12,7 +12,6 @@
 #include "netmessagemaker.h"
 #include "llmq/quorums_utils.h"
 #include "util/system.h" // for fMasternode and gArgs access
-#include "net_processing.h" // for cs_main
 #include "tiertwo/net_masternodes.h"
 #include "version.h" // for MNAUTH_NODE_VER_VERSION
 
@@ -55,11 +54,11 @@ void CMNAuth::PushMNAUTH(CNode* pnode, CConnman& connman)
     connman.PushMessage(pnode, CNetMsgMaker(pnode->GetSendVersion()).Make(NetMsgType::MNAUTH, mnauth));
 }
 
-void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataStream& vRecv, CConnman& connman)
+bool CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataStream& vRecv, CConnman& connman, CValidationState& state)
 {
     if (!masternodeSync.IsBlockchainSynced()) {
         // we can't verify MNAUTH messages when we don't have the latest MN list
-        return;
+        return true;
     }
 
     if (strCommand == NetMsgType::MNAUTH) {
@@ -68,39 +67,29 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
         // only one MNAUTH allowed
         bool fAlreadyHaveMNAUTH = WITH_LOCK(pnode->cs_mnauth, return !pnode->verifiedProRegTxHash.IsNull(););
         if (fAlreadyHaveMNAUTH) {
-            LOCK(cs_main);
-            Misbehaving(pnode->GetId(), 100, "duplicate mnauth");
-            return;
+            return state.DoS(100, false, REJECT_INVALID, "duplicate mnauth");
         }
 
         if ((~pnode->nServices) & (NODE_NETWORK | NODE_BLOOM)) {
             // either NODE_NETWORK or NODE_BLOOM bit is missing in node's services
-            LOCK(cs_main);
-            Misbehaving(pnode->GetId(), 100, "mnauth from a node with invalid services");
-            return;
+            return state.DoS(100, false, REJECT_INVALID, "mnauth from a node with invalid services");
         }
 
         if (mnauth.proRegTxHash.IsNull()) {
-            LOCK(cs_main);
-            Misbehaving(pnode->GetId(), 100, "empty mnauth proRegTxHash");
-            return;
+            return state.DoS(100, false, REJECT_INVALID, "empty mnauth proRegTxHash");
         }
 
         if (!mnauth.sig.IsValid()) {
-            LOCK(cs_main);
-            Misbehaving(pnode->GetId(), 100, "invalid mnauth signature");
-            return;
+            return state.DoS(100, false, REJECT_INVALID, "invalid mnauth signature");
         }
 
         auto mnList = deterministicMNManager->GetListAtChainTip();
         auto dmn = mnList.GetMN(mnauth.proRegTxHash);
         if (!dmn) {
-            LOCK(cs_main);
             // in case node was unlucky and not up to date, just let it be connected as a regular node, which gives it
             // a chance to get up-to-date and thus realize that it's not a MN anymore. We still give it a
             // low DoS score.
-            Misbehaving(pnode->GetId(), 10, "missing mnauth masternode");
-            return;
+            return state.DoS(10, false, REJECT_INVALID, "missing mnauth masternode");
         }
 
         uint256 signHash;
@@ -120,11 +109,9 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
         }
 
         if (!mnauth.sig.VerifyInsecure(dmn->pdmnState->pubKeyOperator.Get(), signHash)) {
-            LOCK(cs_main);
             // Same as above, MN seems to not know its fate yet, so give it a chance to update. If this is a
             // malicious node (DoSing us), it'll get banned soon.
-            Misbehaving(pnode->GetId(), 10, "mnauth signature verification failed");
-            return;
+            return state.DoS(10, false, REJECT_INVALID, "mnauth signature verification failed");
         }
 
         if (!pnode->fInbound) {
@@ -133,7 +120,7 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
                 LogPrint(BCLog::NET_MN, "%s -- Masternode probe successful for %s, disconnecting. peer=%d\n",
                          __func__, mnauth.proRegTxHash.ToString(), pnode->GetId());
                 pnode->fDisconnect = true;
-                return;
+                return true;
             }
         }
 
@@ -141,7 +128,7 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
         const CActiveMasternodeInfo* activeMnInfo{nullptr};
         if (!fMasterNode || !activeMasternodeManager ||
             (activeMnInfo = activeMasternodeManager->GetInfo())->proTxHash.IsNull()) {
-            return;
+            return true;
         }
 
         connman.ForEachNode([&](CNode* pnode2) {
@@ -181,7 +168,7 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
         });
 
         if (pnode->fDisconnect) {
-            return;
+            return true;
         }
 
         {
@@ -201,6 +188,7 @@ void CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
         }
 
         LogPrint(BCLog::NET_MN, "CMNAuth::%s -- Valid MNAUTH for %s, peer=%d\n", __func__, mnauth.proRegTxHash.ToString(), pnode->GetId());
+        return true;
     }
 }
 
