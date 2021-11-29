@@ -2054,7 +2054,15 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                     WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), dosScore));
                     return false;
                 }
-                CMNAuth::ProcessMessage(pfrom, strCommand, vRecv, *connman);
+
+                CValidationState mnauthState;
+                if (!CMNAuth::ProcessMessage(pfrom, strCommand, vRecv, *connman, mnauthState)) {
+                    int dosScore{0};
+                    if (mnauthState.IsInvalid(dosScore) && dosScore > 0) {
+                        LOCK(cs_main);
+                        Misbehaving(pfrom->GetId(), dosScore, mnauthState.GetRejectReason());
+                    }
+                }
             }
         } else {
             // Ignore unknown commands for extensibility
