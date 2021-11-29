@@ -961,6 +961,15 @@ CService ip(uint32_t i)
     return CService(CNetAddr(s), Params().GetDefaultPort());
 }
 
+static void ProcessQuorum(llmq::CQuorumBlockProcessor* processor, const llmq::CFinalCommitment& qfc, CNode* node)
+{
+    CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
+    vRecv << qfc;
+    int banScore{0};
+    processor->ProcessMessage(node, vRecv, banScore);
+    BOOST_CHECK_EQUAL(banScore, 0);
+}
+
 static NodeId id = 0;
 
 BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
@@ -1043,11 +1052,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
 
     // receive final commitment message
     CNode dummyNode(id++, NODE_NETWORK, 0, INVALID_SOCKET, CAddress(ip(0xa0b0c001), NODE_NONE), 0, 0, "", true);
-    {
-        CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
-        vRecv << qfc;
-        llmq::quorumBlockProcessor->ProcessMessage(&dummyNode, vRecv);
-    }
+    ProcessQuorum(llmq::quorumBlockProcessor.get(), qfc, &dummyNode);
     BOOST_CHECK(llmq::quorumBlockProcessor->HasMinableCommitment(::SerializeHash(qfc)));
 
     // mine final commitment (at block 450)
@@ -1102,11 +1107,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
     llmq::CFinalCommitment qfc2 = CreateFinalCommitment(pkeys2, skeys2, quorumHash);
     BOOST_CHECK(!qfc2.IsNull());
     BOOST_CHECK(qfc2.Verify(quorumIndex));
-    {
-        CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
-        vRecv << qfc2;
-        llmq::quorumBlockProcessor->ProcessMessage(&dummyNode, vRecv);
-    }
+    ProcessQuorum(llmq::quorumBlockProcessor.get(), qfc2, &dummyNode);
     // final commitment received and accepted
     BOOST_CHECK(llmq::quorumBlockProcessor->HasMinableCommitment(::SerializeHash(qfc2)));
 
@@ -1114,11 +1115,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
     qfc = CreateFinalCommitment(pkeys, skeys, quorumHash);
     BOOST_CHECK(!qfc.IsNull());
     BOOST_CHECK(qfc.Verify(quorumIndex));
-    {
-        CDataStream vRecv(SER_NETWORK, PROTOCOL_VERSION);
-        vRecv << qfc;
-        llmq::quorumBlockProcessor->ProcessMessage(&dummyNode, vRecv);
-    }
+    ProcessQuorum(llmq::quorumBlockProcessor.get(), qfc, &dummyNode);
     BOOST_CHECK(qfc.CountSigners() > qfc2.CountSigners());
 
     // final commitment received, accepted, and replaced the previous one (with less memebers)
