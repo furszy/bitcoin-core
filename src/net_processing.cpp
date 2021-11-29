@@ -1929,7 +1929,13 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                     WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), dosScore));
                     return false;
                 }
-                masternodePayments.ProcessMessageMasternodePayments(pfrom, strCommand, vRecv);
+                CValidationState state_payments;
+                if (!masternodePayments.ProcessMessageMasternodePayments(pfrom, strCommand, vRecv, state_payments)) {
+                    if (state_payments.IsInvalid(dosScore)) {
+                        WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), dosScore));
+                    }
+                    return false;
+                }
                 if (!sporkManager.ProcessSpork(pfrom, strCommand, vRecv, dosScore)) {
                     WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), dosScore));
                     return false;
