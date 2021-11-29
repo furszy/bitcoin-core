@@ -8,7 +8,7 @@
 #include "core_io.h"
 #include "destination_io.h"
 #include "evo/deterministicmns.h"
-#include "evo/specialtx.h"
+#include "evo/specialtx_validation.h"
 #include "evo/providertx.h"
 #include "key_io.h"
 #include "masternode.h"

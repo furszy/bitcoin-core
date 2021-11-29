@@ -5,8 +5,8 @@
 #include "tx_verify.h"
 
 #include "consensus/consensus.h"
-#include "evo/specialtx.h"
 #include "consensus/zerocoin_verify.h"
+#include "evo/specialtx_validation.h"
 #include "sapling/sapling_validation.h"
 #include "../validation.h"
 

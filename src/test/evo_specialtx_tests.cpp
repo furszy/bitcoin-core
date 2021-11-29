@@ -6,7 +6,7 @@
 
 #include "consensus/validation.h"
 #include "evo/providertx.h"
-#include "evo/specialtx.h"
+#include "evo/specialtx_validation.h"
 #include "messagesigner.h"
 #include "netbase.h"
 #include "primitives/transaction.h"

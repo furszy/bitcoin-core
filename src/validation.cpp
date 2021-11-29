@@ -22,7 +22,7 @@
 #include "consensus/tx_verify.h"
 #include "consensus/validation.h"
 #include "consensus/zerocoin_verify.h"
-#include "evo/specialtx.h"
+#include "evo/specialtx_validation.h"
 #include "flatfile.h"
 #include "guiinterface.h"
 #include "invalid.h"

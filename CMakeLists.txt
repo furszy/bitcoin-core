@@ -384,7 +384,7 @@ set(COMMON_SOURCES
         ./src/evo/evonotificationinterface.cpp
         ./src/evo/evodb.cpp
         ./src/evo/providertx.cpp
-        ./src/evo/specialtx.cpp
+        ./src/evo/specialtx_validation.cpp
         ./src/consensus/merkle.cpp
         ./src/consensus/zerocoin_verify.cpp
         ./src/primitives/block.cpp

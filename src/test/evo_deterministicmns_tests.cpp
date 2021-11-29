@@ -7,7 +7,7 @@
 
 #include "blockassembler.h"
 #include "consensus/merkle.h"
-#include "evo/specialtx.h"
+#include "evo/specialtx_validation.h"
 #include "evo/deterministicmns.h"
 #include "masternode-payments.h"
 #include "masternode-sync.h"

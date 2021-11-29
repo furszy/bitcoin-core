@@ -6,7 +6,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "core_io.h"
-#include "evo/specialtx.h"
+#include "evo/specialtx_validation.h"
 #include "evo/providertx.h"
 #include "keystore.h"
 #include "key_io.h"

@@ -186,7 +186,7 @@ BITCOIN_CORE_H = \
   evo/evodb.h \
   evo/evonotificationinterface.h \
   evo/providertx.h \
-  evo/specialtx.h \
+  evo/specialtx_validation.h \
   addressbook.h \
   wallet/db.h \
   flatfile.h \
@@ -346,7 +346,7 @@ libbitcoin_server_a_SOURCES = \
   evo/evodb.cpp \
   evo/evonotificationinterface.cpp \
   evo/providertx.cpp \
-  evo/specialtx.cpp \
+  evo/specialtx_validation.cpp \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
