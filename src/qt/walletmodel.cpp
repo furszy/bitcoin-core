@@ -662,7 +662,7 @@ OperationResult WalletModel::createAndSendProposalFeeTx(CBudgetProposal& proposa
     CTransactionRef wtx;
     const uint256& nHash = proposal.GetHash();
     CReserveKey keyChange(wallet);
-    if (!wallet->CreateBudgetFeeTX(wtx, nHash, keyChange, false)) { // 50 PIV collateral for proposal
+    if (!wallet->CreateBudgetFeeTX(wtx, nHash, keyChange, BUDGET_FEE_TX_OLD)) { // 50 PIV collateral for proposal
         return {false , "Error making fee transaction for proposal. Please check your wallet balance."};
     }
 
