@@ -2029,7 +2029,10 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             // Check if the dispatcher can process this message first. If not, try going with the old flow.
             if (!masternodeSync.MessageDispatcher(pfrom, strCommand, vRecv)) {
                 // Probably one the extensions
-                mnodeman.ProcessMessage(pfrom, strCommand, vRecv);
+                int dosScore{0};
+                if (!mnodeman.ProcessMessage(pfrom, strCommand, vRecv, dosScore) && dosScore > 0) {
+                    WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), dosScore));
+                }
                 g_budgetman.ProcessMessage(pfrom, strCommand, vRecv);
                 masternodePayments.ProcessMessageMasternodePayments(pfrom, strCommand, vRecv);
                 sporkManager.ProcessSpork(pfrom, strCommand, vRecv);
@@ -2037,7 +2040,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
 
                 CValidationState mnauthState;
                 if (!CMNAuth::ProcessMessage(pfrom, strCommand, vRecv, *connman, mnauthState)) {
-                    int dosScore{0};
+                    dosScore = 0;
                     if (mnauthState.IsInvalid(dosScore) && dosScore > 0) {
                         LOCK(cs_main);
                         Misbehaving(pfrom->GetId(), dosScore, mnauthState.GetRejectReason());
