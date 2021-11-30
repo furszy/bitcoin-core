@@ -14,7 +14,6 @@
 #include <map>
 
 #define MASTERNODE_SYNC_TIMEOUT 5
-#define MASTERNODE_SYNC_THRESHOLD 2
 
 class CMasternodeSync;
 extern CMasternodeSync masternodeSync;
@@ -31,13 +30,6 @@ struct TierTwoPeerData {
 class CMasternodeSync
 {
 public:
-    std::map<uint256, int> mapSeenSyncMNB;
-    std::map<uint256, int> mapSeenSyncMNW;
-    std::map<uint256, int> mapSeenSyncBudget;
-
-    int64_t lastMasternodeList;
-    int64_t lastMasternodeWinner;
-    int64_t lastBudgetItem;
     int64_t lastFailure;
     int nCountFailures;
 
@@ -62,9 +54,6 @@ public:
 
     CMasternodeSync();
 
-    void AddedMasternodeList(const uint256& hash);
-    void AddedMasternodeWinner(const uint256& hash);
-    void AddedBudgetItem(const uint256& hash);
     void SwitchToNextAsset();
     std::string GetSyncStatus();
     void ProcessSyncStatusMsg(int nItemID, int itemCount);

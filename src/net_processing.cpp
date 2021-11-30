@@ -20,6 +20,7 @@
 #include "primitives/transaction.h"
 #include "sporkdb.h"
 #include "streams.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "validation.h"
 #include "util/validation.h"
 
@@ -776,37 +777,37 @@ bool static AlreadyHave(const CInv& inv) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
         return mapSporks.count(inv.hash);
     case MSG_MASTERNODE_WINNER:
         if (masternodePayments.mapMasternodePayeeVotes.count(inv.hash)) {
-            masternodeSync.AddedMasternodeWinner(inv.hash);
+            g_tiertwo_sync_state.AddedMasternodeWinner(inv.hash);
             return true;
         }
         return false;
     case MSG_BUDGET_VOTE:
         if (g_budgetman.HaveSeenProposalVote(inv.hash)) {
-            masternodeSync.AddedBudgetItem(inv.hash);
+            g_tiertwo_sync_state.AddedBudgetItem(inv.hash);
             return true;
         }
         return false;
     case MSG_BUDGET_PROPOSAL:
         if (g_budgetman.HaveProposal(inv.hash)) {
-            masternodeSync.AddedBudgetItem(inv.hash);
+            g_tiertwo_sync_state.AddedBudgetItem(inv.hash);
             return true;
         }
         return false;
     case MSG_BUDGET_FINALIZED_VOTE:
         if (g_budgetman.HaveSeenFinalizedBudgetVote(inv.hash)) {
-            masternodeSync.AddedBudgetItem(inv.hash);
+            g_tiertwo_sync_state.AddedBudgetItem(inv.hash);
             return true;
         }
         return false;
     case MSG_BUDGET_FINALIZED:
         if (g_budgetman.HaveFinalizedBudget(inv.hash)) {
-            masternodeSync.AddedBudgetItem(inv.hash);
+            g_tiertwo_sync_state.AddedBudgetItem(inv.hash);
             return true;
         }
         return false;
     case MSG_MASTERNODE_ANNOUNCE:
         if (mnodeman.mapSeenMasternodeBroadcast.count(inv.hash)) {
-            masternodeSync.AddedMasternodeList(inv.hash);
+            g_tiertwo_sync_state.AddedMasternodeList(inv.hash);
             return true;
         }
         return false;

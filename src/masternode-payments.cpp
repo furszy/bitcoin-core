@@ -9,7 +9,6 @@
 #include "evo/deterministicmns.h"
 #include "fs.h"
 #include "budget/budgetmanager.h"
-#include "masternode-sync.h"
 #include "masternodeman.h"
 #include "netmessagemaker.h"
 #include "spork.h"
@@ -447,7 +446,7 @@ bool CMasternodePayments::ProcessMNWinner(CMasternodePaymentWinner& winner, CNod
 
     if (mapMasternodePayeeVotes.count(winner.GetHash())) {
         LogPrint(BCLog::MASTERNODE, "mnw - Already seen - %s bestHeight %d\n", winner.GetHash().ToString().c_str(), nHeight);
-        masternodeSync.AddedMasternodeWinner(winner.GetHash());
+        g_tiertwo_sync_state.AddedMasternodeWinner(winner.GetHash());
         return false;
     }
 
@@ -511,7 +510,7 @@ bool CMasternodePayments::ProcessMNWinner(CMasternodePaymentWinner& winner, CNod
     // Relay only if we are synchronized.
     // Makes no sense to relay MNWinners to the peers from where we are syncing them.
     if (g_tiertwo_sync_state.IsSynced()) winner.Relay();
-    masternodeSync.AddedMasternodeWinner(winner.GetHash());
+    g_tiertwo_sync_state.AddedMasternodeWinner(winner.GetHash());
 
     // valid
     return true;
@@ -691,7 +690,7 @@ void CMasternodePayments::CleanPaymentList(int mnCount, int nHeight)
 
         if (nHeight - winner.nBlockHeight > nLimit) {
             LogPrint(BCLog::MASTERNODE, "CMasternodePayments::CleanPaymentList - Removing old Masternode payment - block %d\n", winner.nBlockHeight);
-            masternodeSync.mapSeenSyncMNW.erase((*it).first);
+            g_tiertwo_sync_state.EraseSeenMNW((*it).first);
             mapMasternodePayeeVotes.erase(it++);
             mapMasternodeBlocks.erase(winner.nBlockHeight);
         } else {

@@ -262,7 +262,7 @@ int CMasternodeMan::CheckAndRemove(bool forceExpiredRemoval)
             std::map<uint256, CMasternodeBroadcast>::iterator it3 = mapSeenMasternodeBroadcast.begin();
             while (it3 != mapSeenMasternodeBroadcast.end()) {
                 if (it3->second.vin.prevout == it->first) {
-                    masternodeSync.mapSeenSyncMNB.erase((*it3).first);
+                    g_tiertwo_sync_state.EraseSeenMNB((*it3).first);
                     it3 = mapSeenMasternodeBroadcast.erase(it3);
                 } else {
                     ++it3;
@@ -331,7 +331,7 @@ int CMasternodeMan::CheckAndRemove(bool forceExpiredRemoval)
     std::map<uint256, CMasternodeBroadcast>::iterator it3 = mapSeenMasternodeBroadcast.begin();
     while (it3 != mapSeenMasternodeBroadcast.end()) {
         if ((*it3).second.lastPing.sigTime < GetTime() - (MasternodeRemovalSeconds() * 2)) {
-            masternodeSync.mapSeenSyncMNB.erase((*it3).second.GetHash());
+            g_tiertwo_sync_state.EraseSeenMNB((*it3).second.GetHash());
             it3 = mapSeenMasternodeBroadcast.erase(it3);
         } else {
             ++it3;
@@ -787,7 +787,7 @@ bool CMasternodeMan::CheckInputs(CMasternodeBroadcast& mnb, int nChainHeight, in
         LogPrint(BCLog::MASTERNODE,"mnb - Input must have at least %d confirmations\n", MasternodeCollateralMinConf());
         // maybe we miss few blocks, let this mnb to be checked again later
         mapSeenMasternodeBroadcast.erase(mnb.GetHash());
-        masternodeSync.mapSeenSyncMNB.erase(mnb.GetHash());
+        g_tiertwo_sync_state.EraseSeenMNB(mnb.GetHash());
         return false;
     }
 
@@ -808,7 +808,7 @@ int CMasternodeMan::ProcessMNBroadcast(CNode* pfrom, CMasternodeBroadcast& mnb)
 {
     const uint256& mnbHash = mnb.GetHash();
     if (mapSeenMasternodeBroadcast.count(mnbHash)) { //seen
-        masternodeSync.AddedMasternodeList(mnbHash);
+        g_tiertwo_sync_state.AddedMasternodeList(mnbHash);
         return 0;
     }
 
@@ -850,7 +850,7 @@ int CMasternodeMan::ProcessMNBroadcast(CNode* pfrom, CMasternodeBroadcast& mnb)
     g_connman->AddNewAddress(CAddress(mnb.addr, NODE_NETWORK), pfrom->addr, 2 * 60 * 60);
 
     // Update sync status
-    masternodeSync.AddedMasternodeList(mnbHash);
+    g_tiertwo_sync_state.AddedMasternodeList(mnbHash);
 
     // All good
     return 0;
@@ -1031,7 +1031,7 @@ void CMasternodeMan::UpdateMasternodeList(CMasternodeBroadcast& mnb)
 
     mapSeenMasternodePing.emplace(mnb.lastPing.GetHash(), mnb.lastPing);
     mapSeenMasternodeBroadcast.emplace(mnb.GetHash(), mnb);
-    masternodeSync.AddedMasternodeList(mnb.GetHash());
+    g_tiertwo_sync_state.AddedMasternodeList(mnb.GetHash());
 
     LogPrint(BCLog::MASTERNODE,"%s -- masternode=%s\n", __func__, mnb.vin.prevout.ToString());
 
