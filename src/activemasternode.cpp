@@ -7,7 +7,6 @@
 
 #include "addrman.h"
 #include "bls/bls_wrapper.h"
-#include "evo/providertx.h"
 #include "masternode-sync.h"
 #include "masternode.h"
 #include "masternodeconfig.h"
@@ -147,7 +146,7 @@ void CActiveDeterministicMasternodeManager::Init(const CBlockIndex* pindexTip)
         // Check socket connectivity
         const std::string& strService = info.service.ToString();
         LogPrintf("%s: Checking inbound connection to '%s'\n", __func__, strService);
-        SOCKET hSocket;
+        SOCKET hSocket = INVALID_SOCKET;
         bool fConnected = ConnectSocketDirectly(info.service, hSocket, nConnectTimeout) && IsSelectableSocket(hSocket);
         CloseSocket(hSocket);
 

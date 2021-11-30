@@ -1128,6 +1128,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         std::string strSubVer;
         std::string cleanSubVer;
         int nStartingHeight = -1;
+        bool fRelay = true;
         vRecv >> nVersion >> nServiceInt >> nTime >> addrMe;
         nSendVersion = std::min(nVersion, PROTOCOL_VERSION);
         nServices = ServiceFlags(nServiceInt);
@@ -1154,6 +1155,9 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         }
         if (!vRecv.empty()) {
             vRecv >> nStartingHeight;
+        }
+        if (!vRecv.empty()) {
+            vRecv >> fRelay;
         }
 
         // Disconnect if we connected to ourself
@@ -1196,11 +1200,7 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
 
         {
             LOCK(pfrom->cs_filter);
-            if (!vRecv.empty()) {
-                vRecv >> pfrom->fRelayTxes; // set to true after we get the first filter* message
-            } else {
-                pfrom->fRelayTxes = true;
-            }
+            pfrom->fRelayTxes = fRelay; // set to true after we get the first filter* message
         }
 
         // Change version
