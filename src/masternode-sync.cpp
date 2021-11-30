@@ -14,6 +14,7 @@
 #include "masternodeman.h"
 #include "netmessagemaker.h"
 #include "spork.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "util/system.h"
 #include "validation.h"
 // clang-format on
@@ -52,7 +53,7 @@ bool CMasternodeSync::NotCompleted()
 
 bool CMasternodeSync::IsBlockchainSynced()
 {
-    if (fBlockchainSynced) return true;
+    if (g_tiertwo_sync_state.IsBlockchainSynced()) return true;
     if (fImporting || fReindex) return false;
 
     int64_t blockTime = 0;
@@ -62,21 +63,18 @@ bool CMasternodeSync::IsBlockchainSynced()
         blockTime = g_best_block_time;
     }
 
-    if (blockTime + 60 * 60 < lastProcess)
+    if (blockTime + 60 * 60 < lastProcess) {
+        g_tiertwo_sync_state.setBlockchainSync(false);
         return false;
+    }
 
-    fBlockchainSynced = true;
+    g_tiertwo_sync_state.setBlockchainSync(true);
     return true;
-}
-
-bool CMasternodeSync::IsBlockchainSyncedReadOnly() const
-{
-    return fBlockchainSynced;
 }
 
 void CMasternodeSync::Reset()
 {
-    fBlockchainSynced = false;
+    g_tiertwo_sync_state.setBlockchainSync(false);
     lastProcess = 0;
     lastMasternodeList = 0;
     lastMasternodeWinner = 0;
@@ -264,7 +262,7 @@ void CMasternodeSync::Process()
     int64_t now = GetTime();
     if (now > lastProcess + 60 * 60) {
         Reset();
-        fBlockchainSynced = false;
+        g_tiertwo_sync_state.setBlockchainSync(false);
     }
     lastProcess = now;
 
