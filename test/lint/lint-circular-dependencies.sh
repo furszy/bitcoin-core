@@ -9,9 +9,8 @@
 export LC_ALL=C
 
 EXPECTED_CIRCULAR_DEPENDENCIES=(
-    "activemasternode -> masternode-sync -> activemasternode"
     "activemasternode -> masternodeman -> activemasternode"
-    "budget/budgetmanager -> masternode-sync -> budget/budgetmanager"
+    "activemasternode -> net -> tiertwo/net_masternodes -> activemasternode"
     "budget/budgetmanager -> validation -> budget/budgetmanager"
     "chain -> legacy/stakemodifier -> chain"
     "chainparamsbase -> util/system -> chainparamsbase"
@@ -20,14 +19,11 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "evo/deterministicmns -> masternodeman -> evo/deterministicmns"
     "evo/deterministicmns -> llmq/quorums_utils -> evo/deterministicmns"
     "kernel -> validation -> kernel"
-    "masternode -> masternode-sync -> masternode"
     "masternode -> masternodeman -> masternode"
     "masternode -> wallet/wallet -> masternode"
-    "masternode-payments -> masternode-sync -> masternode-payments"
     "masternode-payments -> masternodeman -> masternode-payments"
     "masternode-payments -> validation -> masternode-payments"
     "masternode-sync -> masternodeman -> masternode-sync"
-    "masternode-sync -> validation -> masternode-sync"
     "masternodeman -> validation -> masternodeman"
     "policy/fees -> txmempool -> policy/fees"
     "policy/policy -> validation -> policy/policy"
@@ -50,7 +46,6 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "chain -> legacy/stakemodifier -> validation -> chain"
     "chainparamsbase -> util/system -> logging -> chainparamsbase"
     "consensus/zerocoin_verify -> spork -> validation -> consensus/zerocoin_verify"
-    "evo/deterministicmns -> masternode -> masternode-sync -> evo/deterministicmns"
     "evo/deterministicmns -> masternode -> wallet/wallet -> evo/deterministicmns"
     "evo/specialtx_validation -> llmq/quorums_blockprocessor -> validation -> evo/specialtx_validation"
     "kernel -> stakeinput -> wallet/wallet -> kernel"
@@ -66,11 +61,9 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "chain -> legacy/stakemodifier -> validation -> undo -> chain"
     "chain -> legacy/stakemodifier -> validation -> pow -> chain"
     "chain -> legacy/stakemodifier -> validation -> zpivchain -> chain"
-    "coins -> policy/fees -> policy/policy -> validation -> coins"
-    "llmq/quorums_blockprocessor -> llmq/quorums_utils -> spork -> net_processing -> llmq/quorums_blockprocessor"
     "consensus/tx_verify -> consensus/zerocoin_verify -> spork -> validation -> consensus/tx_verify"
-    "coins -> policy/fees -> policy/policy -> validation -> txdb -> coins"
-    "evo/deterministicmns -> masternodeman -> net_processing -> validationinterface -> evo/deterministicmns"
+    "evo/deterministicmns -> llmq/quorums_utils -> net -> tiertwo/net_masternodes -> evo/deterministicmns"
+    "evo/deterministicmns -> llmq/quorums_commitment -> validation -> validationinterface -> evo/deterministicmns"
 )
 
 EXIT_CODE=0
