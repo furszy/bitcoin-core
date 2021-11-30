@@ -7,12 +7,14 @@
 
 #include "activemasternode.h"
 #include "chainparams.h"
-#include "masternode-sync.h"  // for IsBlockchainSynced
+#include "consensus/validation.h"
 #include "tiertwo/masternode_meta_manager.h"
 #include "netmessagemaker.h"
 #include "llmq/quorums_utils.h"
 #include "util/system.h" // for fMasternode and gArgs access
 #include "tiertwo/net_masternodes.h"
+#include "tiertwo/tiertwo_sync_state.h"
+
 #include "version.h" // for MNAUTH_NODE_VER_VERSION
 
 void CMNAuth::PushMNAUTH(CNode* pnode, CConnman& connman)
@@ -56,7 +58,7 @@ void CMNAuth::PushMNAUTH(CNode* pnode, CConnman& connman)
 
 bool CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataStream& vRecv, CConnman& connman, CValidationState& state)
 {
-    if (!masternodeSync.IsBlockchainSynced()) {
+    if (!g_tiertwo_sync_state.IsBlockchainSynced()) {
         // we can't verify MNAUTH messages when we don't have the latest MN list
         return true;
     }
