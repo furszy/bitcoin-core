@@ -8,7 +8,6 @@
 
 #include "key.h"
 #include "evo/deterministicmns.h"
-#include "net.h"
 #include "operationresult.h"
 #include "sync.h"
 #include "validationinterface.h"

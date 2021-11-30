@@ -8,12 +8,13 @@
 #include "activemasternode.h"
 #include "chainparams.h"
 #include "consensus/validation.h"
-#include "tiertwo/masternode_meta_manager.h"
+#include "net.h" // for CSerializedNetMsg
 #include "netmessagemaker.h"
 #include "llmq/quorums_utils.h"
-#include "util/system.h" // for fMasternode and gArgs access
+#include "tiertwo/masternode_meta_manager.h"
 #include "tiertwo/net_masternodes.h"
 #include "tiertwo/tiertwo_sync_state.h"
+#include "util/system.h" // for fMasternode and gArgs access
 
 #include "version.h" // for MNAUTH_NODE_VER_VERSION
 

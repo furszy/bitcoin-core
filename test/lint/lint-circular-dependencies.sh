@@ -24,6 +24,7 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "masternode-payments -> validation -> masternode-payments"
     "masternode-sync -> masternodeman -> masternode-sync"
     "masternodeman -> validation -> masternodeman"
+    "net -> tiertwo/net_masternodes -> net"
     "policy/fees -> txmempool -> policy/fees"
     "policy/policy -> validation -> policy/policy"
     "qt/pivx/addresseswidget -> qt/pivx/pivxgui -> qt/pivx/addresseswidget"
@@ -55,6 +56,7 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "chain -> legacy/stakemodifier -> validation -> undo -> chain"
     "chain -> legacy/stakemodifier -> validation -> pow -> chain"
     "evo/deterministicmns -> masternodeman -> validation -> validationinterface -> evo/deterministicmns"
+    "evo/deterministicmns -> llmq/quorums_utils -> net -> tiertwo/net_masternodes -> evo/deterministicmns"
 )
 
 EXIT_CODE=0
