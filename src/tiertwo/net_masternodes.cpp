@@ -10,7 +10,7 @@
 #include "evo/deterministicmns.h"
 #include "scheduler.h"
 #include "tiertwo/masternode_meta_manager.h" // for g_mmetaman
-#include "masternode-sync.h" // for IsBlockchainSynced
+#include "tiertwo/tiertwo_sync_state.h"
 #include "netmessagemaker.h"
 
 TierTwoConnMan::TierTwoConnMan(CConnman* _connman) : connman(_connman) {}
@@ -188,7 +188,7 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         triedConnect = false;
 
         // todo: add !fNetworkActive
-        if (!masternodeSync.IsBlockchainSynced()) {
+        if (!g_tiertwo_sync_state.IsBlockchainSynced()) {
             continue;
         }
 
@@ -372,7 +372,7 @@ static void ProcessMasternodeConnections(CConnman& connman, TierTwoConnMan& tier
 
 void TierTwoConnMan::doMaintenance()
 {
-    if(!masternodeSync.IsBlockchainSynced() || interruptNet) {
+    if(!g_tiertwo_sync_state.IsBlockchainSynced() || interruptNet) {
         return;
     }
     ProcessMasternodeConnections(*connman, *this);
