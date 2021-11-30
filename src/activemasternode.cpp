@@ -13,6 +13,7 @@
 #include "messagesigner.h"
 #include "netbase.h"
 #include "protocol.h"
+#include "tiertwo/net_masternodes.h"
 #include "tiertwo/tiertwo_sync_state.h"
 #include "validation.h"
 
@@ -133,6 +134,7 @@ void CActiveDeterministicMasternodeManager::Init(const CBlockIndex* pindexTip)
     LogPrintf("%s: proTxHash=%s, proTx=%s\n", __func__, dmn->proTxHash.ToString(), dmn->ToString());
 
     info.proTxHash = dmn->proTxHash;
+    g_connman->GetTierTwoConnMan()->setLocalDMN(info.proTxHash);
 
     if (info.service != dmn->pdmnState->addr) {
         state = MASTERNODE_ERROR;

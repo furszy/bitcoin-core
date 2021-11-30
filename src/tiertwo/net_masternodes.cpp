@@ -5,12 +5,12 @@
 
 #include "tiertwo/net_masternodes.h"
 
-#include "activemasternode.h"
 #include "chainparams.h"
 #include "evo/deterministicmns.h"
 #include "scheduler.h"
 #include "tiertwo/masternode_meta_manager.h" // for g_mmetaman
 #include "tiertwo/tiertwo_sync_state.h"
+#include "net.h"
 #include "netmessagemaker.h"
 
 TierTwoConnMan::TierTwoConnMan(CConnman* _connman) : connman(_connman) {}
@@ -237,7 +237,7 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
                         }
 
                         // Don't try to connect to ourselves
-                        if (activeMasternodeManager && activeMasternodeManager->GetInfo()->proTxHash == proRegTxHash) {
+                        if (WITH_LOCK(cs_vPendingMasternodes, return local_dmn_pro_tx_hash && *local_dmn_pro_tx_hash == proRegTxHash)) {
                             continue;
                         }
 

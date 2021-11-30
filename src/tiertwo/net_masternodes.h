@@ -55,6 +55,9 @@ public:
     // Adds the DMNs to the pending to probe list
     void addPendingProbeConnections(const std::set<uint256>& proTxHashes);
 
+    // Set the local DMN so the node does not try to connect to himself
+    void setLocalDMN(const uint256& pro_tx_hash) { WITH_LOCK(cs_vPendingMasternodes, local_dmn_pro_tx_hash = pro_tx_hash;); }
+
     // Manages the MN connections
     void ThreadOpenMasternodeConnections();
     void start(CScheduler& scheduler, const TierTwoConnMan::Options& options);
@@ -71,6 +74,9 @@ private:
     std::map<QuorumTypeAndHash, std::set<uint256>> masternodeQuorumNodes GUARDED_BY(cs_vPendingMasternodes);
     std::map<QuorumTypeAndHash, std::set<uint256>> masternodeQuorumRelayMembers GUARDED_BY(cs_vPendingMasternodes);
     std::set<uint256> masternodePendingProbes GUARDED_BY(cs_vPendingMasternodes);
+
+    // The local DMN
+    Optional<uint256> local_dmn_pro_tx_hash GUARDED_BY(cs_vPendingMasternodes){nullopt};
 
     // parent connections manager
     CConnman* connman;
