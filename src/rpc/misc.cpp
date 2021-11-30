@@ -198,9 +198,9 @@ UniValue mnsync(const JSONRPCRequest& request)
         UniValue obj(UniValue::VOBJ);
 
         obj.pushKV("IsBlockchainSynced", g_tiertwo_sync_state.IsBlockchainSynced());
-        obj.pushKV("lastMasternodeList", masternodeSync.lastMasternodeList);
-        obj.pushKV("lastMasternodeWinner", masternodeSync.lastMasternodeWinner);
-        obj.pushKV("lastBudgetItem", masternodeSync.lastBudgetItem);
+        obj.pushKV("lastMasternodeList", g_tiertwo_sync_state.GetlastMasternodeList());
+        obj.pushKV("lastMasternodeWinner", g_tiertwo_sync_state.GetlastMasternodeWinner());
+        obj.pushKV("lastBudgetItem", g_tiertwo_sync_state.GetlastBudgetItem());
         obj.pushKV("lastFailure", masternodeSync.lastFailure);
         obj.pushKV("nCountFailures", masternodeSync.nCountFailures);
         obj.pushKV("sumMasternodeList", masternodeSync.sumMasternodeList);
