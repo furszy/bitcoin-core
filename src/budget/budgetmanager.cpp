@@ -9,7 +9,6 @@
 #include "evo/deterministicmns.h"
 #include "masternode-sync.h"
 #include "masternodeman.h"
-#include "net_processing.h"
 #include "netmessagemaker.h"
 #include "util/validation.h"
 #include "validation.h"   // GetTransaction, cs_main
@@ -121,7 +120,7 @@ uint256 CBudgetManager::SubmitFinalBudget()
             return UINT256_ZERO;
         }
         CReserveKey keyChange(vpwallets[0]);
-        if (!vpwallets[0]->CreateBudgetFeeTX(wtx, budgetHash, keyChange, true)) {
+        if (!vpwallets[0]->CreateBudgetFeeTX(wtx, budgetHash, keyChange, BUDGET_FEE_TX)) {
             LogPrint(BCLog::MNBUDGET,"%s: Can't make collateral transaction\n", __func__);
             return UINT256_ZERO;
         }
@@ -1205,13 +1204,10 @@ bool CBudgetManager::ProcessFinalizedBudgetVote(CFinalizedBudgetVote& vote, CNod
     return true;
 }
 
-void CBudgetManager::ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)
+bool CBudgetManager::ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv, int& banScore)
 {
-    int banScore = ProcessMessageInner(pfrom, strCommand, vRecv);
-    if (banScore > 0) {
-        LOCK(cs_main);
-        Misbehaving(pfrom->GetId(), banScore);
-    }
+    banScore = ProcessMessageInner(pfrom, strCommand, vRecv);
+    return banScore == 0;
 }
 
 int CBudgetManager::ProcessMessageInner(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)

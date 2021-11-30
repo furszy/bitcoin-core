@@ -11,7 +11,6 @@
 
 #include "wallet/wallet.h"
 
-#include "budget/budgetmanager.h"
 #include "checkpoints.h"
 #include "coincontrol.h"
 #include "evo/deterministicmns.h"
@@ -2923,7 +2922,7 @@ std::map<libzcash::SaplingPaymentAddress, std::vector<SaplingNoteEntry>> CWallet
     return m_sspk_man->ListNotes();
 }
 
-bool CWallet::CreateBudgetFeeTX(CTransactionRef& tx, const uint256& hash, CReserveKey& keyChange, bool fFinalization)
+bool CWallet::CreateBudgetFeeTX(CTransactionRef& tx, const uint256& hash, CReserveKey& keyChange, CAmount fee)
 {
     CScript scriptChange;
     scriptChange << OP_RETURN << ToByteVector(hash);
@@ -2931,7 +2930,7 @@ bool CWallet::CreateBudgetFeeTX(CTransactionRef& tx, const uint256& hash, CReser
     CAmount nFeeRet = 0;
     std::string strFail = "";
     std::vector<CRecipient> vecSend;
-    vecSend.emplace_back(scriptChange, (fFinalization ? BUDGET_FEE_TX : BUDGET_FEE_TX_OLD), false);
+    vecSend.emplace_back(scriptChange, fee, false);
 
     CCoinControl* coinControl = nullptr;
     int nChangePosInOut = -1;
