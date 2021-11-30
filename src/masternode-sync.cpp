@@ -27,25 +27,10 @@ CMasternodeSync::CMasternodeSync()
     Reset();
 }
 
-bool CMasternodeSync::IsSynced()
-{
-    return RequestedMasternodeAssets == MASTERNODE_SYNC_FINISHED;
-}
-
-bool CMasternodeSync::IsSporkListSynced()
-{
-    return RequestedMasternodeAssets > MASTERNODE_SYNC_SPORKS;
-}
-
-bool CMasternodeSync::IsMasternodeListSynced()
-{
-    return RequestedMasternodeAssets > MASTERNODE_SYNC_LIST;
-}
-
 bool CMasternodeSync::NotCompleted()
 {
-    return (!IsSynced() && (
-            !IsSporkListSynced() ||
+    return (!g_tiertwo_sync_state.IsSynced() && (
+            !g_tiertwo_sync_state.IsSporkListSynced() ||
             sporkManager.IsSporkActive(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT) ||
             sporkManager.IsSporkActive(SPORK_9_MASTERNODE_BUDGET_ENFORCEMENT) ||
             sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS)));
@@ -92,7 +77,7 @@ void CMasternodeSync::Reset()
     countMasternodeWinner = 0;
     countBudgetItemProp = 0;
     countBudgetItemFin = 0;
-    RequestedMasternodeAssets = MASTERNODE_SYNC_INITIAL;
+    g_tiertwo_sync_state.SetCurrentSyncPhase(MASTERNODE_SYNC_INITIAL);
     RequestedMasternodeAttempt = 0;
     nAssetSyncStarted = GetTime();
 }
@@ -173,6 +158,7 @@ int CMasternodeSync::GetNextAsset(int currentAsset)
 
 void CMasternodeSync::SwitchToNextAsset()
 {
+    int RequestedMasternodeAssets = g_tiertwo_sync_state.GetSyncPhase();
     if (RequestedMasternodeAssets == MASTERNODE_SYNC_INITIAL ||
             RequestedMasternodeAssets == MASTERNODE_SYNC_FAILED) {
         ClearFulfilledRequest();
@@ -181,14 +167,14 @@ void CMasternodeSync::SwitchToNextAsset()
     if (nextAsset == MASTERNODE_SYNC_FINISHED) {
         LogPrintf("%s - Sync has finished\n", __func__);
     }
-    RequestedMasternodeAssets = nextAsset;
+    g_tiertwo_sync_state.SetCurrentSyncPhase(nextAsset);
     RequestedMasternodeAttempt = 0;
     nAssetSyncStarted = GetTime();
 }
 
 std::string CMasternodeSync::GetSyncStatus()
 {
-    switch (masternodeSync.RequestedMasternodeAssets) {
+    switch (g_tiertwo_sync_state.GetSyncPhase()) {
     case MASTERNODE_SYNC_INITIAL:
         return _("MNs synchronization pending...");
     case MASTERNODE_SYNC_SPORKS:
@@ -209,6 +195,7 @@ std::string CMasternodeSync::GetSyncStatus()
 
 void CMasternodeSync::ProcessSyncStatusMsg(int nItemID, int nCount)
 {
+    int RequestedMasternodeAssets = g_tiertwo_sync_state.GetSyncPhase();
     if (RequestedMasternodeAssets >= MASTERNODE_SYNC_FINISHED) return;
 
     //this means we will receive no further communication
@@ -269,7 +256,7 @@ void CMasternodeSync::Process()
     // Update chain sync status
     UpdateBlockchainSynced();
 
-    if (IsSynced()) {
+    if (g_tiertwo_sync_state.IsSynced()) {
         if (isRegTestNet) {
             return;
         }
@@ -285,7 +272,8 @@ void CMasternodeSync::Process()
         }
     }
 
-    //try syncing again
+    // Try syncing again
+    int RequestedMasternodeAssets = g_tiertwo_sync_state.GetSyncPhase();
     if (RequestedMasternodeAssets == MASTERNODE_SYNC_FAILED && lastFailure + (1 * 60) < GetTime()) {
         Reset();
     } else if (RequestedMasternodeAssets == MASTERNODE_SYNC_FAILED) {
@@ -320,7 +308,7 @@ void CMasternodeSync::Process()
 void CMasternodeSync::syncTimeout(const std::string& reason)
 {
     LogPrintf("%s - ERROR - Sync has failed on %s, will retry later\n", __func__, reason);
-    RequestedMasternodeAssets = MASTERNODE_SYNC_FAILED;
+    g_tiertwo_sync_state.SetCurrentSyncPhase(MASTERNODE_SYNC_FAILED);
     RequestedMasternodeAttempt = 0;
     lastFailure = GetTime();
     nCountFailures++;
@@ -328,6 +316,7 @@ void CMasternodeSync::syncTimeout(const std::string& reason)
 
 bool CMasternodeSync::SyncWithNode(CNode* pnode, bool fLegacyMnObsolete)
 {
+    int RequestedMasternodeAssets = g_tiertwo_sync_state.GetSyncPhase();
     CNetMsgMaker msgMaker(pnode->GetSendVersion());
 
     //set to synced

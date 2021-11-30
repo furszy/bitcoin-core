@@ -16,6 +16,7 @@
 #include "netmessagemaker.h"
 #include "shutdown.h"
 #include "spork.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "validation.h"
 
 #include <boost/thread/thread.hpp>
@@ -843,7 +844,7 @@ int CMasternodeMan::ProcessMNBroadcast(CNode* pfrom, CMasternodeBroadcast& mnb)
     // Relay only if we are synchronized and if the mnb address is not local.
     // Makes no sense to relay MNBs to the peers from where we are syncing them.
     bool isLocal = (mnb.addr.IsRFC1918() || mnb.addr.IsLocal()) && !Params().IsRegTestNet();
-    if (!isLocal && masternodeSync.IsSynced()) mnb.Relay();
+    if (!isLocal && g_tiertwo_sync_state.IsSynced()) mnb.Relay();
 
     // Add it as a peer
     g_connman->AddNewAddress(CAddress(mnb.addr, NODE_NETWORK), pfrom->addr, 2 * 60 * 60);
@@ -875,7 +876,7 @@ int CMasternodeMan::ProcessMNPing(CNode* pfrom, CMasternodePing& mnp)
 
     // something significant is broken or mn is unknown,
     // we might have to ask for the mn entry (while we aren't syncing).
-    if (masternodeSync.IsSynced()) {
+    if (g_tiertwo_sync_state.IsSynced()) {
         AskForMN(pfrom, mnp.vin);
     }
 
@@ -951,7 +952,7 @@ bool CMasternodeMan::ProcessMessage(CNode* pfrom, std::string& strCommand, CData
 int CMasternodeMan::ProcessMessageInner(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)
 {
     if (fLiteMode) return 0; //disable all Masternode related functionality
-    if (!masternodeSync.IsBlockchainSynced()) return 0;
+    if (!g_tiertwo_sync_state.IsBlockchainSynced()) return 0;
 
     // Skip after legacy obsolete. !TODO: remove when transition to DMN is complete
     if (deterministicMNManager->LegacyMNObsolete()) {
@@ -1191,7 +1192,7 @@ void ThreadCheckMasternodes()
             // try to sync from all available nodes, one step at a time
             masternodeSync.Process();
 
-            if (masternodeSync.IsBlockchainSynced()) {
+            if (g_tiertwo_sync_state.IsBlockchainSynced()) {
                 c++;
 
                 // check if we should activate or ping every few minutes,

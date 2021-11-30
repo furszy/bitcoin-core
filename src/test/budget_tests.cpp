@@ -7,9 +7,9 @@
 #include "bls/bls_wrapper.h"
 #include "budget/budgetmanager.h"
 #include "masternode-payments.h"
-#include "masternode-sync.h"
 #include "spork.h"
 #include "test/util/blocksutil.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "tinyformat.h"
 #include "utilmoneystr.h"
 #include "validation.h"
@@ -29,7 +29,7 @@ void CheckBudgetValue(int nHeight, std::string strNetwork, CAmount nExpectedValu
 void enableMnSyncAndSuperblocksPayment()
 {
     // force mnsync complete
-    masternodeSync.RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
+    g_tiertwo_sync_state.SetCurrentSyncPhase(MASTERNODE_SYNC_FINISHED);
 
     // enable SPORK_13
     int64_t nTime = GetTime() - 10;
@@ -346,7 +346,7 @@ BOOST_FIXTURE_TEST_CASE(IsCoinbaseValueValid_test, TestingSetup)
     CValidationState state;
 
     // force mnsync complete
-    masternodeSync.RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
+    g_tiertwo_sync_state.SetCurrentSyncPhase(MASTERNODE_SYNC_FINISHED);
 
     // -- Regular blocks
 

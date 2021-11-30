@@ -10,6 +10,7 @@
 #include "masternodeman.h"
 #include "netbase.h"
 #include "sync.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "wallet/wallet.h"
 
 #define MASTERNODE_MIN_CONFIRMATIONS_REGTEST 1
@@ -245,7 +246,7 @@ bool CMasternodeBroadcast::Create(const std::string& strService,
     CKey keyMasternodeNew;
 
     //need correct blocks to send ping
-    if (!fOffline && !masternodeSync.IsBlockchainSynced()) {
+    if (!fOffline && !g_tiertwo_sync_state.IsBlockchainSynced()) {
         strErrorRet = "Sync in progress. Must wait until sync is complete to start Masternode";
         LogPrint(BCLog::MASTERNODE,"CMasternodeBroadcast::Create -- %s\n", strErrorRet);
         return false;
@@ -419,7 +420,7 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos)
     if (!CheckSignature()) {
         // For now (till v6.0), let's be "naive" and not fully ban nodes when the node is syncing
         // This could be a bad parsed BIP155 address that got stored on db on an old software version.
-        nDos = masternodeSync.IsSynced() ? 100 : 5;
+        nDos = g_tiertwo_sync_state.IsSynced() ? 100 : 5;
         return error("%s : Got bad Masternode address signature", __func__);
     }
 
