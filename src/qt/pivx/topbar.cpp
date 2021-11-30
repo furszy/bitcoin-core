@@ -19,7 +19,7 @@
 #include "addresstablemodel.h"
 
 #include "masternode-sync.h"
-#include "wallet/wallet.h"
+#include "tiertwo/tiertwo_sync_state.h"
 
 #include <QPixmap>
 
@@ -473,7 +473,7 @@ void TopBar::setNumBlocks(int count)
 
     std::string text;
     bool needState = true;
-    if (masternodeSync.IsBlockchainSyncedReadOnly()) {
+    if (g_tiertwo_sync_state.IsBlockchainSynced()) {
         // chain synced
         Q_EMIT walletSynced(true);
         if (masternodeSync.IsSynced()) {

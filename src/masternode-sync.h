@@ -52,7 +52,6 @@ public:
     int nCountFailures;
 
     std::atomic<int64_t> lastProcess;
-    std::atomic<bool> fBlockchainSynced;
 
     // sum of all counts
     int sumMasternodeList;
@@ -95,10 +94,8 @@ public:
     bool NotCompleted();
     bool IsSporkListSynced();
     bool IsMasternodeListSynced();
-    bool IsBlockchainSynced();
+    bool UpdateBlockchainSynced();
     void ClearFulfilledRequest();
-
-    bool IsBlockchainSyncedReadOnly() const;
 
     // Sync message dispatcher
     bool MessageDispatcher(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);

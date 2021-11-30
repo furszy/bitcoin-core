@@ -8,11 +8,11 @@
 #include "budget/budgetutil.h"
 #include "destination_io.h"
 #include "guiconstants.h"
-#include "masternode-sync.h"
 #include "script/standard.h"
 #include "qt/transactiontablemodel.h"
 #include "qt/transactionrecord.h"
 #include "qt/pivx/mnmodel.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "utilmoneystr.h"
 #include "utilstrencodings.h"
 #include "walletmodel.h"
@@ -218,7 +218,7 @@ OperationResult GovernanceModel::validatePropPaymentCount(int paymentCount) cons
 
 bool GovernanceModel::isTierTwoSync()
 {
-    return masternodeSync.IsBlockchainSynced();
+    return g_tiertwo_sync_state.IsBlockchainSynced();
 }
 
 OperationResult GovernanceModel::createProposal(const std::string& strProposalName,

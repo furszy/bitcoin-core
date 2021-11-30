@@ -14,6 +14,7 @@
 #include "masternodeman.h"
 #include "netmessagemaker.h"
 #include "spork.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "util/system.h"
 #include "validation.h"
 // clang-format on
@@ -50,9 +51,9 @@ bool CMasternodeSync::NotCompleted()
             sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS)));
 }
 
-bool CMasternodeSync::IsBlockchainSynced()
+bool CMasternodeSync::UpdateBlockchainSynced()
 {
-    if (fBlockchainSynced) return true;
+    if (g_tiertwo_sync_state.IsBlockchainSynced()) return true;
     if (fImporting || fReindex) return false;
 
     int64_t blockTime = 0;
@@ -62,21 +63,18 @@ bool CMasternodeSync::IsBlockchainSynced()
         blockTime = g_best_block_time;
     }
 
-    if (blockTime + 60 * 60 < lastProcess)
+    if (blockTime + 60 * 60 < lastProcess) {
+        g_tiertwo_sync_state.SetBlockchainSync(false);
         return false;
+    }
 
-    fBlockchainSynced = true;
+    g_tiertwo_sync_state.SetBlockchainSync(true);
     return true;
-}
-
-bool CMasternodeSync::IsBlockchainSyncedReadOnly() const
-{
-    return fBlockchainSynced;
 }
 
 void CMasternodeSync::Reset()
 {
-    fBlockchainSynced = false;
+    g_tiertwo_sync_state.SetBlockchainSync(false);
     lastProcess = 0;
     lastMasternodeList = 0;
     lastMasternodeWinner = 0;
@@ -262,11 +260,14 @@ void CMasternodeSync::Process()
     // if the last call to this function was more than 60 minutes ago (client was in sleep mode)
     // reset the sync process
     int64_t now = GetTime();
-    if (now > lastProcess + 60 * 60) {
+    if (lastProcess != 0 && now > lastProcess + 60 * 60) {
         Reset();
-        fBlockchainSynced = false;
+        g_tiertwo_sync_state.SetBlockchainSync(false);
     }
     lastProcess = now;
+
+    // Update chain sync status
+    UpdateBlockchainSynced();
 
     if (IsSynced()) {
         if (isRegTestNet) {
@@ -294,7 +295,7 @@ void CMasternodeSync::Process()
     if (RequestedMasternodeAssets == MASTERNODE_SYNC_INITIAL) SwitchToNextAsset();
 
     // sporks synced but blockchain is not, wait until we're almost at a recent block to continue
-    if (!IsBlockchainSynced() &&
+    if (!g_tiertwo_sync_state.IsBlockchainSynced() &&
         RequestedMasternodeAssets > MASTERNODE_SYNC_SPORKS) return;
 
     // Skip after legacy obsolete. !TODO: remove when transition to DMN is complete

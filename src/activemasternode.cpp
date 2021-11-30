@@ -7,13 +7,13 @@
 
 #include "addrman.h"
 #include "bls/bls_wrapper.h"
-#include "masternode-sync.h"
 #include "masternode.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
 #include "messagesigner.h"
 #include "netbase.h"
 #include "protocol.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "validation.h"
 
 // Keep track of the active Masternode
@@ -273,7 +273,7 @@ OperationResult initMasternode(const std::string& _strMasterNodePrivKey, const s
     activeMasternode.service = addrTest;
     fMasterNode = true;
 
-    if (masternodeSync.IsBlockchainSynced()) {
+    if (g_tiertwo_sync_state.IsBlockchainSynced()) {
         // Check if the masternode already exists in the list
         CMasternode* pmn = mnodeman.Find(pubkey);
         if (pmn) activeMasternode.EnableHotColdMasterNode(pmn->vin, pmn->addr);
@@ -307,7 +307,7 @@ void CActiveMasternode::ManageStatus()
     }
 
     //need correct blocks to send ping
-    if (!Params().IsRegTestNet() && !masternodeSync.IsBlockchainSynced()) {
+    if (!Params().IsRegTestNet() && !g_tiertwo_sync_state.IsBlockchainSynced()) {
         status = ACTIVE_MASTERNODE_SYNC_IN_PROCESS;
         LogPrintf("CActiveMasternode::ManageStatus() - %s\n", GetStatusMessage());
         return;
