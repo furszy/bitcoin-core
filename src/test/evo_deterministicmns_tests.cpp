@@ -14,13 +14,13 @@
 #include "llmq/quorums_commitment.h"
 #include "llmq/quorums_utils.h"
 #include "masternode-payments.h"
-#include "masternode-sync.h"
 #include "messagesigner.h"
 #include "netbase.h"
 #include "policy/policy.h"
 #include "primitives/transaction.h"
 #include "script/sign.h"
 #include "spork.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "validation.h"
 #include "validationinterface.h"
 
@@ -334,7 +334,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
     BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
 
     // force mnsync complete and enable spork 8
-    masternodeSync.RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
+    g_tiertwo_sync_state.setCurrentSyncPhase(MASTERNODE_SYNC_FINISHED);
     int64_t nTime = GetTime() - 10;
     const CSporkMessage& sporkMnPayment = CSporkMessage(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT, nTime + 1, nTime);
     sporkManager.AddOrUpdateSporkMessage(sporkMnPayment);
@@ -986,7 +986,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose, TestChain400Setup)
     BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
 
     // force mnsync complete and enable spork 8
-    masternodeSync.RequestedMasternodeAssets = MASTERNODE_SYNC_FINISHED;
+    g_tiertwo_sync_state.setCurrentSyncPhase(MASTERNODE_SYNC_FINISHED);
     int64_t nTime = GetTime() - 10;
     const CSporkMessage& sporkMnPayment = CSporkMessage(SPORK_8_MASTERNODE_PAYMENT_ENFORCEMENT, nTime + 1, nTime);
     sporkManager.AddOrUpdateSporkMessage(sporkMnPayment);

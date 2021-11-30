@@ -8,10 +8,10 @@
 #include "evo/deterministicmns.h"
 #include "key_io.h"
 #include "masternode-payments.h"
-#include "masternode-sync.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
 #include "netbase.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "rpc/server.h"
 #ifdef ENABLE_WALLET
 #include "wallet/wallet.h"
@@ -478,8 +478,8 @@ UniValue startmasternode(const JSONRPCRequest& request)
 
     if (strCommand == "all" || strCommand == "many" || strCommand == "missing" || strCommand == "disabled") {
         if ((strCommand == "missing" || strCommand == "disabled") &&
-            (masternodeSync.RequestedMasternodeAssets <= MASTERNODE_SYNC_LIST ||
-                masternodeSync.RequestedMasternodeAssets == MASTERNODE_SYNC_FAILED)) {
+            (g_tiertwo_sync_state.getSyncPhase() <= MASTERNODE_SYNC_LIST ||
+                    g_tiertwo_sync_state.getSyncPhase() == MASTERNODE_SYNC_FAILED)) {
             throw std::runtime_error("You can't use this command until masternode list is synced\n");
         }
 

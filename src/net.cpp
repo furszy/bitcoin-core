@@ -16,7 +16,6 @@
 #include "crypto/common.h"
 #include "crypto/sha256.h"
 #include "guiinterface.h"
-#include "masternode-sync.h"
 #include "netaddress.h"
 #include "netbase.h"
 #include "netmessagemaker.h"
@@ -24,6 +23,7 @@
 #include "primitives/transaction.h"
 #include "scheduler.h"
 #include "tiertwo/net_masternodes.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "validation.h"
 
 #ifdef WIN32
@@ -1110,7 +1110,7 @@ void CConnman::AcceptConnection(const ListenSocket& hListenSocket) {
     }
 
     // if we are a MN, don't accept incoming connections until fully synced
-    if(fMasterNode && !masternodeSync.IsSynced()) {
+    if(fMasterNode && !g_tiertwo_sync_state.IsSynced()) {
         LogPrint(BCLog::NET, "AcceptConnection -- masternode is not synced yet, skipping inbound connection attempt\n");
         CloseSocket(hSocket);
         return;
