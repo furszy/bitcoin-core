@@ -14,6 +14,7 @@
 #include "masternodeconfig.h"
 #include "masternodeman.h"
 #include "messagesigner.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "rpc/server.h"
 #include "utilmoneystr.h"
 #ifdef ENABLE_WALLET
@@ -204,7 +205,7 @@ UniValue submitbudget(const JSONRPCRequest& request)
     CScript scriptPubKey = GetScriptForDestination(address);
     const uint256& hash = ParseHashV(request.params[6], "parameter 1");
 
-    if (!masternodeSync.IsBlockchainSynced()) {
+    if (!g_tiertwo_sync_state.IsBlockchainSynced()) {
         throw std::runtime_error("Must wait for client to sync with masternode network. Try again in a minute or so.");
     }
 
@@ -719,7 +720,7 @@ UniValue checkbudgets(const JSONRPCRequest& request)
             "\nExamples:\n" +
             HelpExampleCli("checkbudgets", "") + HelpExampleRpc("checkbudgets", ""));
 
-    if (!masternodeSync.IsSynced())
+    if (!g_tiertwo_sync_state.IsSynced())
         throw JSONRPCError(RPC_CLIENT_IN_INITIAL_DOWNLOAD, "Masternode/Budget sync not finished yet");
 
     g_budgetman.CheckAndRemove();

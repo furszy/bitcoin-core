@@ -19,7 +19,7 @@
 #include "walletmodel.h"
 #include "addresstablemodel.h"
 
-#include "masternode-sync.h"
+#include "masternode-sync.h" // for MASTERNODE_SYNC_THRESHOLD
 #include "tiertwo/tiertwo_sync_state.h"
 
 #include <QPixmap>
@@ -477,7 +477,7 @@ void TopBar::setNumBlocks(int count)
     if (g_tiertwo_sync_state.IsBlockchainSynced()) {
         // chain synced
         Q_EMIT walletSynced(true);
-        if (masternodeSync.IsSynced()) {
+        if (g_tiertwo_sync_state.IsSynced()) {
             // Node synced
             ui->pushButtonSync->setButtonText(tr("Synchronized - Block: %1").arg(QString::number(count)));
             progressBar->setRange(0, 100);
@@ -487,10 +487,11 @@ void TopBar::setNumBlocks(int count)
         } else {
 
             // TODO: Show out of sync warning
+            int RequestedMasternodeAssets = g_tiertwo_sync_state.getSyncPhase();
             int nAttempt = masternodeSync.RequestedMasternodeAttempt < MASTERNODE_SYNC_THRESHOLD ?
-                       masternodeSync.RequestedMasternodeAttempt + 1 :
-                       MASTERNODE_SYNC_THRESHOLD;
-            int progress = nAttempt + (masternodeSync.RequestedMasternodeAssets - 1) * MASTERNODE_SYNC_THRESHOLD;
+                           masternodeSync.RequestedMasternodeAttempt + 1 :
+                           MASTERNODE_SYNC_THRESHOLD;
+            int progress = nAttempt + (RequestedMasternodeAssets - 1) * MASTERNODE_SYNC_THRESHOLD;
             if (progress >= 0) {
                 // todo: MN progress..
                 text = strprintf("%s - Block: %d", masternodeSync.GetSyncStatus(), count);

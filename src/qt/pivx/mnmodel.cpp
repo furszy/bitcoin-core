@@ -5,9 +5,9 @@
 #include "qt/pivx/mnmodel.h"
 
 #include "activemasternode.h"
-#include "masternode-sync.h"
 #include "masternodeman.h"
 #include "net.h"        // for validateMasternodeIP
+#include "tiertwo/tiertwo_sync_state.h"
 #include "uint256.h"
 #include "wallet/wallet.h"
 
@@ -179,7 +179,7 @@ bool MNModel::isMNCollateralMature(QString mnAlias)
 
 bool MNModel::isMNsNetworkSynced()
 {
-    return masternodeSync.IsSynced();
+    return g_tiertwo_sync_state.IsSynced();
 }
 
 bool MNModel::validateMNIP(const QString& addrStr)
