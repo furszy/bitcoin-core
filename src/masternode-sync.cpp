@@ -52,17 +52,7 @@ bool CMasternodeSync::NotCompleted()
 
 bool CMasternodeSync::IsBlockchainSynced()
 {
-    int64_t now = GetTime();
-
-    // if the last call to this function was more than 60 minutes ago (client was in sleep mode) reset the sync process
-    if (now > lastProcess + 60 * 60) {
-        Reset();
-        fBlockchainSynced = false;
-    }
-    lastProcess = now;
-
     if (fBlockchainSynced) return true;
-
     if (fImporting || fReindex) return false;
 
     int64_t blockTime = 0;
@@ -76,7 +66,6 @@ bool CMasternodeSync::IsBlockchainSynced()
         return false;
 
     fBlockchainSynced = true;
-
     return true;
 }
 
@@ -273,6 +262,15 @@ void CMasternodeSync::Process()
     const bool isRegTestNet = Params().IsRegTestNet();
 
     if (tick++ % MASTERNODE_SYNC_TIMEOUT != 0) return;
+
+    // if the last call to this function was more than 60 minutes ago (client was in sleep mode)
+    // reset the sync process
+    int64_t now = GetTime();
+    if (now > lastProcess + 60 * 60) {
+        Reset();
+        fBlockchainSynced = false;
+    }
+    lastProcess = now;
 
     if (IsSynced()) {
         if (isRegTestNet) {
