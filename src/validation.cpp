@@ -30,7 +30,6 @@
 #include "legacy/validation_zerocoin_legacy.h"
 #include "kernel.h"
 #include "masternode-payments.h"
-#include "masternode-sync.h"
 #include "masternodeman.h"
 #include "policy/policy.h"
 #include "pow.h"
@@ -40,6 +39,7 @@
 #include "spork.h"
 #include "sporkdb.h"
 #include "evo/evodb.h"
+#include "tiertwo/tiertwo_sync_state.h"
 #include "txdb.h"
 #include "undo.h"
 #include "util/system.h"
@@ -2618,7 +2618,7 @@ bool CheckColdStakeFreeOutput(const CTransaction& tx, const int nHeight)
 
         // if mnsync is incomplete, we cannot verify if this is a budget block.
         // so we check that the staker is not transferring value to the free output
-        if (!masternodeSync.IsSynced()) {
+        if (!g_tiertwo_sync_state.IsSynced()) {
             // First try finding the previous transaction in database
             CTransactionRef txPrev; uint256 hashBlock;
             if (!GetTransaction(tx.vin[0].prevout.hash, txPrev, hashBlock, true))

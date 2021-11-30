@@ -13,16 +13,6 @@
 #include <string>
 #include <map>
 
-#define MASTERNODE_SYNC_INITIAL 0
-#define MASTERNODE_SYNC_SPORKS 1
-#define MASTERNODE_SYNC_LIST 2
-#define MASTERNODE_SYNC_MNW 3
-#define MASTERNODE_SYNC_BUDGET 4
-#define MASTERNODE_SYNC_BUDGET_PROP 10
-#define MASTERNODE_SYNC_BUDGET_FIN 11
-#define MASTERNODE_SYNC_FAILED 998
-#define MASTERNODE_SYNC_FINISHED 999
-
 #define MASTERNODE_SYNC_TIMEOUT 5
 #define MASTERNODE_SYNC_THRESHOLD 2
 
@@ -65,7 +55,6 @@ public:
     int countBudgetItemFin;
 
     // Count peers we've requested the list from
-    int RequestedMasternodeAssets;
     int RequestedMasternodeAttempt;
 
     // Time when current masternode asset sync started
@@ -90,10 +79,7 @@ public:
      * Otherwise Process() calls it again for a different node.
      */
     bool SyncWithNode(CNode* pnode, bool fLegacyMnObsolete);
-    bool IsSynced();
     bool NotCompleted();
-    bool IsSporkListSynced();
-    bool IsMasternodeListSynced();
     bool IsBlockchainSynced();
     void ClearFulfilledRequest();
 
