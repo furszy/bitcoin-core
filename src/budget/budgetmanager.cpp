@@ -7,7 +7,6 @@
 
 #include "consensus/validation.h"
 #include "evo/deterministicmns.h"
-#include "masternode-sync.h"
 #include "masternodeman.h"
 #include "netmessagemaker.h"
 #include "tiertwo/tiertwo_sync_state.h"
@@ -1089,7 +1088,7 @@ int CBudgetManager::ProcessProposal(CBudgetProposal& proposal)
 {
     const uint256& nHash = proposal.GetHash();
     if (HaveProposal(nHash)) {
-        masternodeSync.AddedBudgetItem(nHash);
+        g_tiertwo_sync_state.AddedBudgetItem(nHash);
         return 0;
     }
     if (!AddProposal(proposal)) {
@@ -1099,7 +1098,7 @@ int CBudgetManager::ProcessProposal(CBudgetProposal& proposal)
     // Relay only if we are synchronized
     // Makes no sense to relay proposals to the peers from where we are syncing them.
     if (g_tiertwo_sync_state.IsSynced()) proposal.Relay();
-    masternodeSync.AddedBudgetItem(nHash);
+    g_tiertwo_sync_state.AddedBudgetItem(nHash);
 
     LogPrint(BCLog::MNBUDGET, "mprop (new) %s\n", nHash.ToString());
     //We might have active votes for this proposal that are valid now
@@ -1112,7 +1111,7 @@ bool CBudgetManager::ProcessProposalVote(CBudgetVote& vote, CNode* pfrom, CValid
     const uint256& voteID = vote.GetHash();
 
     if (HaveSeenProposalVote(voteID)) {
-        masternodeSync.AddedBudgetItem(voteID);
+        g_tiertwo_sync_state.AddedBudgetItem(voteID);
         return false;
     }
 
@@ -1150,7 +1149,7 @@ bool CBudgetManager::ProcessProposalVote(CBudgetVote& vote, CNode* pfrom, CValid
         // Relay only if we are synchronized
         // Makes no sense to relay votes to the peers from where we are syncing them.
         if (g_tiertwo_sync_state.IsSynced()) vote.Relay();
-        masternodeSync.AddedBudgetItem(voteID);
+        g_tiertwo_sync_state.AddedBudgetItem(voteID);
         LogPrint(BCLog::MNBUDGET, "mvote - new vote (%s) for proposal %s from dmn %s\n",
                 voteID.ToString(), vote.GetProposalHash().ToString(), mn_protx_id);
         return true;
@@ -1187,7 +1186,7 @@ bool CBudgetManager::ProcessProposalVote(CBudgetVote& vote, CNode* pfrom, CValid
     // Relay only if we are synchronized
     // Makes no sense to relay votes to the peers from where we are syncing them.
     if (g_tiertwo_sync_state.IsSynced()) vote.Relay();
-    masternodeSync.AddedBudgetItem(voteID);
+    g_tiertwo_sync_state.AddedBudgetItem(voteID);
     LogPrint(BCLog::MNBUDGET, "mvote - new vote (%s) for proposal %s from dmn %s\n",
             voteID.ToString(), vote.GetProposalHash().ToString(), voteVin.prevout.ToString());
     return true;
@@ -1198,7 +1197,7 @@ int CBudgetManager::ProcessFinalizedBudget(CFinalizedBudget& finalbudget, CNode*
 
     const uint256& nHash = finalbudget.GetHash();
     if (HaveFinalizedBudget(nHash)) {
-        masternodeSync.AddedBudgetItem(nHash);
+        g_tiertwo_sync_state.AddedBudgetItem(nHash);
         return 0;
     }
     if (!AddFinalizedBudget(finalbudget, pfrom)) {
@@ -1208,7 +1207,7 @@ int CBudgetManager::ProcessFinalizedBudget(CFinalizedBudget& finalbudget, CNode*
     // Relay only if we are synchronized
     // Makes no sense to relay finalizations to the peers from where we are syncing them.
     if (g_tiertwo_sync_state.IsSynced()) finalbudget.Relay();
-    masternodeSync.AddedBudgetItem(nHash);
+    g_tiertwo_sync_state.AddedBudgetItem(nHash);
 
     LogPrint(BCLog::MNBUDGET, "fbs (new) %s\n", nHash.ToString());
     //we might have active votes for this budget that are now valid
@@ -1221,7 +1220,7 @@ bool CBudgetManager::ProcessFinalizedBudgetVote(CFinalizedBudgetVote& vote, CNod
     const uint256& voteID = vote.GetHash();
 
     if (HaveSeenFinalizedBudgetVote(voteID)) {
-        masternodeSync.AddedBudgetItem(voteID);
+        g_tiertwo_sync_state.AddedBudgetItem(voteID);
         return false;
     }
 
@@ -1259,7 +1258,7 @@ bool CBudgetManager::ProcessFinalizedBudgetVote(CFinalizedBudgetVote& vote, CNod
         // Relay only if we are synchronized
         // Makes no sense to relay votes to the peers from where we are syncing them.
         if (g_tiertwo_sync_state.IsSynced()) vote.Relay();
-        masternodeSync.AddedBudgetItem(voteID);
+        g_tiertwo_sync_state.AddedBudgetItem(voteID);
         LogPrint(BCLog::MNBUDGET, "fbvote - new vote (%s) for budget %s from dmn %s\n",
                 voteID.ToString(), vote.GetBudgetHash().ToString(), mn_protx_id);
         return true;
@@ -1295,7 +1294,7 @@ bool CBudgetManager::ProcessFinalizedBudgetVote(CFinalizedBudgetVote& vote, CNod
     // Relay only if we are synchronized
     // Makes no sense to relay votes to the peers from where we are syncing them.
     if (g_tiertwo_sync_state.IsSynced()) vote.Relay();
-    masternodeSync.AddedBudgetItem(voteID);
+    g_tiertwo_sync_state.AddedBudgetItem(voteID);
     LogPrint(BCLog::MNBUDGET, "fbvote - new vote (%s) for budget %s from mn %s\n",
             voteID.ToString(), vote.GetBudgetHash().ToString(), voteVin.prevout.ToString());
     return true;

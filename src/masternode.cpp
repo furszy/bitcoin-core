@@ -6,7 +6,6 @@
 #include "masternode.h"
 
 #include "addrman.h"
-#include "masternode-sync.h"
 #include "masternodeman.h"
 #include "netbase.h"
 #include "sync.h"
@@ -459,7 +458,7 @@ bool CMasternodeBroadcast::CheckAndUpdate(int& nDos)
         if (pmn->UpdateFromNewBroadcast((*this))) {
             if (pmn->IsEnabled()) Relay();
         }
-        masternodeSync.AddedMasternodeList(GetHash());
+        g_tiertwo_sync_state.AddedMasternodeList(GetHash());
     }
 
     return true;
