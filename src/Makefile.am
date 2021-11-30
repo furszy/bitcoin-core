@@ -289,6 +289,7 @@ BITCOIN_CORE_H = \
   threadinterrupt.h \
   timedata.h \
   tinyformat.h \
+  tiertwo/tiertwo_sync_state.h \
   torcontrol.h \
   txdb.h \
   txmempool.h \
@@ -553,6 +554,7 @@ libbitcoin_common_a_SOURCES = \
   script/sign.cpp \
   script/standard.cpp \
   tiertwo_networksync.cpp \
+  tiertwo/tiertwo_sync_state.cpp \
   warnings.cpp \
   script/script_error.cpp \
   spork.cpp \
