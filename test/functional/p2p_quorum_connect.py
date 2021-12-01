@@ -47,7 +47,7 @@ class DMNConnectionTest(PivxTestFramework):
     def wait_until_mnsync_completed(self):
         SYNC_FINISHED = [999] * self.num_nodes
         synced = [-1] * self.num_nodes
-        timeout = time.time() + 140
+        timeout = time.time() + 150
         while synced != SYNC_FINISHED and time.time() < timeout:
             synced = [node.mnsync("status")["RequestedMasternodeAssets"]
                       for node in self.nodes]
