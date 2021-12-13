@@ -81,3 +81,16 @@ void RegisterTierTwoValidationInterface()
     RegisterValidationInterface(&g_budgetman);
     RegisterValidationInterface(&masternodePayments);
 }
+
+void DumpTierTwo()
+{
+    DumpMasternodes();
+    DumpBudgets(g_budgetman);
+    DumpMasternodePayments();
+}
+
+void SetBudgetFinMode(const std::string& mode)
+{
+    g_budgetman.strBudgetMode = mode;
+    LogPrintf("Budget Mode %s\n", g_budgetman.strBudgetMode);
+}
