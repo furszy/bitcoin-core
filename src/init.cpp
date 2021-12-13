@@ -30,7 +30,6 @@
 #include "key.h"
 #include "mapport.h"
 #include "masternodeconfig.h"
-#include "masternodeman.h"
 #include "miner.h"
 #include "netbase.h"
 #include "net_processing.h"
@@ -1756,7 +1755,8 @@ bool AppInitMain()
     }
 #endif
 
-    threadGroup.create_thread(std::bind(&ThreadCheckMasternodes));
+    // Start tier two threads and jobs
+    StartTierTwoThreadsAndScheduleJobs(threadGroup, scheduler);
 
     if (ShutdownRequested()) {
         LogPrintf("Shutdown requested. Exiting.\n");

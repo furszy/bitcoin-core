@@ -5,7 +5,14 @@
 #ifndef PIVX_TIERTWO_INIT_H
 #define PIVX_TIERTWO_INIT_H
 
+#include <string>
+
 static const bool DEFAULT_MASTERNODE  = false;
+
+class CScheduler;
+namespace boost {
+    class thread_group;
+}
 
 /** Loads from disk all the tier two related objects */
 bool LoadTierTwo(int chain_active_height);
@@ -20,6 +27,9 @@ void SetBudgetFinMode(const std::string& mode);
 
 /** Initialize the active Masternode manager */
 bool InitActiveMN();
+
+/** Starts tier two threads and jobs */
+void StartTierTwoThreadsAndScheduleJobs(boost::thread_group& threadGroup, CScheduler& scheduler);
 
 
 #endif //PIVX_TIERTWO_INIT_H
