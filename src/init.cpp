@@ -18,8 +18,6 @@
 #include "addrman.h"
 #include "amount.h"
 #include "bls/bls_wrapper.h"
-#include "budget/budgetdb.h"
-#include "budget/budgetmanager.h"
 #include "checkpoints.h"
 #include "compat/sanity.h"
 #include "consensus/upgrades.h"
@@ -31,7 +29,6 @@
 #include "invalid.h"
 #include "key.h"
 #include "mapport.h"
-#include "masternode-payments.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
 #include "miner.h"
@@ -228,9 +225,7 @@ void Shutdown()
     g_connman.reset();
     peerLogic.reset();
 
-    DumpMasternodes();
-    DumpBudgets(g_budgetman);
-    DumpMasternodePayments();
+    DumpTierTwo();
     if (::mempool.IsLoaded() && gArgs.GetBoolArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
         DumpMempool(::mempool);
     }
@@ -1772,8 +1767,8 @@ bool AppInitMain()
         }
     }
 
-    //get the mode of budget voting for this masternode
-    g_budgetman.strBudgetMode = gArgs.GetArg("-budgetvotemode", "auto");
+    // set the mode of budget voting for this node
+    SetBudgetFinMode(gArgs.GetArg("-budgetvotemode", "auto"));
 
 #ifdef ENABLE_WALLET
     // !TODO: remove after complete transition to DMN
@@ -1807,7 +1802,6 @@ bool AppInitMain()
     }
 
     LogPrintf("fLiteMode %d\n", fLiteMode);
-    LogPrintf("Budget Mode %s\n", g_budgetman.strBudgetMode.c_str());
 
     threadGroup.create_thread(std::bind(&ThreadCheckMasternodes));
 

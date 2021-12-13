@@ -12,5 +12,10 @@ bool LoadTierTwo(int chain_active_height);
 /** Register all tier two objects */
 void RegisterTierTwoValidationInterface();
 
+/** Dump tier two managers to disk */
+void DumpTierTwo();
+
+void SetBudgetFinMode(const std::string& mode);
+
 
 #endif //PIVX_TIERTWO_INIT_H
