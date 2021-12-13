@@ -468,7 +468,7 @@ bool CMasternodeMan::RequestMnList(CNode* pnode)
     }
 
     g_connman->PushMessage(pnode, CNetMsgMaker(pnode->GetSendVersion()).Make(NetMsgType::GETMNLIST, CTxIn()));
-    int64_t askAgain = GetTime() + MASTERNODES_REQUEST_SECONDS;
+    int64_t askAgain = GetTime() + Params().FulfilledRequestExpireTime();
     mWeAskedForMasternodeList[pnode->addr] = askAgain;
     return true;
 }
@@ -918,7 +918,7 @@ int CMasternodeMan::ProcessGetMNList(CNode* pfrom, CTxIn& vin)
                 return 20;
             }
         }
-        int64_t askAgain = GetTime() + MASTERNODES_REQUEST_SECONDS;
+        int64_t askAgain = GetTime() + Params().FulfilledRequestExpireTime();
         mAskedUsForMasternodeList[pfrom->addr] = askAgain;
     }
 

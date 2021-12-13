@@ -15,8 +15,6 @@
 #include "sync.h"
 #include "util/system.h"
 
-#define MASTERNODES_REQUEST_SECONDS (60 * 60) // One hour.
-
 /** Maximum number of block hashes to cache */
 static const unsigned int CACHED_BLOCK_HASHES = 200;
 

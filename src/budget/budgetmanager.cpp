@@ -18,9 +18,6 @@
 #include "wallet/wallet.h" // future: use interface instead.
 #endif
 
-// Peers can only request complete budget sync once per hour.
-#define BUDGET_SYNC_REQUEST_ACCEPTANCE_SECONDS (60 * 60) // One hour.
-
 CBudgetManager g_budgetman;
 
 std::map<uint256, int64_t> askedForSourceProposalOrBudget;
@@ -1013,7 +1010,7 @@ void CBudgetManager::NewBlock()
     }
 
     {
-        // Clean peers who asked for budget votes sync after an hour (BUDGET_SYNC_REQUEST_ACCEPTANCE_SECONDS)
+        // Clean peers who asked for budget votes sync after an hour (Params().nFulfilledRequestExpireTime)
         LOCK2(cs_budgets, cs_proposals);
         int64_t currentTime = GetTime();
         auto itAskedBudSync = mAskedUsForBudgetSync.begin();
@@ -1031,7 +1028,7 @@ void CBudgetManager::NewBlock()
         LOCK(mutex);
         for (auto it = mapOrphans.begin() ; it != mapOrphans.end();) {
             int64_t lastReceivedVoteTime = it->second.second;
-            if (lastReceivedVoteTime + BUDGET_SYNC_REQUEST_ACCEPTANCE_SECONDS < now) {
+            if (lastReceivedVoteTime + Params().FulfilledRequestExpireTime() < now) {
                 // Clean seen votes
                 for (const auto& voteIt : it->second.first) {
                     mapSeen.erase(voteIt.GetHash());
@@ -1476,10 +1473,10 @@ void CBudgetManager::Sync(CNode* pfrom, bool fPartial)
 
     if (!fPartial) {
         // Now that budget full sync request was handled, mark it as completed.
-        // We are not going to answer full budget sync requests for an hour (BUDGET_SYNC_REQUEST_ACCEPTANCE_SECONDS).
+        // We are not going to answer full budget sync requests for an hour (Params().nFulfilledRequestExpireTime).
         // The remote peer can still do single prop and mnv sync requests if needed.
         LOCK2(cs_budgets, cs_proposals);
-        mAskedUsForBudgetSync[pfrom->addr] = GetTime() + BUDGET_SYNC_REQUEST_ACCEPTANCE_SECONDS;
+        mAskedUsForBudgetSync[pfrom->addr] = GetTime() + Params().FulfilledRequestExpireTime();
     }
 }
 

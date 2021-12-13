@@ -281,6 +281,7 @@ BITCOIN_CORE_H = \
   threadinterrupt.h \
   timedata.h \
   tinyformat.h \
+  tiertwo/netfulfilledman.h \
   torcontrol.h \
   txdb.h \
   txmempool.h \
@@ -378,6 +379,7 @@ libbitcoin_server_a_SOURCES = \
   shutdown.cpp \
   sporkdb.cpp \
   timedata.cpp \
+  tiertwo/netfulfilledman.cpp \
   torcontrol.cpp \
   txdb.cpp \
   sapling/sapling_txdb.cpp \
