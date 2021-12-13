@@ -196,6 +196,7 @@ BITCOIN_CORE_H = \
   httpserver.h \
   indirectmap.h \
   init.h \
+  tiertwo/init.h \
   interfaces/handler.h \
   interfaces/wallet.h \
   invalid.h \
@@ -351,6 +352,7 @@ libbitcoin_server_a_SOURCES = \
   httprpc.cpp \
   httpserver.cpp \
   init.cpp \
+  tiertwo/init.cpp \
   dbwrapper.cpp \
   legacy/validation_zerocoin_legacy.cpp \
   sapling/sapling_validation.cpp \

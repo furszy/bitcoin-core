@@ -204,6 +204,7 @@ set(SERVER_SOURCES
         ./src/httpserver.cpp
         ./src/indirectmap.h
         ./src/init.cpp
+        ./src/tiertwo/init.cpp
         ./src/interfaces/handler.cpp
         ./src/interfaces/wallet.cpp
         ./src/dbwrapper.cpp
