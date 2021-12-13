@@ -12,6 +12,8 @@
 #include "masternodeconfig.h"
 #include "validation.h"
 
+#include <boost/thread.hpp>
+
 // Sets the last CACHED_BLOCK_HASHES hashes into masternode manager cache
 static void LoadBlockHashesCache(CMasternodeMan& man)
 {
@@ -143,4 +145,9 @@ bool InitActiveMN()
     }
     // All good
     return true;
+}
+
+void StartTierTwoThreadsAndScheduleJobs(boost::thread_group& threadGroup, CScheduler& scheduler)
+{
+    threadGroup.create_thread(std::bind(&ThreadCheckMasternodes));
 }
