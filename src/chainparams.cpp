@@ -255,6 +255,9 @@ public:
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "pivks";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "p-secret-spending-key-main";
         bech32HRPs[SAPLING_EXTENDED_FVK]         = "pxviews";
+
+        // Tier two
+        nFulfilledRequestExpireTime = 60 * 60; // fulfilled requests expire in 1 hour
     }
 
     const CCheckpointData& Checkpoints() const
@@ -382,6 +385,9 @@ public:
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "pivktestsapling";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "p-secret-spending-key-test";
         bech32HRPs[SAPLING_EXTENDED_FVK]         = "pxviewtestsapling";
+
+        // Tier two
+        nFulfilledRequestExpireTime = 60 * 60; // fulfilled requests expire in 1 hour
     }
 
     const CCheckpointData& Checkpoints() const
@@ -509,6 +515,9 @@ public:
         bech32HRPs[SAPLING_INCOMING_VIEWING_KEY] = "pivktestsapling";
         bech32HRPs[SAPLING_EXTENDED_SPEND_KEY]   = "p-secret-spending-key-test";
         bech32HRPs[SAPLING_EXTENDED_FVK]         = "pxviewtestsapling";
+
+        // Tier two
+        nFulfilledRequestExpireTime = 60 * 60; // fulfilled requests expire in 1 hour
     }
 
     const CCheckpointData& Checkpoints() const

@@ -92,6 +92,9 @@ public:
     bool IsRegTestNet() const { return NetworkIDString() == CBaseChainParams::REGTEST; }
     bool IsTestnet() const { return NetworkIDString() == CBaseChainParams::TESTNET; }
 
+    /** Tier two requests blockage mark expiration time */
+    int FulfilledRequestExpireTime() const { return nFulfilledRequestExpireTime; }
+
     void UpdateNetworkUpgradeParameters(Consensus::UpgradeIndex idx, int nActivationHeight);
 protected:
     CChainParams() {}
@@ -106,6 +109,7 @@ protected:
     std::string bech32HRPs[MAX_BECH32_TYPES];
     std::vector<uint8_t> vFixedSeeds;
     bool fRequireStandard;
+    int nFulfilledRequestExpireTime;
 };
 
 /**

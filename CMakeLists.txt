@@ -234,6 +234,7 @@ set(SERVER_SOURCES
         ./src/shutdown.cpp
         ./src/sporkdb.cpp
         ./src/timedata.cpp
+        ./src/tiertwo/netfulfilledman.cpp
         ./src/torcontrol.cpp
         ./src/sapling/sapling_txdb.cpp
         ./src/sapling/sapling_validation.cpp
