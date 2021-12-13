@@ -6,8 +6,10 @@
 
 #include "budget/budgetdb.h"
 #include "guiinterface.h"
+#include "guiinterfaceutil.h"
 #include "masternodeman.h"
 #include "masternode-payments.h"
+#include "masternodeconfig.h"
 #include "validation.h"
 
 // Sets the last CACHED_BLOCK_HASHES hashes into masternode manager cache
@@ -80,6 +82,7 @@ void RegisterTierTwoValidationInterface()
 {
     RegisterValidationInterface(&g_budgetman);
     RegisterValidationInterface(&masternodePayments);
+    if (activeMasternodeManager) RegisterValidationInterface(activeMasternodeManager);
 }
 
 void DumpTierTwo()
@@ -93,4 +96,51 @@ void SetBudgetFinMode(const std::string& mode)
 {
     g_budgetman.strBudgetMode = mode;
     LogPrintf("Budget Mode %s\n", g_budgetman.strBudgetMode);
+}
+
+bool InitActiveMN()
+{
+    fMasterNode = gArgs.GetBoolArg("-masternode", DEFAULT_MASTERNODE);
+    if ((fMasterNode || masternodeConfig.getCount() > -1) && fTxIndex == false) {
+        return UIError(strprintf(_("Enabling Masternode support requires turning on transaction indexing."
+                                   "Please add %s to your configuration and start with %s"), "txindex=1", "-reindex"));
+    }
+
+    if (fMasterNode) {
+        const std::string& mnoperatorkeyStr = gArgs.GetArg("-mnoperatorprivatekey", "");
+        const bool fDeterministic = !mnoperatorkeyStr.empty();
+        LogPrintf("IS %s MASTERNODE\n", (fDeterministic ? "DETERMINISTIC " : ""));
+
+        if (fDeterministic) {
+            // Check enforcement
+            if (!deterministicMNManager->IsDIP3Enforced()) {
+                const std::string strError = strprintf(
+                        _("Cannot start deterministic masternode before enforcement. Remove %s to start as legacy masternode"),
+                        "-mnoperatorprivatekey");
+                LogPrintf("-- ERROR: %s\n", strError);
+                return UIError(strError);
+            }
+            // Create and register activeMasternodeManager
+            activeMasternodeManager = new CActiveDeterministicMasternodeManager();
+            auto res = activeMasternodeManager->SetOperatorKey(mnoperatorkeyStr);
+            if (!res) { return UIError(res.getError()); }
+            // Init active masternode
+            const CBlockIndex* pindexTip = WITH_LOCK(cs_main, return chainActive.Tip(););
+            activeMasternodeManager->Init(pindexTip);
+        } else {
+            // Check enforcement
+            if (deterministicMNManager->LegacyMNObsolete()) {
+                const std::string strError = strprintf(
+                        _("Legacy masternode system disabled. Use %s to start as deterministic masternode"),
+                        "-mnoperatorprivatekey");
+                LogPrintf("-- ERROR: %s\n", strError);
+                return UIError(strError);
+            }
+            auto res = initMasternode(gArgs.GetArg("-masternodeprivkey", ""), gArgs.GetArg("-masternodeaddr", ""),
+                                      true);
+            if (!res) { return UIError(res.getError()); }
+        }
+    }
+    // All good
+    return true;
 }
