@@ -55,7 +55,6 @@ extern const char * const DEFAULT_DEBUGLOGFILE;
 //PIVX only features
 
 extern std::atomic<bool> fMasterNode;
-extern bool fLiteMode;
 
 extern CTranslationInterface translationInterface;
 

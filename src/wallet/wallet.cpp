@@ -2216,8 +2216,6 @@ CAmount CWallet::GetDelegatedBalance() const
 
 CAmount CWallet::GetLockedCoins() const
 {
-    if (fLiteMode) return 0;
-
     LOCK(cs_wallet);
     if (setLockedCoins.empty()) return 0;
 

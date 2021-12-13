@@ -1806,14 +1806,6 @@ bool AppInitMain()
     }
 #endif
 
-    // lite mode disables all Masternode related functionality
-    fLiteMode = gArgs.GetBoolArg("-litemode", false);
-    if (fMasterNode && fLiteMode) {
-        return UIError(_("You can not start a masternode in litemode"));
-    }
-
-    LogPrintf("fLiteMode %d\n", fLiteMode);
-
     threadGroup.create_thread(std::bind(&ThreadCheckMasternodes));
 
     if (ShutdownRequested()) {

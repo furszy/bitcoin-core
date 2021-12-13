@@ -87,8 +87,6 @@ void CSporkManager::LoadSporksFromDB()
 
 void CSporkManager::ProcessSpork(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)
 {
-    if (fLiteMode) return; // disable all masternode related functionality
-
     if (strCommand == NetMsgType::SPORK) {
         int banScore = ProcessSporkMsg(vRecv);
         if (banScore > 0) {

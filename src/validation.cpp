@@ -2071,10 +2071,8 @@ bool static ConnectTip(CValidationState& state, CBlockIndex* pindexNew, const st
     // Update chainActive & related variables.
     UpdateTip(pindexNew);
     // Update TierTwo managers
-    if (!fLiteMode) {
-        mnodeman.SetBestHeight(pindexNew->nHeight);
-        g_budgetman.SetBestHeight(pindexNew->nHeight);
-    }
+    mnodeman.SetBestHeight(pindexNew->nHeight);
+    g_budgetman.SetBestHeight(pindexNew->nHeight);
     // Update MN manager cache
     mnodeman.CacheBlockHash(pindexNew);
     mnodeman.CheckSpentCollaterals(blockConnecting.vtx);
