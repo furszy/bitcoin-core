@@ -5,11 +5,14 @@
 #include "tiertwo/init.h"
 
 #include "budget/budgetdb.h"
+#include "flatdb.h"
 #include "guiinterface.h"
 #include "guiinterfaceutil.h"
 #include "masternodeman.h"
 #include "masternode-payments.h"
 #include "masternodeconfig.h"
+#include "scheduler.h"
+#include "tiertwo/netfulfilledman.h"
 #include "validation.h"
 
 #include <boost/thread.hpp>
@@ -27,7 +30,7 @@ static void LoadBlockHashesCache(CMasternodeMan& man)
     }
 }
 
-bool LoadTierTwo(int chain_active_height)
+bool LoadTierTwo(int chain_active_height, bool load_cache_files, const fs::path& pathDB)
 {
     // ################################# //
     // ## Legacy Masternodes Manager ### //
@@ -75,6 +78,23 @@ bool LoadTierTwo(int chain_active_height)
         LogPrintf("Missing masternode payment cache - mnpayments.dat, will try to recreate\n");
     else if (readResult3 != CMasternodePaymentDB::Ok) {
         LogPrintf("Error reading mnpayments.dat - cached data discarded\n");
+    }
+
+    // ############################## //
+    // ## Network Requests Manager ## //
+    // ############################## //
+    std::string strDBName = "netrequests.dat";
+    uiInterface.InitMessage(_("Loading network requests cache..."));
+    CFlatDB<CNetFulfilledRequestManager> netRequestsDb(strDBName, "magicNetRequestsCache");
+    if (load_cache_files) {
+        if (!netRequestsDb.Load(g_netfulfilledman)) {
+            LogPrintf("Failed to load network requests cache from %s", (pathDB / strDBName).string());
+        }
+    } else {
+        CNetFulfilledRequestManager netfulfilledmanTmp;
+        if (!netRequestsDb.Dump(netfulfilledmanTmp)) {
+            LogPrintf("Failed to clear network requests cache at %s", (pathDB / strDBName).string());
+        }
     }
 
     return true;
@@ -150,4 +170,5 @@ bool InitActiveMN()
 void StartTierTwoThreadsAndScheduleJobs(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
     threadGroup.create_thread(std::bind(&ThreadCheckMasternodes));
+    scheduler.scheduleEvery(std::bind(&CNetFulfilledRequestManager::DoMaintenance, std::ref(g_netfulfilledman)), 60 * 1000);
 }

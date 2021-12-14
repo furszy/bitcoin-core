@@ -1723,7 +1723,16 @@ bool AppInitMain()
 
     // ********************************************************* Step 10: setup layer 2 data
 
-    LoadTierTwo(chain_active_height);
+    bool load_cache_files = !(fReindex || fReindexChainState);
+    {
+        LOCK(cs_main);
+        // was blocks/chainstate deleted?
+        if (chainActive.Tip() == nullptr) {
+            load_cache_files = false;
+        }
+    }
+    fs::path pathDB = GetDataDir();
+    LoadTierTwo(chain_active_height, load_cache_files, pathDB);
     if (!InitActiveMN()) return false;
     RegisterTierTwoValidationInterface();
 

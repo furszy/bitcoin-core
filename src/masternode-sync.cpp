@@ -13,6 +13,7 @@
 #include "masternode.h"
 #include "masternodeman.h"
 #include "netmessagemaker.h"
+#include "tiertwo/netfulfilledman.h"
 #include "spork.h"
 #include "util/system.h"
 #include "validation.h"
@@ -255,12 +256,7 @@ void CMasternodeSync::ProcessSyncStatusMsg(int nItemID, int nCount)
 
 void CMasternodeSync::ClearFulfilledRequest()
 {
-    g_connman->ForEachNode([](CNode* pnode) {
-        pnode->ClearFulfilledRequest("getspork");
-        pnode->ClearFulfilledRequest("mnsync");
-        pnode->ClearFulfilledRequest("mnwsync");
-        pnode->ClearFulfilledRequest("busync");
-    });
+    g_netfulfilledman.Clear();
 }
 
 void CMasternodeSync::Process()
@@ -341,8 +337,8 @@ bool CMasternodeSync::SyncWithNode(CNode* pnode, bool fLegacyMnObsolete)
         }
 
         // Request sporks sync if we haven't requested it yet.
-        if (pnode->HasFulfilledRequest("getspork")) return true;
-        pnode->FulfilledRequest("getspork");
+        if (g_netfulfilledman.HasFulfilledRequest(pnode->addr,"getspork")) return true;
+        g_netfulfilledman.AddFulfilledRequest(pnode->addr, "getspork");
 
         g_connman->PushMessage(pnode, msgMaker.Make(NetMsgType::GETSPORKS));
         RequestedMasternodeAttempt++;
@@ -382,7 +378,7 @@ bool CMasternodeSync::SyncWithNode(CNode* pnode, bool fLegacyMnObsolete)
         if (RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD * 4) return false;
 
         // Request mnb sync if we haven't requested it yet.
-        if (pnode->HasFulfilledRequest("mnsync")) return true;
+        if (g_netfulfilledman.HasFulfilledRequest(pnode->addr, "mnsync")) return true;
 
         // Try to request MN list sync.
         if (!mnodeman.RequestMnList(pnode)) {
@@ -390,7 +386,7 @@ bool CMasternodeSync::SyncWithNode(CNode* pnode, bool fLegacyMnObsolete)
         }
 
         // Mark sync requested.
-        pnode->FulfilledRequest("mnsync");
+        g_netfulfilledman.AddFulfilledRequest(pnode->addr, "mnsync");
         // Increase the sync attempt count
         RequestedMasternodeAttempt++;
 
@@ -432,10 +428,10 @@ bool CMasternodeSync::SyncWithNode(CNode* pnode, bool fLegacyMnObsolete)
         if (RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD * 2) return false;
 
         // Request mnw sync if we haven't requested it yet.
-        if (pnode->HasFulfilledRequest("mnwsync")) return true;
+        if (g_netfulfilledman.HasFulfilledRequest(pnode->addr, "mnwsync")) return true;
 
         // Mark sync requested.
-        pnode->FulfilledRequest("mnwsync");
+        g_netfulfilledman.AddFulfilledRequest(pnode->addr, "mnwsync");
 
         // Sync mn winners
         int nMnCount = mnodeman.CountEnabled(true /* only_legacy */);
@@ -470,10 +466,10 @@ bool CMasternodeSync::SyncWithNode(CNode* pnode, bool fLegacyMnObsolete)
         if (RequestedMasternodeAttempt >= MASTERNODE_SYNC_THRESHOLD * 3) return false;
 
         // Request bud sync if we haven't requested it yet.
-        if (pnode->HasFulfilledRequest("busync")) return true;
+        if (g_netfulfilledman.HasFulfilledRequest(pnode->addr, "busync")) return true;
 
         // Mark sync requested.
-        pnode->FulfilledRequest("busync");
+        g_netfulfilledman.AddFulfilledRequest(pnode->addr, "busync");
 
         // Sync proposals, finalizations and votes
         uint256 n;

@@ -13,6 +13,7 @@
 #include "masternodeman.h"
 #include "netmessagemaker.h"
 #include "net_processing.h"
+#include "tiertwo/netfulfilledman.h"
 #include "spork.h"
 #include "sync.h"
 #include "util/system.h"
@@ -413,7 +414,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
         vRecv >> nCountNeeded;
 
         if (Params().NetworkIDString() == CBaseChainParams::MAIN) {
-            if (pfrom->HasFulfilledRequest(NetMsgType::GETMNWINNERS)) {
+            if (g_netfulfilledman.HasFulfilledRequest(pfrom->addr, NetMsgType::GETMNWINNERS)) {
                 LogPrintf("CMasternodePayments::ProcessMessageMasternodePayments() : mnget - peer already asked me for the list\n");
                 LOCK(cs_main);
                 Misbehaving(pfrom->GetId(), 20);
@@ -421,7 +422,7 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
             }
         }
 
-        pfrom->FulfilledRequest(NetMsgType::GETMNWINNERS);
+        g_netfulfilledman.AddFulfilledRequest(pfrom->addr, NetMsgType::GETMNWINNERS);
         Sync(pfrom, nCountNeeded);
         LogPrint(BCLog::MASTERNODE, "mnget - Sent Masternode winners to peer %i\n", pfrom->GetId());
     } else if (strCommand == NetMsgType::MNWINNER) { //Masternode Payments Declare Winner

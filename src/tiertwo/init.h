@@ -6,6 +6,7 @@
 #define PIVX_TIERTWO_INIT_H
 
 #include <string>
+#include "fs.h"
 
 static const bool DEFAULT_MASTERNODE  = false;
 
@@ -15,7 +16,7 @@ namespace boost {
 }
 
 /** Loads from disk all the tier two related objects */
-bool LoadTierTwo(int chain_active_height);
+bool LoadTierTwo(int chain_active_height, bool load_cache_files, const fs::path& pathDB);
 
 /** Register all tier two objects */
 void RegisterTierTwoValidationInterface();
