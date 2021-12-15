@@ -1302,6 +1302,19 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                   (fLogIPs ? strprintf(", peeraddr=%s", pfrom->addr.ToString()) : ""));
     }
 
+    else if (strCommand == NetMsgType::SENDADDRV2) {
+        pfrom->m_wants_addrv2 = true;
+        return true;
+    }
+
+    else if (!pfrom->fSuccessfullyConnected)
+    {
+        // Must have a verack message before anything else
+        LOCK(cs_main);
+        Misbehaving(pfrom->GetId(), 1);
+        return false;
+    }
+
 
     else if (strCommand == NetMsgType::ADDR || strCommand == NetMsgType::ADDRV2) {
         int stream_version = vRecv.GetVersion();
@@ -1349,11 +1362,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
             pfrom->fGetAddr = false;
         if (pfrom->fOneShot)
             pfrom->fDisconnect = true;
-    }
-
-    else if (strCommand == NetMsgType::SENDADDRV2) {
-            pfrom->m_wants_addrv2 = true;
-            return true;
     }
 
     else if (strCommand == NetMsgType::INV) {
@@ -1962,6 +1970,29 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
     return true;
 }
 
+static bool DisconnectIfBanned(CNode* pnode, CConnman* connman)
+{
+    AssertLockHeld(cs_main);
+    CNodeState &state = *State(pnode->GetId());
+
+    if (state.fShouldBan) {
+        state.fShouldBan = false;
+        if (pnode->fWhitelisted) {
+            LogPrintf("Warning: not punishing whitelisted peer %s!\n", pnode->addr.ToString());
+        } else if (pnode->fAddnode) {
+            LogPrintf("Warning: not punishing addnoded peer %s!\n", pnode->addr.ToString());
+        } else {
+            pnode->fDisconnect = true;
+            if (pnode->addr.IsLocal()) {
+                LogPrintf("Warning: not banning local peer %s!\n", pnode->addr.ToString());
+            } else {
+                connman->Ban(pnode->addr, BanReasonNodeMisbehaving);
+            }
+        }
+        return true;
+    }
+    return false;
+}
 
 bool PeerLogicValidation::ProcessMessages(CNode* pfrom, std::atomic<bool>& interruptMsgProc)
 {
@@ -2055,8 +2086,13 @@ bool PeerLogicValidation::ProcessMessages(CNode* pfrom, std::atomic<bool>& inter
         PrintExceptionContinue(NULL, "ProcessMessages()");
     }
 
-    if (!fRet)
-        LogPrint(BCLog::NET, "ProcessMessage(%s, %u bytes) FAILED peer=%d\n", SanitizeString(strCommand), nMessageSize, pfrom->GetId());
+    if (!fRet) {
+        LogPrint(BCLog::NET, "ProcessMessage(%s, %u bytes) FAILED peer=%d\n", SanitizeString(strCommand), nMessageSize,
+                 pfrom->GetId());
+    }
+
+    LOCK(cs_main);
+    DisconnectIfBanned(pfrom, connman);
 
     return fMoreWork;
 }
@@ -2115,24 +2151,11 @@ bool PeerLogicValidation::SendMessages(CNode* pto, std::atomic<bool>& interruptM
         if (!lockMain)
             return true;
 
-        CNodeState& state = *State(pto->GetId());
-
-        if (state.fShouldBan) {
-            state.fShouldBan = false;
-            if (pto->fWhitelisted)
-                LogPrintf("Warning: not punishing whitelisted peer %s!\n", pto->addr.ToString());
-            else if (pto->fAddnode)
-                LogPrintf("Warning: not punishing addnoded peer %s!\n", pto->addr.ToString());
-            else {
-                pto->fDisconnect = true;
-                if (pto->addr.IsLocal())
-                    LogPrintf("Warning: not banning local peer %s!\n", pto->addr.ToString());
-                else {
-                    connman->Ban(pto->addr, BanReasonNodeMisbehaving);
-                }
-                return true;
-            }
+        if (DisconnectIfBanned(pto, connman)) {
+            return true;
         }
+
+        CNodeState& state = *State(pto->GetId());
 
         // Address refresh broadcast
         int64_t nNow = GetTimeMicros();
