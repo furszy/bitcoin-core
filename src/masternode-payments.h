@@ -243,7 +243,7 @@ public:
     bool IsScheduled(const CMasternode& mn, int nNotBlockHeight);
 
     bool ProcessMNWinner(CMasternodePaymentWinner& winner, CNode* pfrom, CValidationState& state);
-    void ProcessMessageMasternodePayments(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
+    bool ProcessMessageMasternodePayments(CNode* pfrom, std::string& strCommand, CDataStream& vRecv, CValidationState& state);
     std::string GetRequiredPaymentsString(int nBlockHeight);
     void FillBlockPayee(CMutableTransaction& txCoinbase, CMutableTransaction& txCoinstake, const CBlockIndex* pindexPrev, bool fProofOfStake) const;
     std::string ToString() const;

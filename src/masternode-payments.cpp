@@ -12,7 +12,6 @@
 #include "masternode-sync.h"
 #include "masternodeman.h"
 #include "netmessagemaker.h"
-#include "net_processing.h"
 #include "spork.h"
 #include "sync.h"
 #include "util/system.h"
@@ -396,43 +395,37 @@ void CMasternodePayments::FillBlockPayee(CMutableTransaction& txCoinbase, CMutab
     }
 }
 
-void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)
+bool CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::string& strCommand, CDataStream& vRecv, CValidationState& state)
 {
-    if (!masternodeSync.IsBlockchainSynced()) return;
+    if (!masternodeSync.IsBlockchainSynced()) return true;
 
-    if (fLiteMode) return; //disable all Masternode related functionality
+    if (fLiteMode) return true; //disable all Masternode related functionality
 
     // Skip after legacy obsolete. !TODO: remove when transition to DMN is complete
     if (deterministicMNManager->LegacyMNObsolete()) {
         LogPrint(BCLog::MASTERNODE, "mnw - skip obsolete message %s\n", strCommand);
-        return;
+        return true;
     }
 
-
     if (strCommand == NetMsgType::GETMNWINNERS) { //Masternode Payments Request Sync
-        if (fLiteMode) return;   //disable all Masternode related functionality
-
         int nCountNeeded;
         vRecv >> nCountNeeded;
 
         if (Params().NetworkIDString() == CBaseChainParams::MAIN) {
             if (pfrom->HasFulfilledRequest(NetMsgType::GETMNWINNERS)) {
-                LogPrintf("CMasternodePayments::ProcessMessageMasternodePayments() : mnget - peer already asked me for the list\n");
-                LOCK(cs_main);
-                Misbehaving(pfrom->GetId(), 20);
-                return;
+                LogPrint(BCLog::MASTERNODE, "%s: mnget - peer already asked me for the list\n", __func__);
+                return state.DoS(20, false, REJECT_INVALID, "getmnwinners-request-already-fulfilled");
             }
         }
 
         pfrom->FulfilledRequest(NetMsgType::GETMNWINNERS);
         Sync(pfrom, nCountNeeded);
         LogPrint(BCLog::MASTERNODE, "mnget - Sent Masternode winners to peer %i\n", pfrom->GetId());
-    } else if (strCommand == NetMsgType::MNWINNER) { //Masternode Payments Declare Winner
-        //this is required in litemodef
+    } else if (strCommand == NetMsgType::MNWINNER) {
+        //Masternode Payments Declare Winner
         CMasternodePaymentWinner winner;
         vRecv >> winner;
-
-        if (pfrom->nVersion < ActiveProtocol()) return;
+        if (pfrom->nVersion < ActiveProtocol()) return false;
 
         {
             // Clear inv request
@@ -440,9 +433,11 @@ void CMasternodePayments::ProcessMessageMasternodePayments(CNode* pfrom, std::st
             g_connman->RemoveAskFor(winner.GetHash(), MSG_MASTERNODE_WINNER);
         }
 
-        CValidationState state;
         ProcessMNWinner(winner, pfrom, state);
+        return state.IsValid();
     }
+
+    return true;
 }
 
 bool CMasternodePayments::ProcessMNWinner(CMasternodePaymentWinner& winner, CNode* pfrom, CValidationState& state)
@@ -503,11 +498,7 @@ bool CMasternodePayments::ProcessMNWinner(CMasternodePaymentWinner& winner, CNod
     if (!is_valid_sig) {
         LogPrint(BCLog::MASTERNODE, "%s : mnw - invalid signature for %s masternode: %s\n",
                 __func__, (dmn ? "deterministic" : "legacy"), winner.vinMasternode.prevout.hash.ToString());
-        if (pfrom) {
-            LOCK(cs_main);
-            Misbehaving(pfrom->GetId(), 20);
-        }
-        return state.Error("invalid voter mnwinner signature");
+        return state.DoS(20, false, REJECT_INVALID, "invalid voter mnwinner signature");
     }
 
     // Record vote

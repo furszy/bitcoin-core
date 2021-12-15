@@ -111,7 +111,7 @@ public:
     void SetBestHeight(int height) { nBestHeight.store(height, std::memory_order_release); };
     int GetBestHeight() const { return nBestHeight.load(std::memory_order_acquire); }
 
-    void ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
+    bool ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv, int& banScore);
     /// Process the message and returns the ban score (0 if no banning is needed)
     int ProcessMessageInner(CNode* pfrom, std::string& strCommand, CDataStream& vRecv);
     void NewBlock();

@@ -14,7 +14,6 @@
 #include "messagesigner.h"
 #include "netbase.h"
 #include "netmessagemaker.h"
-#include "net_processing.h"
 #include "shutdown.h"
 #include "spork.h"
 #include "validation.h"
@@ -943,13 +942,10 @@ int CMasternodeMan::ProcessGetMNList(CNode* pfrom, CTxIn& vin)
     return 0;
 }
 
-void CMasternodeMan::ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)
+bool CMasternodeMan::ProcessMessage(CNode* pfrom, std::string& strCommand, CDataStream& vRecv, int& dosScore)
 {
-    int banScore = ProcessMessageInner(pfrom, strCommand, vRecv);
-    if (banScore > 0) {
-        LOCK(cs_main);
-        Misbehaving(pfrom->GetId(), banScore);
-    }
+    dosScore = ProcessMessageInner(pfrom, strCommand, vRecv);
+    return dosScore == 0;
 }
 
 int CMasternodeMan::ProcessMessageInner(CNode* pfrom, std::string& strCommand, CDataStream& vRecv)

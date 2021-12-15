@@ -152,7 +152,7 @@ UniValue preparebudget(const JSONRPCRequest& request)
     CTransactionRef wtx;
     // make our change address
     CReserveKey keyChange(pwallet);
-    if (!pwallet->CreateBudgetFeeTX(wtx, nHash, keyChange, false)) { // 50 PIV collateral for proposal
+    if (!pwallet->CreateBudgetFeeTX(wtx, nHash, keyChange, BUDGET_FEE_TX_OLD)) { // 50 PIV collateral for proposal
         throw std::runtime_error("Error making collateral transaction for proposal. Please check your wallet balance.");
     }
 
@@ -604,7 +604,7 @@ UniValue createrawmnfinalbudget(const JSONRPCRequest& request)
         // create fee tx
         CTransactionRef wtx;
         CReserveKey keyChange(vpwallets[0]);
-        if (!vpwallets[0]->CreateBudgetFeeTX(wtx, budgetHash, keyChange, true)) {
+        if (!vpwallets[0]->CreateBudgetFeeTX(wtx, budgetHash, keyChange, BUDGET_FEE_TX)) {
             throw std::runtime_error("Can't make collateral transaction");
         }
         // Send the tx to the network
