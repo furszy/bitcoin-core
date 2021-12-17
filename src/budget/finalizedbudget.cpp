@@ -193,11 +193,11 @@ bool CFinalizedBudget::CheckStartEnd()
     }
 
     // The following 2 checks check the same (basically if vecBudgetPayments.size() > 100)
-    if (GetBlockEnd() - nBlockStart + 1 > MAX_PROPOSALS_PER_CYCLE) {
+    if (GetBlockEnd() - nBlockStart + 1 > (int) MAX_PROPOSALS_PER_CYCLE) {
         strInvalid = "Invalid BlockEnd";
         return false;
     }
-    if ((int)vecBudgetPayments.size() > MAX_PROPOSALS_PER_CYCLE) {
+    if ((int)vecBudgetPayments.size() > (int) MAX_PROPOSALS_PER_CYCLE) {
         strInvalid = "Invalid budget payments count (too many)";
         return false;
     }
@@ -230,7 +230,7 @@ bool CFinalizedBudget::updateExpired(int nCurrentHeight)
 {
     // Remove finalized budgets 2 * MAX_PROPOSALS_PER_CYCLE blocks after their end
     const int nBlockEnd = GetBlockEnd();
-    if (nCurrentHeight >= nBlockEnd + 2 * MAX_PROPOSALS_PER_CYCLE) {
+    if (nCurrentHeight >= nBlockEnd + 2 * (int) MAX_PROPOSALS_PER_CYCLE) {
         strInvalid = strprintf("(ends at block %ld) too old and obsolete (current %ld)", nBlockEnd, nCurrentHeight);
         return true;
     }

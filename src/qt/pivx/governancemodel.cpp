@@ -182,7 +182,7 @@ std::vector<VoteInfo> GovernanceModel::getLocalMNsVotesForProposal(const Proposa
 
 OperationResult GovernanceModel::validatePropName(const QString& name) const
 {
-    if (name.toUtf8().size() > PROP_NAME_MAX_SIZE) { // limit
+    if ((int) name.toUtf8().size() > PROP_NAME_MAX_SIZE) { // limit
         return {false, _("Invalid name, maximum size exceeded")};
     }
     return {true};

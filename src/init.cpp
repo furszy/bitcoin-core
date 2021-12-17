@@ -1701,7 +1701,7 @@ bool AppInitMain()
         if (g_best_block.IsNull() && chainActive.Tip()) {
             CBlockIndex* tip = chainActive.Tip();
             g_best_block = tip->GetBlockHash();
-            g_best_block_time = tip->GetBlockTime();;
+            g_best_block_time = tip->GetBlockTime();
             g_best_block_cv.notify_all();
         }
     }
