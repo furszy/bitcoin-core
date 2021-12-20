@@ -29,19 +29,19 @@ class uint256;
 
 class TierTwoSyncState {
 public:
-    bool IsBlockchainSynced() { return fBlockchainSynced; };
-    bool IsSynced() { return m_current_sync_phase == MASTERNODE_SYNC_FINISHED; }
-    bool IsSporkListSynced() { return m_current_sync_phase > MASTERNODE_SYNC_SPORKS; }
-    bool IsMasternodeListSynced() { return m_current_sync_phase > MASTERNODE_SYNC_LIST; }
+    bool IsBlockchainSynced() const { return fBlockchainSynced; };
+    bool IsSynced() const { return m_current_sync_phase == MASTERNODE_SYNC_FINISHED; }
+    bool IsSporkListSynced() const { return m_current_sync_phase > MASTERNODE_SYNC_SPORKS; }
+    bool IsMasternodeListSynced() const { return m_current_sync_phase > MASTERNODE_SYNC_LIST; }
 
     // Update seen maps
     void AddedMasternodeList(const uint256& hash);
     void AddedMasternodeWinner(const uint256& hash);
     void AddedBudgetItem(const uint256& hash);
 
-    int64_t GetlastMasternodeList() { return lastMasternodeList; }
-    int64_t GetlastMasternodeWinner() { return lastMasternodeWinner; }
-    int64_t GetlastBudgetItem() { return lastBudgetItem; }
+    int64_t GetlastMasternodeList() const { return lastMasternodeList; }
+    int64_t GetlastMasternodeWinner() const { return lastMasternodeWinner; }
+    int64_t GetlastBudgetItem() const { return lastBudgetItem; }
 
     void ResetLastBudgetItem() { lastBudgetItem = 0; }
 
@@ -58,10 +58,10 @@ public:
         last_blockchain_sync_update_time = cur_time;
     };
     void SetCurrentSyncPhase(int sync_phase) { m_current_sync_phase = sync_phase; };
-    int GetSyncPhase() { return m_current_sync_phase; }
+    int GetSyncPhase() const { return m_current_sync_phase; }
 
     // True if the last chain sync update was more than CHAIN_SYNC_UPDATE_TIME seconds ago
-    bool CanUpdateChainSync(int64_t cur_time) { return cur_time > last_blockchain_sync_update_time + CHAIN_SYNC_UPDATE_TIME; }
+    bool CanUpdateChainSync(int64_t cur_time) const { return cur_time > last_blockchain_sync_update_time + CHAIN_SYNC_UPDATE_TIME; }
 
 private:
     std::atomic<bool> fBlockchainSynced{false};
