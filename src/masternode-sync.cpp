@@ -35,30 +35,26 @@ bool CMasternodeSync::NotCompleted()
             sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS)));
 }
 
-bool CMasternodeSync::UpdateBlockchainSynced()
+void CMasternodeSync::UpdateBlockchainSynced()
 {
-    if (g_tiertwo_sync_state.IsBlockchainSynced()) return true;
-    if (fImporting || fReindex) return false;
+    if (!g_tiertwo_sync_state.CanUpdateChainSync(lastProcess)) return;
+    if (fImporting || fReindex) return;
 
     int64_t blockTime = 0;
     {
         TRY_LOCK(g_best_block_mutex, lock);
-        if (!lock) return false;
+        if (!lock) return;
         blockTime = g_best_block_time;
     }
 
-    if (blockTime + 60 * 60 < lastProcess) {
-        g_tiertwo_sync_state.SetBlockchainSync(false);
-        return false;
-    }
-
-    g_tiertwo_sync_state.SetBlockchainSync(true);
-    return true;
+    // Synced only if the last block happened in the last 60 minutes
+    bool is_chain_synced = blockTime + 60 * 60 > lastProcess;
+    g_tiertwo_sync_state.SetBlockchainSync(is_chain_synced, lastProcess);
 }
 
 void CMasternodeSync::Reset()
 {
-    g_tiertwo_sync_state.SetBlockchainSync(false);
+    g_tiertwo_sync_state.SetBlockchainSync(false, 0);
     g_tiertwo_sync_state.ResetData();
     lastProcess = 0;
     lastFailure = 0;
@@ -201,11 +197,11 @@ void CMasternodeSync::Process()
     int64_t now = GetTime();
     if (lastProcess != 0 && now > lastProcess + 60 * 60) {
         Reset();
-        g_tiertwo_sync_state.SetBlockchainSync(false);
+        g_tiertwo_sync_state.SetBlockchainSync(false, 0);
     }
     lastProcess = now;
 
-    // Update chain sync status
+    // Update chain sync status using the 'lastProcess' time
     UpdateBlockchainSynced();
 
     if (g_tiertwo_sync_state.IsSynced()) {

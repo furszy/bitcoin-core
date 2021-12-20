@@ -21,6 +21,10 @@
 // Sync threshold
 #define MASTERNODE_SYNC_THRESHOLD 2
 
+// Chain sync update window.
+// Be careful with this value. The smaller the value is, the more the tiertwo sync locks 'g_best_block_mutex'.
+#define CHAIN_SYNC_UPDATE_TIME 30
+
 class uint256;
 
 class TierTwoSyncState {
@@ -49,12 +53,19 @@ public:
     void ResetData();
 
     // Only called from masternodesync and unit tests.
-    void SetBlockchainSync(bool f) { fBlockchainSynced = f; };
+    void SetBlockchainSync(bool f, int64_t cur_time) {
+        fBlockchainSynced = f;
+        last_blockchain_sync_update_time = cur_time;
+    };
     void SetCurrentSyncPhase(int sync_phase) { m_current_sync_phase = sync_phase; };
     int GetSyncPhase() { return m_current_sync_phase; }
 
+    // True if the last chain sync update was more than CHAIN_SYNC_UPDATE_TIME seconds ago
+    bool CanUpdateChainSync(int64_t cur_time) { return cur_time > last_blockchain_sync_update_time + CHAIN_SYNC_UPDATE_TIME; }
+
 private:
     std::atomic<bool> fBlockchainSynced{false};
+    std::atomic<int64_t> last_blockchain_sync_update_time{0};
     std::atomic<int> m_current_sync_phase{0};
 
     // Seen elements
