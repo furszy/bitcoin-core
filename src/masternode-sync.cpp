@@ -197,7 +197,6 @@ void CMasternodeSync::Process()
     int64_t now = GetTime();
     if (lastProcess != 0 && now > lastProcess + 60 * 60) {
         Reset();
-        g_tiertwo_sync_state.SetBlockchainSync(false, 0);
     }
     lastProcess = now;
 

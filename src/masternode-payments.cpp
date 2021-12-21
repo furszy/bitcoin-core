@@ -471,9 +471,8 @@ bool CMasternodePayments::ProcessMNWinner(CMasternodePaymentWinner& winner, CNod
         if (pmn == nullptr) {
             // it could be a non-synced masternode. ask for the mnb
             LogPrint(BCLog::MASTERNODE, "mnw - unknown masternode %s\n", winner.vinMasternode.prevout.hash.ToString());
-            // Only ask for missing items after the initial syncing process is complete
-            //   otherwise will think a full sync succeeded when they return a result
-            if (pfrom && g_tiertwo_sync_state.IsSynced()) mnodeman.AskForMN(pfrom, winner.vinMasternode);
+            // Only ask for missing items after the initial mnlist sync is complete
+            if (pfrom && g_tiertwo_sync_state.IsMasternodeListSynced()) mnodeman.AskForMN(pfrom, winner.vinMasternode);
             return state.Error("Non-existent mnwinner voter");
         }
     }
