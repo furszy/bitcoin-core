@@ -69,7 +69,7 @@ public:
      */
     bool SyncWithNode(CNode* pnode, bool fLegacyMnObsolete);
     bool NotCompleted();
-    void UpdateBlockchainSynced();
+    void UpdateBlockchainSynced(bool isRegTestNet);
     void ClearFulfilledRequest();
 
     // Sync message dispatcher
