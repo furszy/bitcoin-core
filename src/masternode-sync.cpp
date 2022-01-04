@@ -35,9 +35,9 @@ bool CMasternodeSync::NotCompleted()
             sporkManager.IsSporkActive(SPORK_13_ENABLE_SUPERBLOCKS)));
 }
 
-void CMasternodeSync::UpdateBlockchainSynced()
+void CMasternodeSync::UpdateBlockchainSynced(bool isRegTestNet)
 {
-    if (!g_tiertwo_sync_state.CanUpdateChainSync(lastProcess)) return;
+    if (!isRegTestNet && !g_tiertwo_sync_state.CanUpdateChainSync(lastProcess)) return;
     if (fImporting || fReindex) return;
 
     int64_t blockTime = 0;
@@ -201,7 +201,7 @@ void CMasternodeSync::Process()
     lastProcess = now;
 
     // Update chain sync status using the 'lastProcess' time
-    UpdateBlockchainSynced();
+    UpdateBlockchainSynced(isRegTestNet);
 
     if (g_tiertwo_sync_state.IsSynced()) {
         if (isRegTestNet) {
