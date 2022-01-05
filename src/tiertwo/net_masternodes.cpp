@@ -51,7 +51,7 @@ void TierTwoConnMan::setMasternodeQuorumRelayMembers(Consensus::LLMQType llmqTyp
 
     // Update existing connections
     connman->ForEachNode([&](CNode* pnode) {
-        if (!pnode->verifiedProRegTxHash.IsNull() && !pnode->m_masternode_iqr_connection && isMasternodeQuorumRelayMember(pnode->verifiedProRegTxHash)) {
+        if (!pnode->m_masternode_iqr_connection && isMasternodeQuorumRelayMember(pnode->verifiedProRegTxHash)) {
             // Tell our peer that we're interested in plain LLMQ recovered signatures.
             // Otherwise, the peer would only announce/send messages resulting from QRECSIG,
             // future e.g. tx locks or chainlocks. SPV and regular full nodes should not send
@@ -195,11 +195,11 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         // Gather all connected peers first, so we don't
         // try to connect to an already connected peer
         std::vector<PeerData> connectedNodes;
-        std::vector<MnService> connectedProRegTxHashes;
+        std::vector<MnService> connectedMnServices;
         connman->ForEachNode([&](const CNode* pnode) {
             connectedNodes.emplace_back(PeerData{pnode->addr, pnode->fDisconnect, pnode->m_masternode_connection});
             if (!pnode->verifiedProRegTxHash.IsNull()) {
-                connectedProRegTxHashes.emplace_back(MnService{pnode->verifiedProRegTxHash, pnode->fInbound});
+                connectedMnServices.emplace_back(MnService{pnode->verifiedProRegTxHash, pnode->fInbound});
             }
         });
 
@@ -232,7 +232,7 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
                 for (const auto& group: masternodeQuorumNodes) {
                     for (const auto& proRegTxHash: group.second) {
                         // Skip if already have this member connected
-                        if (std::count(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), proRegTxHash) > 0) {
+                        if (std::count(connectedMnServices.begin(), connectedMnServices.end(), proRegTxHash) > 0) {
                             continue;
                         }
 
@@ -280,8 +280,8 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
                     }
 
                     // Discard already connected outbound MNs
-                    auto mnService = std::find(connectedProRegTxHashes.begin(), connectedProRegTxHashes.end(), dmn->proTxHash);
-                    bool connectedAndOutbound = mnService != std::end(connectedProRegTxHashes) && !mnService->is_inbound;
+                    auto mnService = std::find(connectedMnServices.begin(), connectedMnServices.end(), dmn->proTxHash);
+                    bool connectedAndOutbound = mnService != std::end(connectedMnServices) && !mnService->is_inbound;
                     if (connectedAndOutbound) {
                         // we already have an outbound connection to this MN so there is no eed to probe it again
                         g_mmetaman.GetMetaInfo(dmn->proTxHash)->SetLastOutboundSuccess(currentTime);

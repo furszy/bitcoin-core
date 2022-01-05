@@ -148,6 +148,8 @@ public:
             pathDB(GetDataDir() / strFilenameIn), strFilename(strFilenameIn),
             strMagicMessage(strMagicMessageIn) {}
 
+    fs::path GetDbPath() const { return pathDB; }
+
     bool Load(T& objToLoad)
     {
         LogPrintf("Reading info from %s...\n", strFilename);
