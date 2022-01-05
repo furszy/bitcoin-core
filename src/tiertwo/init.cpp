@@ -79,20 +79,21 @@ bool LoadTierTwo(int chain_active_height, bool fReindexChainState)
         LogPrintf("Error reading mnpayments.dat - cached data discarded\n");
     }
 
-    // init mn metadata manager
+    // ############################## //
+    // ## Net MNs Metadata Manager ## //
+    // ############################## //
     bool fLoadCacheFiles = !(fReindex || fReindexChainState);
     fs::path pathDB = GetDataDir();
-    std::string strDBName = "mnmetacache.dat";
     uiInterface.InitMessage(_("Loading masternode cache..."));
-    CFlatDB<CMasternodeMetaMan> metadb(strDBName, "magicMasternodeMetaCache");
+    CFlatDB<CMasternodeMetaMan> metadb(MN_META_CACHE_FILENAME, MN_META_CACHE_FILE_ID);
     if (fLoadCacheFiles) {
         if (!metadb.Load(g_mmetaman)) {
-            return UIError(_("Failed to load masternode metadata cache from") + "\n" + (pathDB / strDBName).string());
+            return UIError(strprintf(_("Failed to load masternode metadata cache from: %s"), metadb.GetDbPath().string()));
         }
     } else {
         CMasternodeMetaMan mmetamanTmp;
         if (!metadb.Dump(mmetamanTmp)) {
-            return UIError(_("Failed to clear masternode metadata cache at") + "\n" + (pathDB / strDBName).string());
+            return UIError(strprintf(_("Failed to clear masternode metadata cache at: %s"), metadb.GetDbPath().string()));
         }
     }
 

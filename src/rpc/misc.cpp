@@ -755,17 +755,6 @@ UniValue echo(const JSONRPCRequest& request)
     return request.params;
 }
 
-std::set<uint256> parseProRegTxHashes(const UniValue& obj, int arrPos)
-{
-    if (!obj[arrPos].isArray()) throw std::runtime_error("error: mnconnect arg1 must be an array of proreg txes hashes");
-    const auto& array{obj[arrPos].get_array()};
-    std::set<uint256> vec_dmn_protxhash;
-    for (unsigned int i = 0; i < array.size(); i++) {
-        vec_dmn_protxhash.emplace(uint256S(array[i].get_str()));
-    }
-    return vec_dmn_protxhash;
-}
-
 // mnconnect command operation types
 const char* SINGLE_CONN = "single_conn";
 const char* QUORUM_MEMBERS_CONN = "quorum_members_conn";
@@ -781,8 +770,9 @@ const char* PROBE_CONN = "probe_conn";
 **/
 UniValue mnconnect(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() > 4) {
+    if (request.fHelp || request.params.size() < 2 || request.params.size() > 4) {
         throw std::runtime_error(
+                // todo: complete me..
                 "mnconnect \"op_type\" \"[pro_tx_hash, pro_tx_hash,..]\"\n"
                 // todo: complete me..
         );
@@ -794,11 +784,17 @@ UniValue mnconnect(const JSONRPCRequest& request)
 
     // First obtain the connection type
     const std::string& op_type = request.params[0].get_str();
+    // Check provided mn_list
+    if (!request.params[1].isArray()) throw std::runtime_error("error: mnconnect arg1 must be an array of proreg txes hashes");
+    const auto& array{request.params[1].get_array()};
+    std::set<uint256> set_dmn_protxhash;
+    for (unsigned int i = 0; i < array.size(); i++) {
+        set_dmn_protxhash.emplace(uint256S(array[i].get_str()));
+    }
 
     const auto& mn_connan =  g_connman->GetTierTwoConnMan();
-    std::set<uint256> vec_dmn_protxhash{parseProRegTxHashes(request.params, 1)};
     if (op_type == SINGLE_CONN) {
-        for (const auto& protxhash : vec_dmn_protxhash) {
+        for (const auto& protxhash : set_dmn_protxhash) {
             // if the connection exist or if the dmn doesn't exist,
             // it will simply not even try to connect to it.
             mn_connan->addPendingMasternode(protxhash);
@@ -807,15 +803,15 @@ UniValue mnconnect(const JSONRPCRequest& request)
     } else if (op_type == QUORUM_MEMBERS_CONN) {
         Consensus::LLMQType llmq_type = (Consensus::LLMQType) request.params[2].get_int();
         const uint256& quorum_hash = uint256S(request.params[3].get_str());
-        mn_connan->setQuorumNodes(llmq_type, quorum_hash, vec_dmn_protxhash);
+        mn_connan->setQuorumNodes(llmq_type, quorum_hash, set_dmn_protxhash);
         return true;
     } else if (op_type == IQR_MEMBERS_CONN) {
         Consensus::LLMQType llmq_type = (Consensus::LLMQType) request.params[2].get_int();
         const uint256& quorum_hash = uint256S(request.params[3].get_str());
-        mn_connan->setMasternodeQuorumRelayMembers(llmq_type, quorum_hash, vec_dmn_protxhash);
+        mn_connan->setMasternodeQuorumRelayMembers(llmq_type, quorum_hash, set_dmn_protxhash);
         return true;
     } else if (op_type == PROBE_CONN) {
-        mn_connan->addPendingProbeConnections(vec_dmn_protxhash);
+        mn_connan->addPendingProbeConnections(set_dmn_protxhash);
         return true;
     }
     return false;
@@ -838,7 +834,7 @@ static const CRPCCommand commands[] =
     { "hidden",             "echo",                   &echo,                   true,  {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
     { "hidden",             "echojson",               &echo,                   true,  {"arg0","arg1","arg2","arg3","arg4","arg5","arg6","arg7","arg8","arg9"}},
     { "hidden",             "setmocktime",            &setmocktime,            true,  {"timestamp"} },
-    { "hidden",             "mnconnect",              &mnconnect,              true,  {"op_type", "arg1"} },
+    { "hidden",             "mnconnect",              &mnconnect,              true,  {"op_type", "mn_list", "llmq_type", "quorum_hash"} },
 };
 
 void RegisterMiscRPCCommands(CRPCTable &tableRPC)

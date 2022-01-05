@@ -12,6 +12,9 @@
 
 #include <memory>
 
+static const std::string MN_META_CACHE_FILENAME = "mnmetacache.dat";
+static const std::string MN_META_CACHE_FILE_ID = "magicMasternodeMetaCache";
+
 // Holds extra (non-deterministic) information about masternodes
 // This is mostly local information, e.g. last connection attempt
 class CMasternodeMetaInfo
