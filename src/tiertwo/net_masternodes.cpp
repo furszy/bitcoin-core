@@ -187,8 +187,7 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
 
         triedConnect = false;
 
-        // todo: add !fNetworkActive
-        if (!g_tiertwo_sync_state.IsBlockchainSynced()) {
+        if (!fMasterNode || !g_tiertwo_sync_state.IsBlockchainSynced() || !g_connman->GetNetworkActive()) {
             continue;
         }
 

@@ -266,14 +266,19 @@ void PushNodeVersion(CNode* pnode, CConnman* connman, int64_t nTime)
     CAddress addrYou = (addr.IsRoutable() && !IsProxy(addr) ? addr : CAddress(CService(), addr.nServices));
     CAddress addrMe = CAddress(CService(), nLocalNodeServices);
 
-    // MN auth
-    // future: create the challenge only for mn connections.
-    uint256 mnauthChallenge;
-    GetRandBytes(mnauthChallenge.begin(), (int)mnauthChallenge.size());
-    WITH_LOCK(pnode->cs_mnauth, pnode->sentMNAuthChallenge = mnauthChallenge);
+    // Create the version message
+    auto version_msg = CNetMsgMaker(INIT_PROTO_VERSION).Make(NetMsgType::VERSION, PROTOCOL_VERSION, (uint64_t)nLocalNodeServices, nTime, addrYou, addrMe,
+                                          nonce, strSubVersion, nNodeStartingHeight, true);
 
-    connman->PushMessage(pnode, CNetMsgMaker(INIT_PROTO_VERSION).Make(NetMsgType::VERSION, PROTOCOL_VERSION, (uint64_t)nLocalNodeServices, nTime, addrYou, addrMe,
-            nonce, strSubVersion, nNodeStartingHeight, true, pnode->m_masternode_connection.load(), pnode->sentMNAuthChallenge));
+    // DMN-to-DMN, set auth connection type and create challenge.
+    if (pnode->m_masternode_connection) {
+        uint256 mnauthChallenge;
+        GetRandBytes(mnauthChallenge.begin(), (int) mnauthChallenge.size());
+        WITH_LOCK(pnode->cs_mnauth, pnode->sentMNAuthChallenge = mnauthChallenge);
+        CVectorWriter{SER_NETWORK, 0 | INIT_PROTO_VERSION, version_msg.data, version_msg.data.size(), pnode->sentMNAuthChallenge};
+    }
+
+    connman->PushMessage(pnode, std::move(version_msg));
 
     if (fLogIPs)
         LogPrint(BCLog::NET, "send version message: version %d, blocks=%d, us=%s, them=%s, peer=%d\n", PROTOCOL_VERSION, nNodeStartingHeight, addrMe.ToString(), addrYou.ToString(), nodeid);
@@ -1172,8 +1177,8 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         }
         // Check if this is a quorum connection
         if (!vRecv.empty()) {
-            bool fOtherMasternode = false;
-            vRecv >> fOtherMasternode;
+            WITH_LOCK(pfrom->cs_mnauth, vRecv >> pfrom->receivedMNAuthChallenge;);
+            bool fOtherMasternode = !pfrom->receivedMNAuthChallenge.IsNull();
             if (pfrom->fInbound) {
                 pfrom->m_masternode_connection = fOtherMasternode;
                 if (fOtherMasternode) {
@@ -1185,9 +1190,6 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
                     }
                 }
             }
-        }
-        if (!vRecv.empty()) {
-            WITH_LOCK(pfrom->cs_mnauth, vRecv >> pfrom->receivedMNAuthChallenge;);
         }
 
         // Disconnect if we connected to ourself
