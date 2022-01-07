@@ -959,7 +959,7 @@ class CMerkleBlock:
 class msg_version:
     command = b"version"
 
-    def __init__(self):
+    def __init__(self, mn_auth_challenge = 0):
         self.nVersion = MY_VERSION
         self.nServices = NODE_NETWORK
         self.nTime = int(time.time())
@@ -969,6 +969,7 @@ class msg_version:
         self.strSubVer = MY_SUBVERSION
         self.nStartingHeight = -1
         self.nRelay = MY_RELAY
+        self.mn_auth_challenge = mn_auth_challenge
 
     def deserialize(self, f):
         self.nVersion = struct.unpack("<i", f.read(4))[0]
@@ -1004,6 +1005,13 @@ class msg_version:
         else:
             self.nRelay = 0
 
+        if self.nVersion >= 70925:
+            try:
+                self.mn_auth_challenge = deser_uint256(f)
+            except:
+                self.mn_auth_challenge = 0
+
+
     def serialize(self):
         r = b""
         r += struct.pack("<i", self.nVersion)
@@ -1015,6 +1023,8 @@ class msg_version:
         r += ser_string(self.strSubVer.encode('utf-8'))
         r += struct.pack("<i", self.nStartingHeight)
         r += struct.pack("<b", self.nRelay)
+        if self.mn_auth_challenge != 0:
+            r += ser_uint256(self.mn_auth_challenge)
         return r
 
     def __repr__(self):
