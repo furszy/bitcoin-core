@@ -64,7 +64,9 @@ bool CMasternodeSync::MessageDispatcher(CNode* pfrom, std::string& strCommand, C
         || strCommand == NetMsgType::QCOMPLAINT
         || strCommand == NetMsgType::QJUSTIFICATION
         || strCommand == NetMsgType::QPCOMMITMENT) {
-        llmq::quorumDKGSessionManager->ProcessMessage(pfrom, strCommand, vRecv);
+        if (!llmq::quorumDKGSessionManager->ProcessMessage(pfrom, strCommand, vRecv)) {
+            WITH_LOCK(cs_main, Misbehaving(pfrom->GetId(), 100));
+        }
         return true;
     }
 

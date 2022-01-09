@@ -7,9 +7,7 @@
 
 #include "chainparams.h"
 #include "llmq/quorums_blockprocessor.h"
-#include "llmq/quorums_init.h"
 #include "llmq/quorums_utils.h"
-#include "net_processing.h"
 #include "spork.h"
 #include "validation.h"
 
@@ -54,30 +52,20 @@ void CDKGSessionManager::UpdatedBlockTip(const CBlockIndex* pindexNew, bool fIni
     }
 }
 
-void CDKGSessionManager::ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv)
+bool CDKGSessionManager::ProcessMessage(CNode* pfrom, const std::string& strCommand, CDataStream& vRecv)
 {
-    if (strCommand != NetMsgType::QCONTRIB
-        && strCommand != NetMsgType::QCOMPLAINT
-        && strCommand != NetMsgType::QJUSTIFICATION
-        && strCommand != NetMsgType::QPCOMMITMENT) {
-        return;
-    }
-
     if (vRecv.size() < 1) {
-        LOCK(cs_main);
-        Misbehaving(pfrom->GetId(), 100);
-        return;
+        return false;
     }
 
     // peek into the message and see which LLMQType it is. First byte of all messages is always the LLMQType
     Consensus::LLMQType llmqType = (Consensus::LLMQType)*vRecv.begin();
     if (!dkgSessionHandlers.count(llmqType)) {
-        LOCK(cs_main);
-        Misbehaving(pfrom->GetId(), 100);
-        return;
+        return false;
     }
 
     dkgSessionHandlers.at(llmqType).ProcessMessage(pfrom, strCommand, vRecv);
+    return true;
 }
 
 bool CDKGSessionManager::AlreadyHave(const CInv& inv) const
