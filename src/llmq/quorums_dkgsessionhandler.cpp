@@ -9,7 +9,6 @@
 #include "chainparams.h"
 #include "llmq/quorums_blockprocessor.h"
 #include "llmq/quorums_debug.h"
-#include "llmq/quorums_init.h"
 #include "llmq/quorums_utils.h"
 #include "net_processing.h"
 #include "shutdown.h"
