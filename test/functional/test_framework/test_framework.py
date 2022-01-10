@@ -61,7 +61,8 @@ from .util import (
     set_node_times,
     SPORK_ACTIVATION_TIME,
     SPORK_DEACTIVATION_TIME,
-    satoshi_round
+    satoshi_round,
+    wait_until,
 )
 
 class TestStatus(Enum):
@@ -1335,6 +1336,170 @@ class PivxTestFramework():
         assert_equal(pl["votingAddress"], dmn.voting)
         assert_equal(pl["operatorPubKey"], dmn.operator_pk)
         assert_equal(pl["payoutAddress"], dmn.payee)
+
+# LLMQs
+
+    def get_quorum_connections(self, node, members):
+        conn = []
+        for peer in [p for p in node.getpeerinfo() if p["masternode"]]:
+            x = [m for m in members if m.proTx == peer["verif_mn_proreg_tx_hash"]]
+            if len(x) > 0:
+                conn.append(x[0].idx)
+        return conn
+
+    def wait_for_mn_connections(self, members):
+        def count_mn_conn(n):
+            return len(self.get_quorum_connections(n, members))
+        ql = len(members)
+        wait_until(lambda: [count_mn_conn(self.nodes[mn.idx]) for mn in members] == [ql - 1] * ql)
+        for mn in members:
+            conn = self.get_quorum_connections(self.nodes[mn.idx], members)
+            self.log.info("Authenticated connections to node %d: %s" % (mn.idx, conn))
+
+    def wait_for_dkg_phase(self, phase, quorum_hash, quorum_height, members_online, missing_count):
+        assert_greater_than(missing_count, -1)
+        online_count = len(members_online)
+
+        def check_phase():
+            status = [self.nodes[mn.idx].quorumdkgstatus()["session"]
+                      for mn in members_online]
+            for s in status:
+                if "llmq_test" not in s:
+                    return False
+                s = s["llmq_test"]
+                if (s["quorumHash"] != quorum_hash
+                        or s["quorumHeight"] != quorum_height
+                        or s["phase"] != phase
+                        or s["sentContributions"] != (phase != 1)
+                        or s["sentComplaint"] != (phase > 2 and missing_count > 0)
+                        or s["sentJustification"]
+                        or s["sentPrematureCommitment"] != (phase > 4)
+                        or s["receivedContributions"] != (0 if phase == 1 else online_count)
+                        or s["receivedComplaints"] != (0 if phase <= 2 else (online_count * missing_count))
+                        or s["receivedJustifications"] != 0
+                        or s["receivedPrematureCommitments"] != (0 if phase <= 4 else online_count)):
+                    return False
+            return True
+
+        timeout = time.time() + 60
+        while time.time() < timeout:
+            if check_phase():
+                return  # all good
+            time.sleep(6)
+
+        # Timeout: print the cause
+        self.log.error("Cannot reach phase %d" % phase)
+        for mo in members_online:
+            self.log.error("Checking node %d..." % mo.idx)
+            conn = self.get_quorum_connections(self.nodes[mo.idx], members_online)
+            self.log.error("Connected to: %s" % str(conn))
+            fs = self.nodes[mo.idx].quorumdkgstatus()["session"]
+            assert "llmq_test" in fs
+            fs = fs["llmq_test"]
+            assert_equal(fs["quorumHash"], quorum_hash)
+            assert_equal(fs["quorumHeight"], quorum_height)
+            assert_equal(fs["phase"], phase)
+            assert_equal(fs["sentContributions"], (phase != 1))
+            assert_equal(fs["sentComplaint"], (phase > 2 and missing_count > 0))
+            assert_equal(fs["sentJustification"], False)
+            assert_equal(fs["sentPrematureCommitment"], (phase > 4))
+            assert_equal(fs["receivedContributions"], (0 if phase == 1 else online_count))
+            assert_equal(fs["receivedComplaints"], (0 if phase <= 2 else (online_count * missing_count)))
+            assert_equal(fs["receivedJustifications"], 0)
+            assert_equal(fs["receivedPrematureCommitments"], (0 if phase <= 4 else online_count))
+
+    def get_quorum_members(self, quorum_hash):
+        members = []
+        # preserve getquorummembers order
+        for protx in self.nodes[self.minerPos].getquorummembers(100, quorum_hash):
+            members.append(next(mn for mn in self.mns if mn.proTx == protx))
+        return members
+
+    def check_final_commitment(self, qfc, valid, signers):
+        signersCount = 0
+        signersBitStr = 0
+        for i, s in enumerate(signers):
+            signersCount += s
+            signersBitStr += (s << i)
+        signersBitStr = "0%d" % signersBitStr
+        validCount = 0
+        validBitStr = 0
+        for i, s in enumerate(valid):
+            validCount += s
+            validBitStr += (s << i)
+        validBitStr = "0%d" % validBitStr
+        assert_equal(qfc['version'], 1)
+        assert_equal(qfc['llmqType'], 100)
+        assert_equal(qfc['signersCount'], signersCount)
+        assert_equal(qfc['signers'], signersBitStr)
+        assert_equal(qfc['validMembersCount'], validCount)
+        assert_equal(qfc['validMembers'], validBitStr)
+
+    """
+    Returns pair (qfc, bad_member)
+    qfc        : quorum final commitment json object
+    bad_member : Masternode object for non participating node
+                 (or None if all members participated)
+    """
+    def mine_quorum(self, invalidate_func=None, invalidated_idx=None, skip_bad_member_sync=False):
+        nodes_to_sync = self.nodes.copy()
+        if invalidated_idx:
+            assert invalidate_func is None
+            if skip_bad_member_sync:
+                nodes_to_sync.pop(invalidated_idx)
+        miner = self.nodes[self.minerPos]
+        session_blocks = miner.getblockcount() % 20
+        if session_blocks != 0:
+            miner.generate(20 - session_blocks)
+            self.sync_blocks(nodes_to_sync)
+        quorum_height = miner.getblockcount()
+        self.log.info("New DKG starts at block %d..." % quorum_height)
+        quorum_hash = miner.getblockhash(quorum_height)
+        members = self.get_quorum_members(quorum_hash)
+        self.log.info("members: %s" % str([m.idx for m in members]))
+        bad_member = None
+        mvalid = msigners = [1, 1, 1]
+        if invalidate_func is not None:
+            assert invalidated_idx is None
+            bad_member = members.pop()
+            invalidate_func(self.nodes[bad_member.idx])
+            mvalid[2] = msigners[2] = 0
+            if skip_bad_member_sync:
+                nodes_to_sync.pop(bad_member.idx)
+        elif invalidated_idx in [m.idx for m in members]:
+            bad_member = next(m for m in members if m.idx == invalidated_idx)
+            j = members.index(bad_member)
+            mvalid[j] = msigners[j] = 0
+            members.remove(bad_member)
+        if bad_member is not None:
+            self.log.info("Removed node %d" % bad_member.idx)
+        assert_equal(len(members), 3 if bad_member is None else 2)
+        self.wait_for_mn_connections(members)
+        phase_string = [
+            "1 (Initialization)",
+            "2 (Contribution)",
+            "3 (Complaining)",
+            "4 (Justification)",
+            "5 (Commitment/Finalization)",
+            "6 (Mining)"
+        ]
+        for phase in range(1, 7):
+            self.log.info("Phase %s - block %d" % (phase_string[phase-1], miner.getblockcount()))
+            self.wait_for_dkg_phase(phase,
+                                    quorum_hash,
+                                    quorum_height,
+                                    members,
+                                    missing_count=(0 if bad_member is None else 1))
+            miner.generate(2 if phase != 6 else 1)
+            self.sync_all(nodes_to_sync)
+            time.sleep(1 if phase != 5 else 2)  # sleep a bit more during finalization
+        assert_equal(quorum_height + 11, miner.getblockcount())
+        qfc = miner.getminedcommitment(100, quorum_hash)
+        self.check_final_commitment(qfc, valid=mvalid, signers=msigners)
+        comm_height = miner.getblock(qfc['block_hash'], True)['height']
+        assert_equal(comm_height, quorum_height + 11)
+        self.log.info("Final commitment correctly mined on chain")
+        return qfc, bad_member
 
 
 # ------------------------------------------------------
