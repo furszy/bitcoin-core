@@ -1273,9 +1273,9 @@ void CDKGSession::RelayInvToParticipants(const CInv& inv) const
 {
     LOCK(invCs);
     g_connman->ForEachNode([&](CNode* pnode) {
-        if (!pnode->verifiedProRegTxHash.IsNull() && relayMembers.count(pnode->verifiedProRegTxHash)) {
+        // !TODO: Fix me - if (!pnode->verifiedProRegTxHash.IsNull() && relayMembers.count(pnode->verifiedProRegTxHash)) {
             pnode->PushInventory(inv);
-        }
+        //}
     });
 }
 
