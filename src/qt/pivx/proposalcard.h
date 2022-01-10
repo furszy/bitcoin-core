@@ -8,7 +8,6 @@
 #include "qt/pivx/governancemodel.h"
 
 #include <QGridLayout>
-#include <QProgressBar>
 #include <QWidget>
 
 namespace Ui {
@@ -21,14 +20,14 @@ class ProposalCard : public QWidget
 
 public:
     explicit ProposalCard(QWidget *parent = nullptr);
-    ~ProposalCard();
+    ~ProposalCard() override;
 
     void setProposal(const ProposalInfo& _proposalInfo);
     ProposalInfo getProposal() { return proposalInfo; }
 
     // Update-only functions
     void setNeedsUpdate(bool _update) { needsUpdate = _update; }
-    bool isUpdateNeeded() { return needsUpdate; }
+    bool isUpdateNeeded() const { return needsUpdate; }
 
 public Q_SLOTS:
     void onCopyUrlClicked();

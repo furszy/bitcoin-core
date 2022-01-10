@@ -58,19 +58,19 @@ public:
             endBlock(_endBlock) {}
 
     bool operator==(const ProposalInfo& prop2) const { return id == prop2.id; }
-    bool isFinished() { return status == Status::FINISHED; }
+    bool isFinished() const { return status == Status::FINISHED; }
     std::string statusToStr() const;
 };
 
 struct VoteInfo {
     enum VoteDirection {
-        ABSTAIN=0,
-        YES=1,
-        NO=2
+        ABSTAIN = 0,
+        YES     = 1,
+        NO      = 2
     };
 
     explicit VoteInfo(const COutPoint _mnId, VoteDirection _vote, std::string _mnAlias, int64_t _time) :
-        mnVoter(_mnId), vote(_vote), mnAlias(_mnAlias), time(_time) {}
+        mnVoter(_mnId), vote(_vote), mnAlias(std::move(_mnAlias)), time(_time) {}
     COutPoint mnVoter;
     VoteDirection vote;
     std::string mnAlias;
@@ -143,7 +143,7 @@ public:
 
 public Q_SLOTS:
     void pollGovernanceChanged();
-    void txLoaded(const QString& hash, const int txType, const int txStatus);
+    void txLoaded(const QString& hash, int txType, int txStatus);
 
 private:
     ClientModel* clientModel{nullptr};
