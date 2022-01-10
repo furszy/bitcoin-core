@@ -8,7 +8,7 @@
 #include "budget/budgetutil.h"
 #include "destination_io.h"
 #include "guiconstants.h"
-#include "script/standard.h"
+#include "masternodeman.h"
 #include "qt/transactiontablemodel.h"
 #include "qt/transactionrecord.h"
 #include "qt/pivx/mnmodel.h"
@@ -54,6 +54,7 @@ ProposalInfo GovernanceModel::buildProposalInfo(const CBudgetProposal* prop, boo
     // Calculate status
     int votesYes = prop->GetYeas();
     int votesNo = prop->GetNays();
+    int mnCount = mnodeman.CountEnabled();
     int remainingPayments = prop->GetRemainingPaymentCount(clientModel->getLastBlockProcessedHeight());
     ProposalInfo::Status status;
 
@@ -65,7 +66,7 @@ ProposalInfo GovernanceModel::buildProposalInfo(const CBudgetProposal* prop, boo
             status = ProposalInfo::FINISHED;
         } else if (isPassing) {
             status = ProposalInfo::PASSING;
-        } else if (votesYes > votesNo) {
+        } else if (votesYes - votesNo > mnCount / 10) {
             status = ProposalInfo::PASSING_NOT_FUNDED;
         } else {
             status = ProposalInfo::NOT_PASSING;
