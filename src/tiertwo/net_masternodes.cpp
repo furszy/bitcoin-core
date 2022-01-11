@@ -159,7 +159,8 @@ void TierTwoConnMan::openConnection(const CAddress& addrConnect, bool isProbe)
 
 class PeerData {
 public:
-    PeerData(const CService& s, bool disconnect, bool is_mn_conn) : service(s), f_disconnect(disconnect), f_is_mn_conn(is_mn_conn) {}
+    PeerData(NodeId nodeId, const CService& s, bool disconnect, bool is_mn_conn) : id(nodeId), service(s), f_disconnect(disconnect), f_is_mn_conn(is_mn_conn) {}
+    const NodeId id;
     const CService service;
     bool f_disconnect{false};
     bool f_is_mn_conn{false};
@@ -196,7 +197,7 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         std::vector<PeerData> connectedNodes;
         std::vector<MnService> connectedMnServices;
         connman->ForEachNode([&](const CNode* pnode) {
-            connectedNodes.emplace_back(PeerData{pnode->addr, pnode->fDisconnect, pnode->m_masternode_connection});
+            connectedNodes.emplace_back(PeerData{pnode->GetId(), pnode->addr, pnode->fDisconnect, pnode->m_masternode_connection});
             if (!pnode->verifiedProRegTxHash.IsNull()) {
                 connectedMnServices.emplace_back(MnService{pnode->verifiedProRegTxHash, pnode->fInbound});
             }
@@ -313,6 +314,12 @@ void TierTwoConnMan::ThreadOpenMasternodeConnections()
         // No DMN to connect
         if (!dmnToConnect || interruptNet) {
             continue;
+        }
+
+        // Disconnect in case of non-authenticated connection
+        auto peerToConnectData = std::find(connectedNodes.begin(), connectedNodes.end(), dmnToConnect->pdmnState->addr);
+        if (peerToConnectData != std::end(connectedNodes) && !peerToConnectData->f_is_mn_conn) {
+            g_connman->DisconnectNode(peerToConnectData->id);
         }
 
         // Update last attempt and try connection

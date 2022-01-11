@@ -1794,8 +1794,13 @@ void CConnman::OpenNetworkConnection(const CAddress& addrConnect, bool fCountFai
             FindNode(static_cast<CNetAddr>(addrConnect)) || IsBanned(addrConnect) ||
             FindNode(addrConnect.ToStringIPPort()))
             return;
-    } else if (FindNode(pszDest))
-        return;
+    } else {
+        CNode* pnode = FindNode(pszDest);
+        if (pnode) {
+            // If this is a mnauth connection and the node is being disconnected: open a new connection
+            if (!(masternode_connection && pnode->fDisconnect)) return;
+        }
+    }
 
     CNode* pnode = ConnectNode(addrConnect, pszDest, fCountFailure);
 
