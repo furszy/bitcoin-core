@@ -193,6 +193,7 @@ BITCOIN_CORE_H = \
   flatdb.h \
   llmq/quorums_blockprocessor.h \
   llmq/quorums_commitment.h \
+  llmq/quorums_connections.h \
   llmq/quorums_debug.h \
   llmq/quorums_dkgsessionhandler.h \
   llmq/quorums_dkgsessionmgr.h \
@@ -366,6 +367,7 @@ libbitcoin_server_a_SOURCES = \
   evo/specialtx_validation.cpp \
   llmq/quorums_blockprocessor.cpp \
   llmq/quorums_commitment.cpp \
+  llmq/quorums_connections.cpp \
   llmq/quorums_debug.cpp \
   llmq/quorums_dkgsessionhandler.cpp \
   llmq/quorums_dkgsessionmgr.cpp \

@@ -49,8 +49,8 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "chain -> legacy/stakemodifier -> validation -> checkpoints -> chain"
     "chain -> legacy/stakemodifier -> validation -> undo -> chain"
     "chain -> legacy/stakemodifier -> validation -> pow -> chain"
+    "evo/deterministicmns -> masternodeman -> net -> tiertwo/net_masternodes -> evo/deterministicmns"
     "evo/deterministicmns -> masternodeman -> validation -> validationinterface -> evo/deterministicmns"
-    "evo/deterministicmns -> llmq/quorums_utils -> net -> tiertwo/net_masternodes -> evo/deterministicmns"
 )
 
 EXIT_CODE=0

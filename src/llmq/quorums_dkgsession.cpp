@@ -10,13 +10,14 @@
 #include "cxxtimer.hpp"
 #include "evo/specialtx_validation.h"
 #include "init.h"
+#include "llmq/quorums_connections.h"
 #include "llmq/quorums_commitment.h"
 #include "llmq/quorums_debug.h"
 #include "llmq/quorums_dkgsessionmgr.h"
-#include "llmq/quorums_utils.h"
 #include "net.h"
 #include "netmessagemaker.h"
 #include "spork.h"
+#include "tiertwo/masternode_meta_manager.h"
 #include "univalue.h"
 #include "validation.h"
 
@@ -126,7 +127,7 @@ bool CDKGSession::Init(const CBlockIndex* _pindexQuorum, const std::vector<CDete
         LogPrint(BCLog::DKG, "CDKGSession::%s: initialized as observer. mns=%d\n", __func__, mns.size());
     } else {
         quorumDKGDebugManager->InitLocalSessionStatus(params.type, pindexQuorum->GetBlockHash(), pindexQuorum->nHeight);
-        relayMembers = deterministicMNManager->GetQuorumRelayMembers(params.type, pindexQuorum);
+        relayMembers = GetQuorumRelayMembers(params.type, pindexQuorum, myProTxHash, true);
         LogPrint(BCLog::DKG, "CDKGSession::%s: initialized as member. mns=%d\n", __func__, mns.size());
     }
 
@@ -435,7 +436,43 @@ void CDKGSession::VerifyAndComplain(CDKGPendingMessages& pendingMessages)
     logger.Batch("verified contributions. time=%d", t1.count());
     logger.Flush();
 
+    VerifyConnectionAndMinProtoVersions();
+
     SendComplaint(pendingMessages);
+}
+
+void CDKGSession::VerifyConnectionAndMinProtoVersions()
+{
+    CDKGLogger logger(*this, __func__);
+
+    std::unordered_map<uint256, int, StaticSaltedHasher> protoMap;
+    g_connman->ForEachNode([&](const CNode* pnode) {
+        if (pnode->verifiedProRegTxHash.IsNull()) {
+            return;
+        }
+        protoMap.emplace(pnode->verifiedProRegTxHash, pnode->nVersion);
+    });
+
+    for (auto& m : members) {
+        if (m->dmn->proTxHash == myProTxHash) {
+            continue;
+        }
+
+        auto it = protoMap.find(m->dmn->proTxHash);
+        if (it == protoMap.end()) {
+            m->bad = true;
+            logger.Batch("%s is not connected to us, badConnection=%b", m->dmn->proTxHash.ToString(), m->bad);
+        } else if (it != protoMap.end() && it->second < MNAUTH_NODE_VER_VERSION) {
+            m->bad = true;
+            logger.Batch("%s does not have min proto version %d (has %d)", m->dmn->proTxHash.ToString(), MNAUTH_NODE_VER_VERSION, it->second);
+        }
+
+        auto lastOutbound = g_mmetaman.GetMetaInfo(m->dmn->proTxHash)->GetLastOutboundSuccess();
+        if (GetAdjustedTime() - lastOutbound > 60 * 60) {
+            m->bad = true;
+            logger.Batch("%s no outbound connection since %d seconds", m->dmn->proTxHash.ToString(), GetAdjustedTime() - lastOutbound);
+        }
+    }
 }
 
 void CDKGSession::SendComplaint(CDKGPendingMessages& pendingMessages)

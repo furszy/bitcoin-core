@@ -10,7 +10,7 @@
 #include "consensus/validation.h"
 #include "net.h" // for CSerializedNetMsg
 #include "netmessagemaker.h"
-#include "llmq/quorums_utils.h"
+#include "llmq/quorums_connections.h"
 #include "tiertwo/masternode_meta_manager.h"
 #include "tiertwo/net_masternodes.h"
 #include "tiertwo/tiertwo_sync_state.h"
@@ -142,7 +142,7 @@ bool CMNAuth::ProcessMessage(CNode* pnode, const std::string& strCommand, CDataS
 
             if (pnode2->verifiedProRegTxHash == mnauth.proRegTxHash) {
                 if (fMasterNode) {
-                    auto deterministicOutbound = llmq::utils::DeterministicOutboundConnection(activeMnInfo->proTxHash, mnauth.proRegTxHash);
+                    auto deterministicOutbound = llmq::DeterministicOutboundConnection(activeMnInfo->proTxHash, mnauth.proRegTxHash);
                     LogPrint(BCLog::NET_MN, "CMNAuth::ProcessMessage -- Masternode %s has already verified as peer %d, deterministicOutbound=%s. peer=%d\n",
                              mnauth.proRegTxHash.ToString(), pnode2->GetId(), deterministicOutbound.ToString(), pnode->GetId());
                     if (deterministicOutbound == activeMnInfo->proTxHash) {

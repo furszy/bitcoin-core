@@ -591,7 +591,6 @@ public:
 
     // Get the list of members for a given quorum type and index
     std::vector<CDeterministicMNCPtr> GetAllQuorumMembers(Consensus::LLMQType llmqType, const CBlockIndex* pindexQuorum);
-    std::set<uint256> GetQuorumRelayMembers(Consensus::LLMQType llmqType, const CBlockIndex* pindexQuorum);
 
 private:
     void CleanupCache(int nHeight);

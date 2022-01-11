@@ -6,7 +6,6 @@
 #define PIVX_QUORUMS_UTILS_H
 
 #include "consensus/params.h"
-#include "net.h"
 
 #include <vector>
 
@@ -27,11 +26,7 @@ uint256 BuildSignHash(const T& s)
    return BuildSignHash((Consensus::LLMQType)s.llmqType, s.quorumHash, s.id, s.msgHash);
 }
 
-// Deterministically selects which node should initiate the mnauth process
-uint256 DeterministicOutboundConnection(const uint256& proTxHash1, const uint256& proTxHash2);
-
 std::string ToHexStr(const std::vector<bool>& vBits);
-
 } // namespace llmq::utils
 
 } // namespace llmq
