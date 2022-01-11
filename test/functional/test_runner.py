@@ -59,45 +59,47 @@ BASE_SCRIPTS= [
     # Longest test should go first, to favor running tests in parallel
     'wallet_basic.py',                          # ~ 498 sec
     'wallet_backup.py',                         # ~ 477 sec
-    'wallet_reorgsrestore.py',                  # ~ 391 sec
     'mempool_persist.py',                       # ~ 417 sec
+    'p2p_quorum_connect.py',                    # ~ 400 sec
+    'wallet_reorgsrestore.py',                  # ~ 391 sec
 
     # vv Tests less than 5m vv
     'wallet_hd.py',                             # ~ 300 sec
     'wallet_zapwallettxes.py',                  # ~ 300 sec
+    'feature_asmap.py',                         # ~ 271 sec
     'p2p_time_offset.py',                       # ~ 267 sec
     'rpc_fundrawtransaction.py',                # ~ 227 sec
     'mining_pos_coldStaking.py',                # ~ 220 sec
     'wallet_import_rescan.py',                  # ~ 204 sec
-    'rpc_bind.py --ipv4',
-    'rpc_bind.py --ipv6',
-    'rpc_bind.py --nonloopback',
     'p2p_invalid_block.py',                     # ~ 213 sec
-    'p2p_addr_relay.py',
-    'p2p_addrv2_relay.py',
-    'p2p_invalid_messages.py',
-    'p2p_quorum_connect.py',
     'feature_reindex.py',                       # ~ 205 sec
     'feature_logging.py',                       # ~ 195 sec
     'wallet_multiwallet.py',                    # ~ 190 sec
+    'rpc_bind.py --ipv6',                       # ~ 191 sec
     'wallet_abandonconflict.py',                # ~ 188 sec
     'feature_blockindexstats.py',               # ~ 167 sec
     'wallet_importmulti.py',                    # ~ 157 sec
     'wallet_keypool_topup.py',                  # ~ 153 sec
+    'rpc_bind.py --ipv4',                       # ~ 151 sec
     'rpc_spork.py',                             # ~ 144 sec
     'wallet_txn_doublespend.py --mineblock',    # ~ 143 sec
     'wallet_txn_clone.py --mineblock',          # ~ 143 sec
     'feature_block.py',                         # ~ 140 sec
     'feature_proxy.py',                         # ~ 138 sec
     'rpc_rawtransaction.py',                    # ~ 134 sec
+    'p2p_invalid_messages.py',                  # ~ 132 sec
     'mining_pos_reorg.py',                      # ~ 128 sec
+    'rpc_bind.py --nonloopback',                # ~ 126 sec
     'feature_uacomment.py',                     # ~ 125 sec
     'interface_rest.py',                        # ~ 120 sec
 
     # vv Tests less than 2m vv
     'wallet_upgrade.py',                        # ~ 119 sec
     'p2p_disconnect_ban.py',                    # ~ 118 sec
+    'feature_notifications.py',                 # ~ 115 sec
+    'rpc_invalidateblock.py',                   # ~ 107 sec
     'interface_http.py',                        # ~ 105 sec
+    'feature_abortnode.py',                     # ~ 101 sec
     'feature_blockhashcache.py',                # ~ 100 sec
     'p2p_invalid_tx.py',                        # ~ 98 sec
     'wallet_listtransactions.py',               # ~ 97 sec
@@ -115,6 +117,7 @@ BASE_SCRIPTS= [
     'rpc_bip38.py',                             # ~ 82 sec
     'rpc_deprecated.py',                        # ~ 80 sec
     'interface_bitcoin_cli.py',                 # ~ 80 sec
+    'feature_filelock.py',                      # ~ 71 sec
     'mempool_packages.py',                      # ~ 63 sec
     'sapling_wallet_encryption.py',
 
@@ -122,22 +125,22 @@ BASE_SCRIPTS= [
     'rpc_users.py',
     'wallet_labels.py',                         # ~ 57 sec
     'rpc_signmessage.py',                       # ~ 54 sec
+    'p2p_leak.py',                              # ~ 54 sec
+    'wallet_resendwallettransactions.py',       # ~ 53 sec
     'mempool_resurrect.py',                     # ~ 51 sec
     'rpc_budget.py',                            # ~ 50 sec
     'mempool_spend_coinbase.py',                # ~ 50 sec
     'rpc_signrawtransaction.py',                # ~ 50 sec
     'rpc_decodescript.py',                      # ~ 50 sec
     'rpc_blockchain.py',                        # ~ 50 sec
-    'wallet_resendwallettransactions.py',
-    'feature_asmap.py',
     'wallet_disable.py',                        # ~ 50 sec
+    'p2p_addr_relay.py',                        # ~ 49 sec
+    'p2p_addrv2_relay.py',                      # ~ 49 sec
     'wallet_autocombine.py',                    # ~ 49 sec
     'mining_v5_upgrade.py',                     # ~ 48 sec
     'p2p_timeouts.py',
     'p2p_mempool.py',                           # ~ 46 sec
     'rpc_named_arguments.py',                   # ~ 45 sec
-    'p2p_leak.py',
-    'feature_filelock.py',
     'feature_help.py',                          # ~ 30 sec
 
     # Don't append tests at the end to avoid merge conflicts
@@ -156,15 +159,15 @@ BASE_SCRIPTS= [
 
 TIERTWO_SCRIPTS = [
     # Longest test should go first, to favor running tests in parallel
-    'tiertwo_governance_sync_basic.py',         # ~ 445 sec
+    'tiertwo_governance_sync_basic.py',         # ~ 1160 sec
+    'tiertwo_dkg_pose.py',                      # ~ 444 sec
     'tiertwo_mn_compatibility.py',              # ~ 413 sec
     'tiertwo_deterministicmns.py',              # ~ 366 sec
     'tiertwo_governance_reorg.py',              # ~ 361 sec
     'tiertwo_masternode_activation.py',         # ~ 352 sec
     'tiertwo_masternode_ping.py',               # ~ 293 sec
+    'tiertwo_governance_invalid_budget.py',     # ~ 266 sec
     'tiertwo_reorg_mempool.py',                 # ~ 97 sec
-    'tiertwo_governance_invalid_budget.py',
-    'tiertwo_dkg_pose.py',
 ]
 
 SAPLING_SCRIPTS = [
@@ -193,11 +196,8 @@ EXTENDED_SCRIPTS = [
     # vv Tests less than 2m vv
     # vv Tests less than 60s vv
     #'p2p_feefilter.py',
-    'feature_abortnode.py',
     # vv Tests less than 30s vv
     #'example_test.py',
-    'feature_notifications.py',
-    'rpc_invalidateblock.py',
 ]
 
 LEGACY_SKIP_TESTS = [
