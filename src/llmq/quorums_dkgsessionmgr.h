@@ -6,7 +6,7 @@
 #ifndef PIVX_QUORUMS_DKGSESSIONMGR_H
 #define PIVX_QUORUMS_DKGSESSIONMGR_H
 
-#include "ctpl.h"
+#include "ctpl_stl.h"
 #include "llmq/quorums_dkgsessionhandler.h"
 #include "validation.h"
 

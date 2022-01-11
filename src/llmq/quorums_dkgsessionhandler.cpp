@@ -527,11 +527,11 @@ void CDKGSessionHandler::HandleDKGRound()
         return changed;
     });
 
-    /* TODO
-    if (curSession->AreWeMember()) {
-        utils::EnsureQuorumConnections(params.type, pindexQuorum, curSession->myProTxHash);
+    if (!utils::EnsureQuorumConnections(params.type, pindexQuorum, curSession->myProTxHash)) {
     }
-    */
+    if (curSession->AreWeMember()) {
+        utils::AddQuorumProbeConnections(params.type, pindexQuorum, curSession->myProTxHash);
+    }
 
     WaitForNextPhase(QuorumPhase_Initialized, QuorumPhase_Contribute, curQuorumHash, []{return false;});
 
