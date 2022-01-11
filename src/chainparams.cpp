@@ -624,7 +624,7 @@ public:
 
         // long living quorum params
         consensus.llmqs[Consensus::LLMQ_TEST] = llmq_test;
-        nLLMQConnectionRetryTimeout = 5;
+        nLLMQConnectionRetryTimeout = 10;
     }
 
     const CCheckpointData& Checkpoints() const
