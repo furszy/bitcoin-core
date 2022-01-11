@@ -49,6 +49,40 @@ UniValue getminedcommitment(const JSONRPCRequest& request)
     return ret;
 }
 
+UniValue getquorummembers(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 2) {
+        throw std::runtime_error(
+                "getquorummembers llmq_type quorum_hash\n"
+                "Return the list of proTx hashes for given quorum.\n"
+                "\nArguments:\n"
+                "1. llmq_type         (number, required) LLMQ type.\n"
+                "2. quorum_hash       (hex string, required) LLMQ hash.\n"
+                "\nExamples:\n"
+                + HelpExampleRpc("getquorummembers", "2 \"xxx\"")
+                + HelpExampleCli("getquorummembers", "2, \"xxx\"")
+        );
+    }
+
+    Consensus::LLMQType llmq_type = (Consensus::LLMQType) request.params[0].get_int();
+    if (!Params().GetConsensus().llmqs.count(llmq_type)) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid llmq_type");
+    }
+
+    const uint256& quorum_hash = ParseHashV(request.params[1], "quorum_hash");
+    const CBlockIndex* pindexQuorum = WITH_LOCK(cs_main, return LookupBlockIndex(quorum_hash));
+    if (pindexQuorum == nullptr) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid quorum_hash");
+    }
+
+    auto mns = deterministicMNManager->GetAllQuorumMembers(llmq_type, pindexQuorum);
+    UniValue ret(UniValue::VARR);
+    for (const auto& dmn : mns) {
+        ret.push_back(dmn->proTxHash.ToString());
+    }
+    return ret;
+}
+
 UniValue quorumdkgstatus(const JSONRPCRequest& request)
 {
     if (request.fHelp || request.params.size() > 1) {
@@ -99,6 +133,7 @@ static const CRPCCommand commands[] =
 { //  category       name                      actor (function)      okSafe argNames
   //  -------------- ------------------------- --------------------- ------ --------
     { "evo",         "getminedcommitment",     &getminedcommitment,  true,  {"llmq_type", "quorum_hash"}  },
+    { "evo",         "getquorummembers",       &getquorummembers,    true,  {"llmq_type", "quorum_hash"}  },
     { "evo",         "quorumdkgstatus",        &quorumdkgstatus,     true,  {"detail_level"}  },
 };
 

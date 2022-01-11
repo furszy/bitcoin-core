@@ -66,6 +66,7 @@ static const CRPCConvertParam vRPCConvertParams[] = {
     { "getnetworkhashps", 0, "nblocks" },
     { "getnetworkhashps", 1, "height" },
     { "getnodeaddresses", 0, "count" },
+    { "getquorummembers", 0, "llmq_type" },
     { "getrawmempool", 0, "verbose" },
     { "getrawtransaction", 1, "verbose" },
     { "getreceivedbyaddress", 1, "minconf" },
