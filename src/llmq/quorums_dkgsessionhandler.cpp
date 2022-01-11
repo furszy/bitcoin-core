@@ -8,8 +8,8 @@
 #include "activemasternode.h"
 #include "chainparams.h"
 #include "llmq/quorums_blockprocessor.h"
+#include "llmq/quorums_connections.h"
 #include "llmq/quorums_debug.h"
-#include "llmq/quorums_utils.h"
 #include "net_processing.h"
 #include "shutdown.h"
 #include "util/threadnames.h"
@@ -522,11 +522,10 @@ void CDKGSessionHandler::HandleDKGRound()
         return changed;
     });
 
-    /* TODO
+    EnsureQuorumConnections(params.type, pindexQuorum, curSession->myProTxHash);
     if (curSession->AreWeMember()) {
-        utils::EnsureQuorumConnections(params.type, pindexQuorum, curSession->myProTxHash);
+        AddQuorumProbeConnections(params.type, pindexQuorum, curSession->myProTxHash);
     }
-    */
 
     WaitForNextPhase(QuorumPhase_Initialized, QuorumPhase_Contribute, curQuorumHash, []{return false;});
 
