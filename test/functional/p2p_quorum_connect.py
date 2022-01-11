@@ -14,9 +14,11 @@ from test_framework.util import (
     assert_equal,
     assert_true,
     bytes_to_hex_str,
+    connect_nodes,
     connect_nodes_clique,
     hash256,
     hex_str_to_bytes,
+    p2p_port,
     wait_until,
 )
 
@@ -130,6 +132,12 @@ class DMNConnectionTest(PivxTestFramework):
         peer_info = node.getpeerinfo()
         return (len(peer_info) == 1) and (peer_info[0]["verif_mn_proreg_tx_hash"] == expected_proreg_tx_hash)
 
+    def has_regular_connection(self, node, node_expected_addr):
+        for peer in node.getpeerinfo():
+            if peer["addr"] == node_expected_addr and not peer["masternode"]:
+                return True
+        return False
+
     def run_test(self):
         self.disable_mocktime()
         self.miner = self.nodes[self.minerPos]
@@ -224,6 +232,32 @@ class DMNConnectionTest(PivxTestFramework):
         assert_equal(len(self.miner.getpeerinfo()), 0)
         self.log.info("Regular node disconnected auth connection successfully")
 
+        ######################################################################################
+        # 6) Now test quorum members connected between each other through a regular connection
+        ######################################################################################
+        self.log.info("6) Now test quorum members connected between each other through a regular connection..")
+        # Connect them between each other
+        mn5_node = self.nodes[mn5.idx]
+        mn6_node = self.nodes[mn6.idx]
+        self.disconnect_peers(mn5_node)
+        self.disconnect_peers(mn6_node)
+        connect_nodes(mn5_node, mn6.idx)
+        mn6_net_address = "127.0.0.1:" + str(p2p_port(mn6.idx))
+        # Now check that they are not connected through an authenticated connection
+        wait_until(lambda: self.has_regular_connection(mn5_node, mn6_net_address), timeout=60)
+
+        # Now update the connection, making them quorum members.
+        self.log.info("no auth connection, good. setting quorum members..")
+        quorum_members = [mn5.proTx, mn6.proTx]
+        block_hash = mn5_node.getbestblockhash()
+        assert mn5_node.mnconnect("iqr_members_conn", quorum_members, 1, block_hash)
+        assert mn5_node.mnconnect("quorum_members_conn", quorum_members, 1, block_hash)
+        assert mn6_node.mnconnect("iqr_members_conn", quorum_members, 1, block_hash)
+        self.log.info("checking, quorum members auth connections..")
+        time.sleep(10) # wait a bit to establish the connection and receive the mnauth
+        self.check_peers_info(mn5_node.getpeerinfo(), [mn6], is_iqr_conn=True)
+        self.check_peers_info(mn6_node.getpeerinfo(), [mn5], is_iqr_conn=True, inbound=True)
+        self.log.info("all good, DMN-to-DMN auth connection established!")
 
 if __name__ == '__main__':
     DMNConnectionTest().main()
