@@ -422,8 +422,6 @@ static bool CheckProUpRevTx(const CTransaction& tx, const CBlockIndex* pindexPre
 // LLMQ final commitment Payload
 bool VerifyLLMQCommitment(const llmq::CFinalCommitment& qfc, const CBlockIndex* pindexPrev, CValidationState& state)
 {
-    AssertLockHeld(cs_main);
-
     // Check version
     if (qfc.nVersion == 0 || qfc.nVersion > llmq::CFinalCommitment::CURRENT_VERSION) {
         return state.DoS(100, false, REJECT_INVALID, "bad-qc-quorum-version");
@@ -441,6 +439,8 @@ bool VerifyLLMQCommitment(const llmq::CFinalCommitment& qfc, const CBlockIndex* 
     }
 
     if (pindexPrev) {
+        AssertLockHeld(cs_main);
+
         // Get quorum index
         auto it = mapBlockIndex.find(qfc.quorumHash);
         if (it == mapBlockIndex.end()) {
@@ -476,8 +476,6 @@ bool VerifyLLMQCommitment(const llmq::CFinalCommitment& qfc, const CBlockIndex* 
 
 static bool CheckLLMQCommitmentTx(const CTransaction& tx, const CBlockIndex* pindexPrev, CValidationState& state)
 {
-    AssertLockHeld(cs_main);
-
     llmq::LLMQCommPL pl;
     if (!GetTxPayload(tx, pl)) {
         return state.DoS(100, false, REJECT_INVALID, "bad-qc-payload");
@@ -547,6 +545,8 @@ bool CheckSpecialTx(const CTransaction& tx, const CBlockIndex* pindexPrev, const
         return false;
     }
     if (pindexPrev) {
+        AssertLockHeld(cs_main);
+
         // reject special transactions before enforcement
         if (!tx.IsNormalType() && !Params().GetConsensus().NetworkUpgradeActive(pindexPrev->nHeight + 1, Consensus::UPGRADE_V6_0)) {
             return state.DoS(100, error("%s: Special tx when v6 upgrade not enforced yet", __func__),
