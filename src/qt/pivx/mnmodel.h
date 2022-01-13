@@ -62,6 +62,13 @@ public:
     // Generates the collateral transaction
     bool createMNCollateral(const QString& alias, const QString& addr, COutPoint& ret_outpoint, QString& ret_error);
 
+    CMasternodeConfig::CMasternodeEntry* createLegacyMN(COutPoint& collateralOut,
+                                                        const std::string& alias,
+                                                        std::string& serviceAddr,
+                                                        const std::string& port,
+                                                        const std::string& mnKeyString,
+                                                        QString& ret_error);
+
 private:
     WalletModel* walletModel;
     // alias mn node ---> pair <ip, master node>

@@ -5,17 +5,11 @@
 #include "qt/pivx/masternodewizarddialog.h"
 #include "qt/pivx/forms/ui_masternodewizarddialog.h"
 
-#include "activemasternode.h"
 #include "key_io.h"
-#include "optionsmodel.h"
 #include "qt/pivx/mnmodel.h"
-#include "qt/pivx/guitransactionsutils.h"
 #include "qt/pivx/qtutils.h"
-#include "qt/walletmodeltransaction.h"
 
-#include <QFile>
 #include <QIntValidator>
-#include <QHostAddress>
 #include <QRegularExpression>
 
 static inline QString formatParagraph(const QString& str) {
@@ -175,23 +169,12 @@ bool MasterNodeWizardDialog::createMN()
         return false;
     }
 
-    /**
-     *
-    1) generate the mn key.
-    2) create the mn address.
-    3) if there is a valid (unlocked) collateral utxo, use it
-    4) otherwise create a receiving address and send a tx with 10k to it.
-    5) get the collateral output.
-    6) use those values on the masternode.conf
-     */
-
     // validate IP address
     QString addressLabel = ui->lineEditName->text();
     if (addressLabel.isEmpty()) {
         returnStr = tr("address label cannot be empty");
         return false;
     }
-    std::string alias = addressLabel.toStdString();
 
     QString addressStr = ui->lineEditIpAddress->text();
     QString portStr = ui->lineEditPort->text();
@@ -204,7 +187,7 @@ bool MasterNodeWizardDialog::createMN()
         return false;
     }
 
-    // ip + port
+    std::string alias = addressLabel.toStdString();
     std::string ipAddress = addressStr.toStdString();
     std::string port = portStr.toStdString();
 
@@ -222,109 +205,26 @@ bool MasterNodeWizardDialog::createMN()
         auto r = walletModel->getNewAddress(alias);
         if (!r) {
             // generate address fail
-            inform(tr(r.getError().c_str()));
+            returnStr = tr(r.getError().c_str());
             return false;
         }
 
-        QString errorStr;
         if (!mnModel->createMNCollateral(addressLabel,
                                          QString::fromStdString(r.getObjResult()->ToString()),
                                          collateralOut,
-                                         errorStr)) {
-            inform(errorStr);
+                                         returnStr)) {
+            // error str set internally
             return false;
         }
     }
 
-    // Update the conf file
-    std::string strConfFile = "masternode.conf";
-    std::string strDataDir = GetDataDir().string();
-    fs::path conf_file_path(strConfFile);
-    if (strConfFile != conf_file_path.filename().string()) {
-        throw std::runtime_error(strprintf(_("masternode.conf %s resides outside data directory %s"), strConfFile, strDataDir));
-    }
-
-    fs::path pathBootstrap = GetDataDir() / strConfFile;
-    if (!fs::exists(pathBootstrap)) {
-        returnStr = tr("masternode.conf file doesn't exists");
+    mnEntry = mnModel->createLegacyMN(collateralOut, alias, ipAddress, port, mnKeyString, returnStr);
+    if (!mnEntry) {
+        // error str set inside createLegacyMN
         return false;
     }
 
-    fs::path pathMasternodeConfigFile = GetMasternodeConfigFile();
-    fsbridge::ifstream streamConfig(pathMasternodeConfigFile);
-
-    if (!streamConfig.good()) {
-        returnStr = tr("Invalid masternode.conf file");
-        return false;
-    }
-
-    int linenumber = 1;
-    std::string lineCopy = "";
-    for (std::string line; std::getline(streamConfig, line); linenumber++) {
-        if (line.empty()) continue;
-
-        std::istringstream iss(line);
-        std::string comment, alias, ip, privKey, txHash, outputIndex;
-
-        if (iss >> comment) {
-            if (comment.at(0) == '#') continue;
-            iss.str(line);
-            iss.clear();
-        }
-
-        if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
-            iss.str(line);
-            iss.clear();
-            if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
-                streamConfig.close();
-                returnStr = tr("Error parsing masternode.conf file");
-                return false;
-            }
-        }
-        lineCopy += line + "\n";
-    }
-
-    if (lineCopy.size() == 0) {
-        lineCopy = "# Masternode config file\n"
-                   "# Format: alias IP:port masternodeprivkey collateral_output_txid collateral_output_index\n"
-                   "# Example: mn1 127.0.0.2:51472 93HaYBVUCYjEMeeH1Y4sBGLALQZE1Yc1K64xiqgX37tGBDQL8Xg 2bcd3c84c84f87eaa86e4e56834c92927a07f9e18718810b92e0d0324456a67c 0"
-                   "#";
-    }
-    lineCopy += "\n";
-
-    streamConfig.close();
-
-    std::string txID = collateralOut.hash.ToString();
-    std::string indexOutStr = std::to_string(collateralOut.n);
-
-    // Check IP address type
-    QHostAddress hostAddress(addressStr);
-    QAbstractSocket::NetworkLayerProtocol layerProtocol = hostAddress.protocol();
-    if (layerProtocol == QAbstractSocket::IPv6Protocol) {
-        ipAddress = "["+ipAddress+"]";
-    }
-
-    fs::path pathConfigFile = AbsPathForConfigVal(fs::path("masternode_temp.conf"));
-    FILE* configFile = fopen(pathConfigFile.string().c_str(), "w");
-    lineCopy += alias+" "+ipAddress+":"+port+" "+mnKeyString+" "+txID+" "+indexOutStr+"\n";
-    fwrite(lineCopy.c_str(), std::strlen(lineCopy.c_str()), 1, configFile);
-    fclose(configFile);
-
-    fs::path pathOldConfFile = AbsPathForConfigVal(fs::path("old_masternode.conf"));
-    if (fs::exists(pathOldConfFile)) {
-        fs::remove(pathOldConfFile);
-    }
-    rename(pathMasternodeConfigFile, pathOldConfFile);
-
-    fs::path pathNewConfFile = AbsPathForConfigVal(fs::path("masternode.conf"));
-    rename(pathConfigFile, pathNewConfFile);
-
-    mnEntry = masternodeConfig.add(alias, ipAddress+":"+port, mnKeyString, txID, indexOutStr);
-
-    // Lock collateral output
-    walletModel->lockCoin(collateralOut);
-
-    returnStr = tr("Master node created! Wait %1 confirmations before starting it.").arg(MasternodeCollateralMinConf());
+    returnStr = tr("Masternode created! Wait %1 confirmations before starting it.").arg(MasternodeCollateralMinConf());
     return true;
 }
 

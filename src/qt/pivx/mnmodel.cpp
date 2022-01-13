@@ -15,6 +15,9 @@
 #include "qt/walletmodel.h"
 #include "qt/walletmodeltransaction.h"
 
+#include <QFile>
+#include <QHostAddress>
+
 MNModel::MNModel(QObject *parent) : QAbstractTableModel(parent) {}
 
 void MNModel::init()
@@ -257,4 +260,101 @@ bool MNModel::createMNCollateral(
     // save the collateral outpoint
     ret_outpoint = COutPoint(walletTx->GetHash(), indexOut);
     return true;
+}
+
+CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collateralOut,
+                             const std::string& alias,
+                             std::string& serviceAddr,
+                             const std::string& port,
+                             const std::string& mnKeyString,
+                             QString& ret_error)
+{
+    // Update the conf file
+    std::string strConfFile = "masternode.conf";
+    std::string strDataDir = GetDataDir().string();
+    fs::path conf_file_path(strConfFile);
+    if (strConfFile != conf_file_path.filename().string()) {
+        throw std::runtime_error(strprintf(_("masternode.conf %s resides outside data directory %s"), strConfFile, strDataDir));
+    }
+
+    fs::path pathBootstrap = GetDataDir() / strConfFile;
+    if (!fs::exists(pathBootstrap)) {
+        ret_error = tr("masternode.conf file doesn't exists");
+        return nullptr;
+    }
+
+    fs::path pathMasternodeConfigFile = GetMasternodeConfigFile();
+    fsbridge::ifstream streamConfig(pathMasternodeConfigFile);
+
+    if (!streamConfig.good()) {
+        ret_error = tr("Invalid masternode.conf file");
+        return nullptr;
+    }
+
+    int linenumber = 1;
+    std::string lineCopy = "";
+    for (std::string line; std::getline(streamConfig, line); linenumber++) {
+        if (line.empty()) continue;
+
+        std::istringstream iss(line);
+        std::string comment, alias, ip, privKey, txHash, outputIndex;
+
+        if (iss >> comment) {
+            if (comment.at(0) == '#') continue;
+            iss.str(line);
+            iss.clear();
+        }
+
+        if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
+            iss.str(line);
+            iss.clear();
+            if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
+                streamConfig.close();
+                ret_error = tr("Error parsing masternode.conf file");
+                return nullptr;
+            }
+        }
+        lineCopy += line + "\n";
+    }
+
+    if (lineCopy.size() == 0) {
+        lineCopy = "# Masternode config file\n"
+                   "# Format: alias IP:port masternodeprivkey collateral_output_txid collateral_output_index\n"
+                   "# Example: mn1 127.0.0.2:51472 93HaYBVUCYjEMeeH1Y4sBGLALQZE1Yc1K64xiqgX37tGBDQL8Xg 2bcd3c84c84f87eaa86e4e56834c92927a07f9e18718810b92e0d0324456a67c 0"
+                   "#";
+    }
+    lineCopy += "\n";
+
+    streamConfig.close();
+
+    std::string txID = collateralOut.hash.ToString();
+    std::string indexOutStr = std::to_string(collateralOut.n);
+
+    // Check IP address type
+    QHostAddress hostAddress(QString::fromStdString(serviceAddr));
+    QAbstractSocket::NetworkLayerProtocol layerProtocol = hostAddress.protocol();
+    if (layerProtocol == QAbstractSocket::IPv6Protocol) {
+        serviceAddr = "["+serviceAddr+"]";
+    }
+
+    fs::path pathConfigFile = AbsPathForConfigVal(fs::path("masternode_temp.conf"));
+    FILE* configFile = fopen(pathConfigFile.string().c_str(), "w");
+    lineCopy += alias+" "+serviceAddr+":"+port+" "+mnKeyString+" "+txID+" "+indexOutStr+"\n";
+    fwrite(lineCopy.c_str(), std::strlen(lineCopy.c_str()), 1, configFile);
+    fclose(configFile);
+
+    fs::path pathOldConfFile = AbsPathForConfigVal(fs::path("old_masternode.conf"));
+    if (fs::exists(pathOldConfFile)) {
+        fs::remove(pathOldConfFile);
+    }
+    rename(pathMasternodeConfigFile, pathOldConfFile);
+
+    fs::path pathNewConfFile = AbsPathForConfigVal(fs::path("masternode.conf"));
+    rename(pathConfigFile, pathNewConfFile);
+
+    auto ret_mn_entry = masternodeConfig.add(alias, serviceAddr+":"+port, mnKeyString, txID, indexOutStr);
+
+    // Lock collateral output
+    walletModel->lockCoin(collateralOut);
+    return ret_mn_entry;
 }
