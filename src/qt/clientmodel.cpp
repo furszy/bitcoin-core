@@ -75,10 +75,11 @@ int ClientModel::getNumConnections(unsigned int flags) const
     return 0;
 }
 
-QString ClientModel::getMasternodeCountString() const
+QString ClientModel::getMasternodeCountString()
 {
     const auto& info = mnodeman.getMNsInfo();
     int unknown = std::max(0, info.total - info.ipv4 - info.ipv6 - info.onion);
+    m_cached_masternodes_count = info.total;
     return tr("Total: %1 (IPv4: %2 / IPv6: %3 / Tor: %4 / Unknown: %5)").arg(QString::number(info.total))
                                                                         .arg(QString::number(info.ipv4))
                                                                         .arg(QString::number(info.ipv6))
@@ -86,7 +87,7 @@ QString ClientModel::getMasternodeCountString() const
                                                                         .arg(QString::number(unknown));
 }
 
-QString ClientModel::getMasternodesCount()
+QString ClientModel::getMasternodesCountString()
 {
     if (!cachedMasternodeCountString.isEmpty()) {
         return cachedMasternodeCountString;

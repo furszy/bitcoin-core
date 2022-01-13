@@ -204,7 +204,7 @@ void SettingsInformationWidget::run(int type)
 {
     if (type == REQUEST_UPDATE_COUNTS) {
         QMetaObject::invokeMethod(this, "setMasternodeCount",
-                                  Qt::QueuedConnection, Q_ARG(QString, clientModel->getMasternodesCount()));
+                                  Qt::QueuedConnection, Q_ARG(QString, clientModel->getMasternodesCountString()));
         QMetaObject::invokeMethod(this, "setNumBlocks",
                                   Qt::QueuedConnection, Q_ARG(int, clientModel->getLastBlockProcessedHeight()));
     }

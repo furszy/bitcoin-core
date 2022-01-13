@@ -13,6 +13,7 @@
 #include <QObject>
 #include <QDateTime>
 
+#include <atomic>
 #include <memory>
 
 class AddressTableModel;
@@ -106,7 +107,8 @@ public:
     void stopMasternodesTimer();
     // Force a MN count update calling mnmanager directly locking its internal mutex.
     // Future todo: implement an event based update and remove the lock requirement.
-    QString getMasternodesCount();
+    QString getMasternodesCountString();
+    int getMasternodesCount() const { return m_cached_masternodes_count; }
 
     // Return the specific chain amount value for the MN collateral output.
     CAmount getMNCollateralRequiredAmount();
@@ -120,7 +122,7 @@ private:
     std::unique_ptr<interfaces::Handler> m_handler_banned_list_changed;
     std::unique_ptr<interfaces::Handler> m_handler_notify_block_tip;
 
-    QString getMasternodeCountString() const;
+    QString getMasternodeCountString();
     OptionsModel* optionsModel;
     PeerTableModel* peerTableModel;
     BanTableModel *banTableModel;
@@ -135,6 +137,8 @@ private:
 
     QTimer* pollTimer;
     QTimer* pollMnTimer;
+
+    std::atomic_int m_cached_masternodes_count{0};
 
     void subscribeToCoreSignals();
     void unsubscribeFromCoreSignals();
