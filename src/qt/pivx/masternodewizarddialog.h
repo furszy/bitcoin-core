@@ -27,7 +27,7 @@ public:
     explicit MasterNodeWizardDialog(WalletModel* walletMode,
                                     MNModel* mnModel,
                                     QWidget *parent = nullptr);
-    ~MasterNodeWizardDialog();
+    ~MasterNodeWizardDialog() override;
     void showEvent(QShowEvent *event) override;
     QString translate(const char *msg) override { return tr(msg); }
 
@@ -49,8 +49,7 @@ private:
     WalletModel* walletModel{nullptr};
     MNModel* mnModel{nullptr};
     bool createMN();
-    void inform(QString text);
-    void initBtn(std::initializer_list<QPushButton*> args);
+    void inform(const QString& text);
 };
 
 #endif // MASTERNODEWIZARDDIALOG_H

@@ -20,6 +20,19 @@ static inline QString formatHtmlContent(const QString& str) {
     return "<html><body>" + str + "</body></html>";
 }
 
+static void initBtn(std::initializer_list<QPushButton*> args)
+{
+    QSize BUTTON_SIZE = QSize(22, 22);
+    for (QPushButton* btn : args) {
+        btn->setMinimumSize(BUTTON_SIZE);
+        btn->setMaximumSize(BUTTON_SIZE);
+        btn->move(0, 0);
+        btn->show();
+        btn->raise();
+        btn->setVisible(false);
+    }
+}
+
 MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnModel, QWidget *parent) :
     FocusedDialog(parent),
     ui(new Ui::MasterNodeWizardDialog),
@@ -127,7 +140,6 @@ void MasterNodeWizardDialog::accept()
             break;
         }
         case 1: {
-
             // No empty names accepted.
             if (ui->lineEditName->text().isEmpty()) {
                 setCssEditLine(ui->lineEditName, false, true);
@@ -141,20 +153,15 @@ void MasterNodeWizardDialog::accept()
             ui->pushName1->setChecked(true);
             icConfirm3->setVisible(true);
             ui->pushNumber4->setChecked(true);
-            ui->btnBack->setVisible(true);
             ui->lineEditIpAddress->setFocus();
             break;
         }
         case 2: {
-
             // No empty address accepted
             if (ui->lineEditIpAddress->text().isEmpty()) {
                 return;
             }
-
             icConfirm4->setVisible(true);
-            ui->btnBack->setVisible(true);
-            ui->btnBack->setVisible(true);
             isOk = createMN();
             QDialog::accept();
         }
@@ -260,7 +267,7 @@ void MasterNodeWizardDialog::onBackClicked()
     }
 }
 
-void MasterNodeWizardDialog::inform(QString text)
+void MasterNodeWizardDialog::inform(const QString& text)
 {
     if (!snackBar)
         snackBar = new SnackBar(nullptr, this);
@@ -269,21 +276,8 @@ void MasterNodeWizardDialog::inform(QString text)
     openDialog(snackBar, this);
 }
 
-QSize BUTTON_SIZE = QSize(22, 22);
-void MasterNodeWizardDialog::initBtn(std::initializer_list<QPushButton*> args)
-{
-    for (QPushButton* btn : args) {
-        btn->setMinimumSize(BUTTON_SIZE);
-        btn->setMaximumSize(BUTTON_SIZE);
-        btn->move(0, 0);
-        btn->show();
-        btn->raise();
-        btn->setVisible(false);
-    }
-}
-
 MasterNodeWizardDialog::~MasterNodeWizardDialog()
 {
-    if (snackBar) delete snackBar;
+    delete snackBar;
     delete ui;
 }
