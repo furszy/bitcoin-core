@@ -67,10 +67,10 @@ static Consensus::LLMQParams llmq_test = {
         .minSize = 2,
         .threshold = 2,
 
-        .dkgInterval = 60, // one DKG per hour
-        .dkgPhaseBlocks = 6,
-        .dkgMiningWindowStart = 30, // dkgPhaseBlocks * 5 = after finalization
-        .dkgMiningWindowEnd = 40,
+        .dkgInterval = 20, // one every 20 minutes
+        .dkgPhaseBlocks = 2,
+        .dkgMiningWindowStart = 10, // dkgPhaseBlocks * 5 = after finalization
+        .dkgMiningWindowEnd = 15,
         .dkgBadVotesThreshold = 2,
 
         .signingActiveQuorumCount = 2, // just a few ones to allow easier testing
