@@ -1076,13 +1076,11 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose_and_qfc_invalid_paths, TestChain400Setup)
     ProcessQuorum(llmq::quorumBlockProcessor.get(), qfc, &dummyNode);
     BOOST_CHECK(llmq::quorumBlockProcessor->HasMinableCommitment(::SerializeHash(qfc)));
 
-    // Generate blocks up to be able to mine a null qfc at block 450
-    for (size_t i = 0; i < 21; i++) {
-        CreateAndProcessBlock({}, coinbaseKey);
-        chainTip = chainActive.Tip();
-        BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
-    }
-    BOOST_CHECK_EQUAL(nHeight, 448);
+    // Generate blocks up to be able to mine a null qfc at block 430
+    CreateAndProcessBlock({}, coinbaseKey);
+    chainTip = chainActive.Tip();
+    BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
+    BOOST_CHECK_EQUAL(nHeight, 428);
 
     // Coverage for the following qfc paths:
     // 1) Mine a qfc with an invalid height, which should end up being rejected.
@@ -1110,7 +1108,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose_and_qfc_invalid_paths, TestChain400Setup)
             CreateBlock({nullQfcTx}, coinsbaseScript, true, false, false));
     ProcessBlockAndCheckRejectionReason(pblock_invalid, "bad-qc-not-allowed", nHeight);
 
-    // One more block, 449.
+    // One more block, 429.
     CreateAndProcessBlock({}, coinbaseKey);
     chainTip = chainActive.Tip();
     BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
@@ -1133,7 +1131,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose_and_qfc_invalid_paths, TestChain400Setup)
         BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
         nullQfcTx = CreateNullQfcTx(quorumHash, nHeight + 1);
     }
-    BOOST_CHECK_EQUAL(nHeight, 451);
+    BOOST_CHECK_EQUAL(nHeight, 431);
 
     // 6) Try to relay the valid qfc to the mempool, which should end up on a rejection.
     CTransactionRef qcTx;
@@ -1173,7 +1171,7 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose_and_qfc_invalid_paths, TestChain400Setup)
     ProcessBlockAndCheckRejectionReason(pblock_invalid, "bad-qc-quorum-hash-not-active-chain", nHeight);
 
     // 7d) Mine a qfc with an old quorum hash, which should end up being rejected.
-    int old_quorum_hash_height = nHeight - (nHeight % params.dkgInterval) - params.dkgInterval * 4;
+    int old_quorum_hash_height = nHeight - (nHeight % params.dkgInterval) - params.cacheDkgInterval - params.dkgInterval;
     uint256 old_quorum_hash = chainActive[old_quorum_hash_height]->GetBlockHash();
     nullQfcTx = CreateNullQfcTx(old_quorum_hash, nHeight + 1);
     pblock_invalid = std::make_shared<CBlock>(CreateBlock({nullQfcTx}, coinsbaseScript, true, false, false));
@@ -1214,13 +1212,13 @@ BOOST_FIXTURE_TEST_CASE(dkg_pose_and_qfc_invalid_paths, TestChain400Setup)
     punished_mn = deterministicMNManager->GetListAtChainTip().GetMN(invalidmn_proTx);
     BOOST_CHECK_EQUAL(punished_mn->pdmnState->nPoSePenalty, 65);
 
-    // New DKG starts at block 480. Mine till block 481 and create another valid 2-of-3 commitment
-    for (size_t i = 0; i < 28; i++) {
+    // New DKG starts at block 440. Mine till block 441 and create another valid 2-of-3 commitment
+    for (size_t i = 0; i < 8; i++) {
         CreateAndProcessBlock({}, coinbaseKey);
         chainTip = chainActive.Tip();
         BOOST_CHECK_EQUAL(chainTip->nHeight, ++nHeight);
     }
-    BOOST_CHECK_EQUAL(nHeight, 481);
+    BOOST_CHECK_EQUAL(nHeight, 441);
     quorumHash = chainActive[nHeight - (nHeight % params.dkgInterval)]->GetBlockHash();
     quorumIndex = mapBlockIndex.at(quorumHash);
     members = deterministicMNManager->GetAllQuorumMembers(Consensus::LLMQ_TEST, quorumIndex);
