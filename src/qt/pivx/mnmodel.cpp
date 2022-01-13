@@ -9,7 +9,6 @@
 #include "net.h"        // for validateMasternodeIP
 #include "tiertwo/tiertwo_sync_state.h"
 #include "uint256.h"
-#include "wallet/wallet.h"
 
 MNModel::MNModel(QObject *parent) : QAbstractTableModel(parent) {}
 
@@ -151,26 +150,26 @@ bool MNModel::addMn(CMasternodeConfig::CMasternodeEntry* mne)
     return true;
 }
 
-int MNModel::getMNState(QString mnAlias)
+int MNModel::getMNState(const QString& mnAlias)
 {
     QMap<QString, std::pair<QString, CMasternode*>>::const_iterator it = nodes.find(mnAlias);
     if (it != nodes.end()) return it.value().second->GetActiveState();
     throw std::runtime_error(std::string("Masternode alias not found"));
 }
 
-bool MNModel::isMNInactive(QString mnAlias)
+bool MNModel::isMNInactive(const QString& mnAlias)
 {
     int activeState = getMNState(mnAlias);
     return activeState == CMasternode::MASTERNODE_EXPIRED || activeState == CMasternode::MASTERNODE_REMOVE;
 }
 
-bool MNModel::isMNActive(QString mnAlias)
+bool MNModel::isMNActive(const QString& mnAlias)
 {
     int activeState = getMNState(mnAlias);
     return activeState == CMasternode::MASTERNODE_PRE_ENABLED || activeState == CMasternode::MASTERNODE_ENABLED;
 }
 
-bool MNModel::isMNCollateralMature(QString mnAlias)
+bool MNModel::isMNCollateralMature(const QString& mnAlias)
 {
     QMap<QString, std::pair<QString, CMasternode*>>::const_iterator it = nodes.find(mnAlias);
     if (it != nodes.end()) return collateralTxAccepted.value(it.value().second->vin.prevout.hash.GetHex());
@@ -185,4 +184,9 @@ bool MNModel::isMNsNetworkSynced()
 bool MNModel::validateMNIP(const QString& addrStr)
 {
     return validateMasternodeIP(addrStr.toStdString());
+}
+
+CAmount MNModel::getMNCollateralRequiredAmount()
+{
+    return Params().GetConsensus().nMNCollateralAmt;
 }

@@ -11,8 +11,8 @@
 #include "masternodeconfig.h"
 #include "qt/pivx/pwidget.h"
 
+class MNModel;
 class WalletModel;
-class ClientModel;
 
 namespace Ui {
 class MasterNodeWizardDialog;
@@ -25,7 +25,7 @@ class MasterNodeWizardDialog : public FocusedDialog, public PWidget::Translator
 
 public:
     explicit MasterNodeWizardDialog(WalletModel* walletMode,
-                                    ClientModel* clientModel,
+                                    MNModel* mnModel,
                                     QWidget *parent = nullptr);
     ~MasterNodeWizardDialog();
     void showEvent(QShowEvent *event) override;
@@ -47,7 +47,7 @@ private:
     int pos = 0;
 
     WalletModel* walletModel{nullptr};
-    ClientModel* clientModel{nullptr};
+    MNModel* mnModel{nullptr};
     bool createMN();
     void inform(QString text);
     void initBtn(std::initializer_list<QPushButton*> args);

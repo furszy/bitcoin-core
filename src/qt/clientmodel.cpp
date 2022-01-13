@@ -98,11 +98,6 @@ QString ClientModel::getMasternodesCountString()
     return cachedMasternodeCountString;
 }
 
-CAmount ClientModel::getMNCollateralRequiredAmount()
-{
-    return Params().GetConsensus().nMNCollateralAmt;
-}
-
 int ClientModel::getNumBlocks()
 {
     if (!cacheTip) {

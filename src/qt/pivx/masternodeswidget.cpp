@@ -10,7 +10,6 @@
 #include "qt/pivx/mninfodialog.h"
 #include "qt/pivx/masternodewizarddialog.h"
 
-#include "activemasternode.h"
 #include "clientmodel.h"
 #include "fs.h"
 #include "guiutil.h"
@@ -471,14 +470,14 @@ void MasterNodesWidget::onCreateMNClicked()
         return;
     }
 
-    CAmount mnCollateralAmount = clientModel->getMNCollateralRequiredAmount();
+    CAmount mnCollateralAmount = mnModel->getMNCollateralRequiredAmount();
     if (walletModel->getBalance() <= mnCollateralAmount) {
         inform(tr("Not enough balance to create a masternode, %1 required.")
             .arg(GUIUtil::formatBalance(mnCollateralAmount, BitcoinUnits::PIV)));
         return;
     }
     showHideOp(true);
-    MasterNodeWizardDialog *dialog = new MasterNodeWizardDialog(walletModel, clientModel, window);
+    MasterNodeWizardDialog *dialog = new MasterNodeWizardDialog(walletModel, mnModel, window);
     if (openDialogWithOpaqueBackgroundY(dialog, window, 5, 7)) {
         if (dialog->isOk) {
             // Update list

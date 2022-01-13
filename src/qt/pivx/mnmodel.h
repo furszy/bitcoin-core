@@ -47,16 +47,18 @@ public:
 
     bool isMNsNetworkSynced();
     // Returns the MN activeState field.
-    int getMNState(QString alias);
+    int getMNState(const QString& mnAlias);
     // Checks if the masternode is inactive
-    bool isMNInactive(QString mnAlias);
+    bool isMNInactive(const QString& mnAlias);
     // Masternode is active if it's in PRE_ENABLED OR ENABLED state
-    bool isMNActive(QString mnAlias);
+    bool isMNActive(const QString& mnAlias);
     // Masternode collateral has enough confirmations
-    bool isMNCollateralMature(QString mnAlias);
+    bool isMNCollateralMature(const QString& mnAlias);
     // Validate string representing a masternode IP address
     static bool validateMNIP(const QString& addrStr);
 
+    // Return the specific chain amount value for the MN collateral output.
+    CAmount getMNCollateralRequiredAmount();
 
 private:
     WalletModel* walletModel;

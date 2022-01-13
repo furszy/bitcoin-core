@@ -6,7 +6,6 @@
 #include "qt/pivx/forms/ui_masternodewizarddialog.h"
 
 #include "activemasternode.h"
-#include "clientmodel.h"
 #include "key_io.h"
 #include "optionsmodel.h"
 #include "qt/pivx/mnmodel.h"
@@ -27,14 +26,14 @@ static inline QString formatHtmlContent(const QString& str) {
     return "<html><body>" + str + "</body></html>";
 }
 
-MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, ClientModel* _clientModel, QWidget *parent) :
+MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnModel, QWidget *parent) :
     FocusedDialog(parent),
     ui(new Ui::MasterNodeWizardDialog),
     icConfirm1(new QPushButton(this)),
     icConfirm3(new QPushButton(this)),
     icConfirm4(new QPushButton(this)),
     walletModel(model),
-    clientModel(_clientModel)
+    mnModel(_mnModel)
 {
     ui->setupUi(this);
 
@@ -59,7 +58,7 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, ClientModel* 
     setCssProperty(ui->labelMessage1a, "text-main-grey");
     setCssProperty(ui->labelMessage1b, "text-main-purple");
 
-    QString collateralAmountStr = GUIUtil::formatBalance(clientModel->getMNCollateralRequiredAmount());
+    QString collateralAmountStr = GUIUtil::formatBalance(mnModel->getMNCollateralRequiredAmount());
     ui->labelMessage1a->setText(formatHtmlContent(
                 formatParagraph(tr("To create a PIVX Masternode you must dedicate %1 (the unit of PIVX) "
                         "to the network (however, these coins are still yours and will never leave your possession).").arg(collateralAmountStr)) +
@@ -231,7 +230,7 @@ bool MasterNodeWizardDialog::createMN()
         SendCoinsRecipient sendCoinsRecipient(
                 QString::fromStdString(r.getObjResult()->ToString()),
                 QString::fromStdString(alias),
-                clientModel->getMNCollateralRequiredAmount(),
+                mnModel->getMNCollateralRequiredAmount(),
                 "");
 
         // Send the 10 tx to one of your address
@@ -281,7 +280,7 @@ bool MasterNodeWizardDialog::createMN()
         int indexOut = -1;
         for (int i=0; i < (int)walletTx->vout.size(); i++) {
             const CTxOut& out = walletTx->vout[i];
-            if (out.nValue == clientModel->getMNCollateralRequiredAmount()) {
+            if (out.nValue == mnModel->getMNCollateralRequiredAmount()) {
                 indexOut = i;
                 break;
             }

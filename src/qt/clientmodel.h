@@ -110,9 +110,6 @@ public:
     QString getMasternodesCountString();
     int getMasternodesCount() const { return m_cached_masternodes_count; }
 
-    // Return the specific chain amount value for the MN collateral output.
-    CAmount getMNCollateralRequiredAmount();
-
 private:
     // Listeners
     std::unique_ptr<interfaces::Handler> m_handler_show_progress;
