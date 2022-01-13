@@ -53,7 +53,7 @@ static std::vector<COutPoint> SelectUTXOs(SimpleUTXOMap& utxos, CAmount amount, 
 
     std::vector<COutPoint> selectedUtxos;
     CAmount selectedAmount = 0;
-    int chainHeight = chainActive.Height();
+    int chainHeight = WITH_LOCK(cs_main, return chainActive.Height(); );
     while (!utxos.empty()) {
         bool found = false;
         for (auto it = utxos.begin(); it != utxos.end(); ++it) {
@@ -532,7 +532,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         BOOST_CHECK(!WITH_LOCK(cs_main, return ProcessSpecialTxsInBlock(block, &indexFake, view, state, true); ));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-owner-key");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to check reject reason
-        BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
+        BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height(); ), nHeight);   // bad block not connected
     }
     // Block with two ProReg txes using same operator key
     {
@@ -549,7 +549,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         BOOST_CHECK(!WITH_LOCK(cs_main, return ProcessSpecialTxsInBlock(block, &indexFake, view, state, true); ));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-operator-key");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to check reject reason
-        BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
+        BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height(); ), nHeight);   // bad block not connected
     }
     // Block with two ProReg txes using same ip address
     {
@@ -563,7 +563,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         BOOST_CHECK(!WITH_LOCK(cs_main, return ProcessSpecialTxsInBlock(block, &indexFake, view, state, true); ));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-IP-address");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to check reject reason
-        BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
+        BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height(); ), nHeight);   // bad block not connected
     }
 
     // register multiple MNs per block
@@ -736,7 +736,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         BOOST_CHECK(!WITH_LOCK(cs_main, return ProcessSpecialTxsInBlock(block, &indexFake, view, state, true); ));
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-addr");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr); // todo: move to ProcessBlockAndCheckRejectionReason.
-        BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
+        BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height(); ), nHeight);   // bad block not connected
     }
 
     // ProUpReg: change voting key, operator key and payout address
@@ -854,7 +854,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
                             "Accepted block with duplicate operator key in ProUpReg txes");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-operator-key");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr);
-        BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
+        BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height(); ), nHeight);   // bad block not connected
     }
 
     // Block including
@@ -874,7 +874,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
                             "Accepted block with duplicate operator key in ProReg+ProUpReg txes");
         BOOST_CHECK_EQUAL(state.GetRejectReason(), "bad-protx-dup-operator-key");
         ProcessNewBlock(std::make_shared<const CBlock>(block), nullptr);
-        BOOST_CHECK_EQUAL(chainActive.Height(), nHeight);   // bad block not connected
+        BOOST_CHECK_EQUAL(WITH_LOCK(cs_main, return chainActive.Height(); ), nHeight);   // bad block not connected
     }
 
     // ProUpRev: revoke masternode service
@@ -889,7 +889,7 @@ BOOST_FIXTURE_TEST_CASE(dip3_protx, TestChain400Setup)
         // then use the proper key
         state = CValidationState();
         tx = CreateProUpRevTx(utxos, proTx, reason, operatorKeys.at(proTx), coinbaseKey);
-        BOOST_CHECK_MESSAGE(WITH_LOCK(cs_main, return CheckSpecialTx(tx, chainTip, view, state); ), state.GetRejectReason());
+        BOOST_CHECK(WITH_LOCK(cs_main, return CheckSpecialTx(tx, chainTip, view, state); ));
         BOOST_CHECK_MESSAGE(CheckTransactionSignature(tx), "ProUpReg signature verification failed");
         // also verify that payloads are not malleable after they have been signed
         auto tx2 = MalleateProUpRevTx(tx);
