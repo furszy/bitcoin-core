@@ -59,6 +59,8 @@ public:
 
     // Return the specific chain amount value for the MN collateral output.
     CAmount getMNCollateralRequiredAmount();
+    // Generates the collateral transaction
+    bool createMNCollateral(const QString& alias, const QString& addr, COutPoint& ret_outpoint, QString& ret_error);
 
 private:
     WalletModel* walletModel;

@@ -226,71 +226,14 @@ bool MasterNodeWizardDialog::createMN()
             return false;
         }
 
-        // const QString& addr, const QString& label, const CAmount& amount, const QString& message
-        SendCoinsRecipient sendCoinsRecipient(
-                QString::fromStdString(r.getObjResult()->ToString()),
-                QString::fromStdString(alias),
-                mnModel->getMNCollateralRequiredAmount(),
-                "");
-
-        // Send the 10 tx to one of your address
-        QList<SendCoinsRecipient> recipients;
-        recipients.append(sendCoinsRecipient);
-        WalletModelTransaction currentTransaction(recipients);
-        WalletModel::SendCoinsReturn prepareStatus;
-
-        // no coincontrol, no P2CS delegations
-        prepareStatus = walletModel->prepareTransaction(&currentTransaction, nullptr, false);
-
-        QString returnMsg = tr("Unknown error");
-        // process prepareStatus and on error generate message shown to user
-        CClientUIInterface::MessageBoxFlags informType;
-        returnMsg = GuiTransactionsUtils::ProcessSendCoinsReturn(
-                this,
-                prepareStatus,
-                walletModel,
-                informType, // this flag is not needed
-                BitcoinUnits::formatWithUnit(walletModel->getOptionsModel()->getDisplayUnit(),
-                                             currentTransaction.getTransactionFee()),
-                true
-        );
-
-        if (prepareStatus.status != WalletModel::OK) {
-            returnStr = tr("Prepare master node failed.\n\n%1\n").arg(returnMsg);
+        QString errorStr;
+        if (!mnModel->createMNCollateral(addressLabel,
+                                         QString::fromStdString(r.getObjResult()->ToString()),
+                                         collateralOut,
+                                         errorStr)) {
+            inform(errorStr);
             return false;
         }
-
-        WalletModel::SendCoinsReturn sendStatus = walletModel->sendCoins(currentTransaction);
-        // process sendStatus and on error generate message shown to user
-        returnMsg = GuiTransactionsUtils::ProcessSendCoinsReturn(
-                this,
-                sendStatus,
-                walletModel,
-                informType
-        );
-
-        if (sendStatus.status != WalletModel::OK) {
-            returnStr = tr("Cannot send collateral transaction.\n\n%1").arg(returnMsg);
-            return false;
-        }
-
-        // look for the tx index of the collateral
-        CTransactionRef walletTx = currentTransaction.getTransaction();
-        std::string txID = walletTx->GetHash().GetHex();
-        int indexOut = -1;
-        for (int i=0; i < (int)walletTx->vout.size(); i++) {
-            const CTxOut& out = walletTx->vout[i];
-            if (out.nValue == mnModel->getMNCollateralRequiredAmount()) {
-                indexOut = i;
-                break;
-            }
-        }
-        if (indexOut == -1) {
-            returnStr = tr("Invalid collateral output index");
-            return false;
-        }
-        // save the collateral outpoint
-        collateralOut = COutPoint(walletTx->GetHash(), indexOut);
     }
 
     // Update the conf file
