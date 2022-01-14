@@ -8,11 +8,14 @@
 #include <string>
 
 static const bool DEFAULT_MASTERNODE  = false;
+static const bool DEFAULT_MNCONFLOCK = true;
 
 class CScheduler;
 namespace boost {
     class thread_group;
 }
+
+std::string GetTierTwoHelpString(bool showDebug);
 
 /** Loads from disk all the tier two related objects */
 bool LoadTierTwo(int chain_active_height, bool fReindexChainState);
