@@ -69,6 +69,8 @@ public:
                                                         const std::string& mnKeyString,
                                                         QString& ret_error);
 
+    bool removeLegacyMN(const std::string& alias_to_remove, const std::string& tx_id, unsigned int out_index, QString& ret_error);
+
 private:
     WalletModel* walletModel;
     // alias mn node ---> pair <ip, master node>

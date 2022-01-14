@@ -292,7 +292,7 @@ CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collater
     }
 
     int linenumber = 1;
-    std::string lineCopy = "";
+    std::string lineCopy;
     for (std::string line; std::getline(streamConfig, line); linenumber++) {
         if (line.empty()) continue;
 
@@ -317,7 +317,7 @@ CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collater
         lineCopy += line + "\n";
     }
 
-    if (lineCopy.size() == 0) {
+    if (lineCopy.empty()) {
         lineCopy = "# Masternode config file\n"
                    "# Format: alias IP:port masternodeprivkey collateral_output_txid collateral_output_index\n"
                    "# Example: mn1 127.0.0.2:51472 93HaYBVUCYjEMeeH1Y4sBGLALQZE1Yc1K64xiqgX37tGBDQL8Xg 2bcd3c84c84f87eaa86e4e56834c92927a07f9e18718810b92e0d0324456a67c 0"
@@ -357,4 +357,91 @@ CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collater
     // Lock collateral output
     walletModel->lockCoin(collateralOut);
     return ret_mn_entry;
+}
+
+bool MNModel::removeLegacyMN(const std::string& alias_to_remove, const std::string& tx_id, unsigned int out_index, QString& ret_error)
+{
+    std::string strConfFile = "masternode.conf";
+    std::string strDataDir = GetDataDir().string();
+    fs::path conf_file_path(strConfFile);
+    if (strConfFile != conf_file_path.filename().string()) {
+        throw std::runtime_error(strprintf(_("masternode.conf %s resides outside data directory %s"), strConfFile, strDataDir));
+    }
+
+    fs::path pathBootstrap = GetDataDir() / strConfFile;
+    if (!fs::exists(pathBootstrap)) {
+        ret_error = tr("masternode.conf file doesn't exists");
+        return false;
+    }
+
+    fs::path pathMasternodeConfigFile = GetMasternodeConfigFile();
+    fsbridge::ifstream streamConfig(pathMasternodeConfigFile);
+
+    if (!streamConfig.good()) {
+        ret_error = tr("Invalid masternode.conf file");
+        return false;
+    }
+
+    int lineNumToRemove = -1;
+    int linenumber = 1;
+    std::string lineCopy;
+    for (std::string line; std::getline(streamConfig, line); linenumber++) {
+        if (line.empty()) continue;
+
+        std::istringstream iss(line);
+        std::string comment, alias, ip, privKey, txHash, outputIndex;
+
+        if (iss >> comment) {
+            if (comment.at(0) == '#') continue;
+            iss.str(line);
+            iss.clear();
+        }
+
+        if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
+            iss.str(line);
+            iss.clear();
+            if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
+                streamConfig.close();
+                ret_error = tr("Error parsing masternode.conf file");
+                return false;
+            }
+        }
+
+        if (alias_to_remove == alias) {
+            lineNumToRemove = linenumber;
+        } else
+            lineCopy += line + "\n";
+
+    }
+
+    if (lineCopy.empty()) {
+        lineCopy = "# Masternode config file\n"
+                   "# Format: alias IP:port masternodeprivkey collateral_output_txid collateral_output_index\n"
+                   "# Example: mn1 127.0.0.2:51472 93HaYBVUCYjEMeeH1Y4sBGLALQZE1Yc1K64xiqgX37tGBDQL8Xg 2bcd3c84c84f87eaa86e4e56834c92927a07f9e18718810b92e0d0324456a67c 0\n";
+    }
+
+    streamConfig.close();
+
+    if (lineNumToRemove != -1) {
+        fs::path pathConfigFile = AbsPathForConfigVal(fs::path("masternode_temp.conf"));
+        FILE* configFile = fsbridge::fopen(pathConfigFile, "w");
+        fwrite(lineCopy.c_str(), std::strlen(lineCopy.c_str()), 1, configFile);
+        fclose(configFile);
+
+        fs::path pathOldConfFile = AbsPathForConfigVal(fs::path("old_masternode.conf"));
+        if (fs::exists(pathOldConfFile)) {
+            fs::remove(pathOldConfFile);
+        }
+        rename(pathMasternodeConfigFile, pathOldConfFile);
+
+        fs::path pathNewConfFile = AbsPathForConfigVal(fs::path("masternode.conf"));
+        rename(pathConfigFile, pathNewConfFile);
+
+        // Unlock collateral
+        COutPoint collateralOut(uint256S(tx_id), out_index);
+        walletModel->unlockCoin(collateralOut);
+        // Remove alias
+        masternodeConfig.remove(alias_to_remove);
+        return true;
+    }
 }

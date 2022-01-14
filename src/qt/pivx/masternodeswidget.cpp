@@ -11,15 +11,11 @@
 #include "qt/pivx/masternodewizarddialog.h"
 
 #include "clientmodel.h"
-#include "fs.h"
 #include "guiutil.h"
-#include "masternode-sync.h"
 #include "masternodeconfig.h"
 #include "masternodeman.h"
-#include "util/system.h"
 #include "qt/pivx/mnmodel.h"
 #include "qt/pivx/optionbutton.h"
-#include <fstream>
 
 #define DECORATION_SIZE 65
 #define NUM_ITEMS 3
@@ -153,10 +149,10 @@ void MasterNodesWidget::updateListState()
     ui->pushButtonStartAll->setVisible(show);
 }
 
-void MasterNodesWidget::onMNClicked(const QModelIndex &index)
+void MasterNodesWidget::onMNClicked(const QModelIndex& _index)
 {
-    ui->listMn->setCurrentIndex(index);
-    QRect rect = ui->listMn->visualRect(index);
+    ui->listMn->setCurrentIndex(_index);
+    QRect rect = ui->listMn->visualRect(_index);
     QPoint pos = rect.topRight();
     pos.setX(pos.x() - (DECORATION_SIZE * 2));
     pos.setY(pos.y() + (DECORATION_SIZE * 1.5));
@@ -173,7 +169,7 @@ void MasterNodesWidget::onMNClicked(const QModelIndex &index)
     } else {
         this->menu->hide();
     }
-    this->index = index;
+    this->index = _index;
     menu->move(pos);
     menu->show();
 
@@ -365,100 +361,26 @@ void MasterNodesWidget::onDeleteMNClicked()
     QString txId = index.sibling(index.row(), MNModel::COLLATERAL_ID).data(Qt::DisplayRole).toString();
     QString outIndex = index.sibling(index.row(), MNModel::COLLATERAL_OUT_INDEX).data(Qt::DisplayRole).toString();
     QString qAliasString = index.data(Qt::DisplayRole).toString();
-    std::string aliasToRemove = qAliasString.toStdString();
 
-    if (!ask(tr("Delete Masternode"), tr("You are just about to delete Masternode:\n%1\n\nAre you sure?").arg(qAliasString)))
+    bool convertOK = false;
+    unsigned int indexOut = outIndex.toUInt(&convertOK);
+    if (!convertOK) {
+        inform(tr("Invalid collateral output index"));
         return;
-
-    std::string strConfFile = "masternode.conf";
-    std::string strDataDir = GetDataDir().string();
-    fs::path conf_file_path(strConfFile);
-    if (strConfFile != conf_file_path.filename().string()) {
-        throw std::runtime_error(strprintf(_("masternode.conf %s resides outside data directory %s"), strConfFile, strDataDir));
     }
 
-    fs::path pathBootstrap = GetDataDir() / strConfFile;
-    if (fs::exists(pathBootstrap)) {
-        fs::path pathMasternodeConfigFile = GetMasternodeConfigFile();
-        fsbridge::ifstream streamConfig(pathMasternodeConfigFile);
-
-        if (!streamConfig.good()) {
-            inform(tr("Invalid masternode.conf file"));
-            return;
-        }
-
-        int lineNumToRemove = -1;
-        int linenumber = 1;
-        std::string lineCopy = "";
-        for (std::string line; std::getline(streamConfig, line); linenumber++) {
-            if (line.empty()) continue;
-
-            std::istringstream iss(line);
-            std::string comment, alias, ip, privKey, txHash, outputIndex;
-
-            if (iss >> comment) {
-                if (comment.at(0) == '#') continue;
-                iss.str(line);
-                iss.clear();
-            }
-
-            if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
-                iss.str(line);
-                iss.clear();
-                if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
-                    streamConfig.close();
-                    inform(tr("Error parsing masternode.conf file"));
-                    return;
-                }
-            }
-
-            if (aliasToRemove == alias) {
-                lineNumToRemove = linenumber;
-            } else
-                lineCopy += line + "\n";
-
-        }
-
-        if (lineCopy.size() == 0) {
-            lineCopy = "# Masternode config file\n"
-                                    "# Format: alias IP:port masternodeprivkey collateral_output_txid collateral_output_index\n"
-                                    "# Example: mn1 127.0.0.2:51472 93HaYBVUCYjEMeeH1Y4sBGLALQZE1Yc1K64xiqgX37tGBDQL8Xg 2bcd3c84c84f87eaa86e4e56834c92927a07f9e18718810b92e0d0324456a67c 0\n";
-        }
-
-        streamConfig.close();
-
-        if (lineNumToRemove != -1) {
-            fs::path pathConfigFile = AbsPathForConfigVal(fs::path("masternode_temp.conf"));
-            FILE* configFile = fsbridge::fopen(pathConfigFile, "w");
-            fwrite(lineCopy.c_str(), std::strlen(lineCopy.c_str()), 1, configFile);
-            fclose(configFile);
-
-            fs::path pathOldConfFile = AbsPathForConfigVal(fs::path("old_masternode.conf"));
-            if (fs::exists(pathOldConfFile)) {
-                fs::remove(pathOldConfFile);
-            }
-            rename(pathMasternodeConfigFile, pathOldConfFile);
-
-            fs::path pathNewConfFile = AbsPathForConfigVal(fs::path("masternode.conf"));
-            rename(pathConfigFile, pathNewConfFile);
-
-            // Unlock collateral
-            bool convertOK = false;
-            unsigned int indexOut = outIndex.toUInt(&convertOK);
-            if (convertOK) {
-                COutPoint collateralOut(uint256S(txId.toStdString()), indexOut);
-                walletModel->unlockCoin(collateralOut);
-            }
-
-            // Remove alias
-            masternodeConfig.remove(aliasToRemove);
-            // Update list
-            mnModel->removeMn(index);
-            updateListState();
-        }
-    } else {
-        inform(tr("masternode.conf file doesn't exists"));
+    if (!ask(tr("Delete Masternode"), tr("You are just about to delete Masternode:\n%1\n\nAre you sure?").arg(qAliasString))) {
+        return;
     }
+
+    QString errorStr;
+    if (!mnModel->removeLegacyMN(qAliasString.toStdString(), txId.toStdString(), indexOut, errorStr)) {
+        inform(errorStr);
+        return;
+    }
+    // Update list
+    mnModel->removeMn(index);
+    updateListState();
 }
 
 void MasterNodesWidget::onCreateMNClicked()
