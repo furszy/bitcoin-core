@@ -29,6 +29,9 @@ std::string GetTierTwoHelpString(bool showDebug)
     strUsage += HelpMessageOpt("-masternodeaddr=<n>", strprintf("Set external address:port to get to this masternode (example: %s)", "128.127.106.235:51472"));
     strUsage += HelpMessageOpt("-budgetvotemode=<mode>", "Change automatic finalized budget voting behavior. mode=auto: Vote for only exact finalized budget match to my generated budget. (string, default: auto)");
     strUsage += HelpMessageOpt("-mnoperatorprivatekey=<WIF>", "Set the masternode operator private key. Only valid with -masternode=1. When set, the masternode acts as a deterministic masternode.");
+    if (showDebug) {
+        strUsage += HelpMessageOpt("-disabledkg", "Disable the DKG sessions process threads for the entire lifecycle");
+    }
     return strUsage;
 }
 
@@ -236,7 +239,9 @@ void StartTierTwoThreadsAndScheduleJobs(boost::thread_group& threadGroup, CSched
 {
     threadGroup.create_thread(std::bind(&ThreadCheckMasternodes));
     // start LLMQ system
-    llmq::StartLLMQSystem();
+    if (!gArgs.IsArgSet("-disabledkg")) {
+        llmq::StartLLMQSystem();
+    }
 }
 
 void StopTierTwoThreads()
