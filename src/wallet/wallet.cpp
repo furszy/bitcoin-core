@@ -13,7 +13,7 @@
 
 #include "checkpoints.h"
 #include "coincontrol.h"
-#include "evo/deterministicmns.h"
+#include "evo/providertx.h"
 #include "guiinterfaceutil.h"
 #include "masternode.h"
 #include "policy/policy.h"
@@ -4122,6 +4122,11 @@ void CWallet::AutoCombineDust(CConnman* connman)
     }
 }
 
+void CWallet::LockOutpointIfMineWithMutex(const CTransactionRef& ptx, const COutPoint& c)
+{
+    WITH_LOCK(cs_wallet, LockOutpointIfMine(ptx, c));
+}
+
 void CWallet::LockOutpointIfMine(const CTransactionRef& ptx, const COutPoint& c)
 {
     AssertLockHeld(cs_wallet);
@@ -4139,17 +4144,6 @@ void CWallet::LockOutpointIfMine(const CTransactionRef& ptx, const COutPoint& c)
     if (!txout.IsNull() && IsMine(txout) != ISMINE_NO && !IsSpent(c)) {
         LockCoin(c);
     }
-}
-
-// Called during Init
-void CWallet::ScanMasternodeCollateralsAndLock(const CDeterministicMNList& mnList)
-{
-    LOCK(cs_wallet);
-
-    LogPrintf("Locking masternode collaterals...\n");
-    mnList.ForEachMN(false, [&](const CDeterministicMNCPtr& dmn) {
-        LockOutpointIfMine(nullptr, dmn->collateralOutpoint);
-    });
 }
 
 // Called from AddToWalletIfInvolvingMe

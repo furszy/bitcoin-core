@@ -99,7 +99,6 @@ class ScriptPubKeyMan;
 class SaplingScriptPubKeyMan;
 class SaplingNoteData;
 struct SaplingNoteEntry;
-class CDeterministicMNList;
 
 /** (client) version numbers for particular wallet features */
 enum WalletFeature {
@@ -886,13 +885,11 @@ public:
      *  -- If ptx is null, c is the output of a transaction in mapWallet
      */
     void LockOutpointIfMine(const CTransactionRef& ptx, const COutPoint& c);
-
     /*
-     *  Locks cs_wallet
-     *  Called during Init. If a DMN collateral is found in the wallet,
-     *  lock the corresponding coin, to prevent accidental spending.
+     * Same functionality as above but locking the cs_wallet mutex internally.
+     * future: add capability to lock the mutex from outside of this class without exposing it.
      */
-    void ScanMasternodeCollateralsAndLock(const CDeterministicMNList& mnList);
+    void LockOutpointIfMineWithMutex(const CTransactionRef& ptx, const COutPoint& c);
 
     /*
      *  Requires cs_wallet lock.

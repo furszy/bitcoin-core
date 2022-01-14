@@ -1749,10 +1749,13 @@ bool AppInitMain()
 
     // automatic lock for DMN
     if (gArgs.GetBoolArg("-mnconflock", DEFAULT_MNCONFLOCK)) {
+        LogPrintf("Locking masternode collaterals...\n");
         const auto& mnList = deterministicMNManager->GetListAtChainTip();
-        for (CWallet* pwallet : vpwallets) {
-            pwallet->ScanMasternodeCollateralsAndLock(mnList);
-        }
+        mnList.ForEachMN(false, [&](const CDeterministicMNCPtr& dmn) {
+            for (CWallet* pwallet : vpwallets) {
+                pwallet->LockOutpointIfMineWithMutex(nullptr, dmn->collateralOutpoint);
+            }
+        });
     }
 #endif
 
