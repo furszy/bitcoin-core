@@ -21,13 +21,11 @@
 #include "checkpoints.h"
 #include "compat/sanity.h"
 #include "consensus/upgrades.h"
-#include "evo/deterministicmns.h"
 #include "evo/evonotificationinterface.h"
 #include "fs.h"
 #include "httpserver.h"
 #include "httprpc.h"
 #include "invalid.h"
-#include "llmq/quorums_init.h"
 #include "key.h"
 #include "mapport.h"
 #include "masternodeconfig.h"
@@ -44,7 +42,6 @@
 #include "shutdown.h"
 #include "spork.h"
 #include "sporkdb.h"
-#include "evo/evodb.h"
 #include "tiertwo/init.h"
 #include "txdb.h"
 #include "torcontrol.h"
@@ -196,7 +193,7 @@ void Shutdown()
     StopREST();
     StopRPC();
     StopHTTPServer();
-    llmq::StopLLMQSystem();
+    StopTierTwoThreads();
 #ifdef ENABLE_WALLET
     for (CWalletRef pwallet : vpwallets) {
         pwallet->Flush(false);
@@ -268,9 +265,7 @@ void Shutdown()
         zerocoinDB.reset();
         accumulatorCache.reset();
         pSporkDB.reset();
-        llmq::DestroyLLMQSystem();
-        deterministicMNManager.reset();
-        evoDb.reset();
+        DeleteTierTwo();
     }
 #ifdef ENABLE_WALLET
     for (CWalletRef pwallet : vpwallets) {
@@ -1439,7 +1434,6 @@ bool AppInitMain()
     nCoinDBCache = std::min(nCoinDBCache, nMaxCoinsDBCache << 20); // cap total coins db cache
     nTotalCache -= nCoinDBCache;
     nCoinCacheUsage = nTotalCache; // the rest goes to in-memory cache
-    int64_t nEvoDbCache = 1024 * 1024 * 16; // TODO
     LogPrintf("Cache configuration:\n");
     LogPrintf("* Using %.1fMiB for block index database\n", nBlockTreeDBCache * (1.0 / 1024 / 1024));
     LogPrintf("* Using %.1fMiB for chain state database\n", nCoinDBCache * (1.0 / 1024 / 1024));
@@ -1468,10 +1462,7 @@ bool AppInitMain()
                 pSporkDB.reset(new CSporkDB(0, false, false));
                 accumulatorCache.reset(new AccumulatorCache(zerocoinDB.get()));
 
-                deterministicMNManager.reset();
-                evoDb.reset();
-                evoDb.reset(new CEvoDB(nEvoDbCache, false, fReindex));
-                deterministicMNManager.reset(new CDeterministicMNManager(*evoDb));
+                InitTierTwoPreChainLoad(fReindex);
 
                 if (fReset) {
                     pblocktree->WriteReindexing(true);
@@ -1541,8 +1532,7 @@ bool AppInitMain()
                 // The on-disk coinsdb is now in a good state, create the cache
                 pcoinsTip.reset(new CCoinsViewCache(pcoinscatcher.get()));
 
-                // Initialize LLMQ system
-                llmq::InitLLMQSystem(*evoDb);
+                InitTierTwoPostCoinsCacheLoad();
 
                 bool is_coinsview_empty = fReset || fReindexChainState || pcoinsTip->GetBestBlock().IsNull();
                 if (!is_coinsview_empty) {
@@ -1731,34 +1721,6 @@ bool AppInitMain()
     // set the mode of budget voting for this node
     SetBudgetFinMode(gArgs.GetArg("-budgetvotemode", "auto"));
 
-#ifdef ENABLE_WALLET
-    // !TODO: remove after complete transition to DMN
-    // use only the first wallet here. This section can be removed after transition to DMN
-    if (gArgs.GetBoolArg("-mnconflock", DEFAULT_MNCONFLOCK) && !vpwallets.empty() && vpwallets[0]) {
-        LOCK(vpwallets[0]->cs_wallet);
-        LogPrintf("Locking Masternodes collateral utxo:\n");
-        uint256 mnTxHash;
-        for (const auto& mne : masternodeConfig.getEntries()) {
-            mnTxHash.SetHex(mne.getTxHash());
-            COutPoint outpoint = COutPoint(mnTxHash, (unsigned int) std::stoul(mne.getOutputIndex()));
-            vpwallets[0]->LockCoin(outpoint);
-            LogPrintf("Locked collateral, MN: %s, tx hash: %s, output index: %s\n",
-                      mne.getAlias(), mne.getTxHash(), mne.getOutputIndex());
-        }
-    }
-
-    // automatic lock for DMN
-    if (gArgs.GetBoolArg("-mnconflock", DEFAULT_MNCONFLOCK)) {
-        LogPrintf("Locking masternode collaterals...\n");
-        const auto& mnList = deterministicMNManager->GetListAtChainTip();
-        mnList.ForEachMN(false, [&](const CDeterministicMNCPtr& dmn) {
-            for (CWallet* pwallet : vpwallets) {
-                pwallet->LockOutpointIfMineWithMutex(nullptr, dmn->collateralOutpoint);
-            }
-        });
-    }
-#endif
-
     // Start tier two threads and jobs
     StartTierTwoThreadsAndScheduleJobs(threadGroup, scheduler);
 
@@ -1766,9 +1728,6 @@ bool AppInitMain()
         LogPrintf("Shutdown requested. Exiting.\n");
         return false;
     }
-
-    // start LLMQ system
-    llmq::StartLLMQSystem();
 
     // ********************************************************* Step 11: start node
 

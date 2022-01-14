@@ -5,14 +5,17 @@
 #include "tiertwo/init.h"
 
 #include "budget/budgetdb.h"
+#include "evo/evodb.h"
 #include "flatdb.h"
 #include "guiinterface.h"
 #include "guiinterfaceutil.h"
 #include "masternodeman.h"
 #include "masternode-payments.h"
 #include "masternodeconfig.h"
+#include "llmq/quorums_init.h"
 #include "tiertwo/masternode_meta_manager.h"
 #include "validation.h"
+#include "wallet/wallet.h"
 
 #include <boost/thread.hpp>
 
@@ -27,6 +30,21 @@ std::string GetTierTwoHelpString(bool showDebug)
     strUsage += HelpMessageOpt("-budgetvotemode=<mode>", "Change automatic finalized budget voting behavior. mode=auto: Vote for only exact finalized budget match to my generated budget. (string, default: auto)");
     strUsage += HelpMessageOpt("-mnoperatorprivatekey=<WIF>", "Set the masternode operator private key. Only valid with -masternode=1. When set, the masternode acts as a deterministic masternode.");
     return strUsage;
+}
+
+void InitTierTwoPreChainLoad(bool fReindex)
+{
+    int64_t nEvoDbCache = 1024 * 1024 * 16; // TODO
+    deterministicMNManager.reset();
+    evoDb.reset();
+    evoDb.reset(new CEvoDB(nEvoDbCache, false, fReindex));
+    deterministicMNManager.reset(new CDeterministicMNManager(*evoDb));
+}
+
+void InitTierTwoPostCoinsCacheLoad()
+{
+    // Initialize LLMQ system
+    llmq::InitLLMQSystem(*evoDb);
 }
 
 // Sets the last CACHED_BLOCK_HASHES hashes into masternode manager cache
@@ -182,6 +200,34 @@ bool InitActiveMN()
             if (!res) { return UIError(res.getError()); }
         }
     }
+
+#ifdef ENABLE_WALLET
+    // !TODO: remove after complete transition to DMN
+    // use only the first wallet here. This section can be removed after transition to DMN
+    if (gArgs.GetBoolArg("-mnconflock", DEFAULT_MNCONFLOCK) && !vpwallets.empty() && vpwallets[0]) {
+        LOCK(vpwallets[0]->cs_wallet);
+        LogPrintf("Locking Masternodes collateral utxo:\n");
+        uint256 mnTxHash;
+        for (const auto& mne : masternodeConfig.getEntries()) {
+            mnTxHash.SetHex(mne.getTxHash());
+            COutPoint outpoint = COutPoint(mnTxHash, (unsigned int) std::stoul(mne.getOutputIndex()));
+            vpwallets[0]->LockCoin(outpoint);
+            LogPrintf("Locked collateral, MN: %s, tx hash: %s, output index: %s\n",
+                      mne.getAlias(), mne.getTxHash(), mne.getOutputIndex());
+        }
+    }
+
+    // automatic lock for DMN
+    if (gArgs.GetBoolArg("-mnconflock", DEFAULT_MNCONFLOCK)) {
+        LogPrintf("Locking masternode collaterals...\n");
+        const auto& mnList = deterministicMNManager->GetListAtChainTip();
+        mnList.ForEachMN(false, [&](const CDeterministicMNCPtr& dmn) {
+            for (CWallet* pwallet : vpwallets) {
+                pwallet->LockOutpointIfMineWithMutex(nullptr, dmn->collateralOutpoint);
+            }
+        });
+    }
+#endif
     // All good
     return true;
 }
@@ -189,4 +235,18 @@ bool InitActiveMN()
 void StartTierTwoThreadsAndScheduleJobs(boost::thread_group& threadGroup, CScheduler& scheduler)
 {
     threadGroup.create_thread(std::bind(&ThreadCheckMasternodes));
+    // start LLMQ system
+    llmq::StartLLMQSystem();
+}
+
+void StopTierTwoThreads()
+{
+    llmq::StopLLMQSystem();
+}
+
+void DeleteTierTwo()
+{
+    llmq::DestroyLLMQSystem();
+    deterministicMNManager.reset();
+    evoDb.reset();
 }

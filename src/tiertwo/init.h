@@ -17,6 +17,12 @@ namespace boost {
 
 std::string GetTierTwoHelpString(bool showDebug);
 
+/** Inits the tier two global objects */
+void InitTierTwoPreChainLoad(bool fReindex);
+
+/** Inits the tier two global objects that require access to the coins tip cache */
+void InitTierTwoPostCoinsCacheLoad();
+
 /** Loads from disk all the tier two related objects */
 bool LoadTierTwo(int chain_active_height, bool fReindexChainState);
 
@@ -33,6 +39,12 @@ bool InitActiveMN();
 
 /** Starts tier two threads and jobs */
 void StartTierTwoThreadsAndScheduleJobs(boost::thread_group& threadGroup, CScheduler& scheduler);
+
+/** Stops tier two workers */
+void StopTierTwoThreads();
+
+/** Cleans manager and worker objects pointers */
+void DeleteTierTwo();
 
 
 #endif //PIVX_TIERTWO_INIT_H
