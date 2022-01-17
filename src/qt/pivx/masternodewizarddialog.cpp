@@ -8,6 +8,7 @@
 #include "key_io.h"
 #include "qt/pivx/mnmodel.h"
 #include "qt/pivx/qtutils.h"
+#include "qt/walletmodel.h"
 
 #include <QIntValidator>
 #include <QRegularExpression>

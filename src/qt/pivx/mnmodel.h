@@ -64,6 +64,10 @@ public:
     int getMasternodeCollateralMinConf();
     // Generates the collateral transaction
     bool createMNCollateral(const QString& alias, const QString& addr, COutPoint& ret_outpoint, QString& ret_error);
+    // Creates the mnb and broadcast it to the network
+    bool startLegacyMN(const CMasternodeConfig::CMasternodeEntry& mne, int chainHeight, std::string& strError);
+    void startAllLegacyMNs(bool onlyMissing, int& amountOfMnFailed, int& amountOfMnStarted,
+                           std::string* aliasFilter = nullptr, std::string* error_ret = nullptr);
 
     CMasternodeConfig::CMasternodeEntry* createLegacyMN(COutPoint& collateralOut,
                                                         const std::string& alias,

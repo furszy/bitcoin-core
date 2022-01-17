@@ -268,6 +268,52 @@ bool MNModel::createMNCollateral(
     return true;
 }
 
+bool MNModel::startLegacyMN(const CMasternodeConfig::CMasternodeEntry& mne, int chainHeight, std::string& strError)
+{
+    CMasternodeBroadcast mnb;
+    if (!CMasternodeBroadcast::Create(mne.getIp(), mne.getPrivKey(), mne.getTxHash(), mne.getOutputIndex(), strError, mnb, false, chainHeight))
+        return false;
+
+    mnodeman.UpdateMasternodeList(mnb);
+    if (activeMasternode.pubKeyMasternode == mnb.GetPubKey()) {
+        activeMasternode.EnableHotColdMasterNode(mnb.vin, mnb.addr);
+    }
+    mnb.Relay();
+    return true;
+}
+
+void MNModel::startAllLegacyMNs(bool onlyMissing, int& amountOfMnFailed, int& amountOfMnStarted,
+                                std::string* aliasFilter, std::string* error_ret)
+{
+    for (const auto& mne : masternodeConfig.getEntries()) {
+        if (!aliasFilter) {
+            // Check for missing only
+            QString mnAlias = QString::fromStdString(mne.getAlias());
+            if (onlyMissing && !isMNInactive(mnAlias)) {
+                if (!isMNActive(mnAlias))
+                    amountOfMnFailed++;
+                continue;
+            }
+
+            if (!isMNCollateralMature(mnAlias)) {
+                amountOfMnFailed++;
+                continue;
+            }
+        } else if (*aliasFilter != mne.getAlias()){
+            continue;
+        }
+
+        std::string ret_str;
+        if (!startLegacyMN(mne, walletModel->getLastBlockProcessedNum(), ret_str)) {
+            amountOfMnFailed++;
+            if (error_ret) *error_ret = ret_str;
+        } else {
+            amountOfMnStarted++;
+        }
+    }
+}
+
+// Future: remove after v6.0
 CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collateralOut,
                              const std::string& alias,
                              std::string& serviceAddr,
@@ -276,16 +322,17 @@ CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collater
                              QString& ret_error)
 {
     // Update the conf file
-    std::string strConfFile = "masternode.conf";
+    QString strConfFileQt(PIVX_MASTERNODE_CONF_FILENAME);
+    std::string strConfFile = strConfFileQt.toStdString();
     std::string strDataDir = GetDataDir().string();
     fs::path conf_file_path(strConfFile);
     if (strConfFile != conf_file_path.filename().string()) {
-        throw std::runtime_error(strprintf(_("masternode.conf %s resides outside data directory %s"), strConfFile, strDataDir));
+        throw std::runtime_error(strprintf(_("%s %s resides outside data directory %s"), strConfFile, strConfFile, strDataDir));
     }
 
     fs::path pathBootstrap = GetDataDir() / strConfFile;
     if (!fs::exists(pathBootstrap)) {
-        ret_error = tr("masternode.conf file doesn't exists");
+        ret_error = tr("%1 file doesn't exists").arg(strConfFileQt);
         return nullptr;
     }
 
@@ -293,7 +340,7 @@ CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collater
     fsbridge::ifstream streamConfig(pathMasternodeConfigFile);
 
     if (!streamConfig.good()) {
-        ret_error = tr("Invalid masternode.conf file");
+        ret_error = tr("Invalid %1 file").arg(strConfFileQt);
         return nullptr;
     }
 
@@ -316,7 +363,7 @@ CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collater
             iss.clear();
             if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
                 streamConfig.close();
-                ret_error = tr("Error parsing masternode.conf file");
+                ret_error = tr("Error parsing %1 file").arg(strConfFileQt);
                 return nullptr;
             }
         }
@@ -355,7 +402,7 @@ CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collater
     }
     rename(pathMasternodeConfigFile, pathOldConfFile);
 
-    fs::path pathNewConfFile = AbsPathForConfigVal(fs::path("masternode.conf"));
+    fs::path pathNewConfFile = AbsPathForConfigVal(fs::path(strConfFile));
     rename(pathConfigFile, pathNewConfFile);
 
     auto ret_mn_entry = masternodeConfig.add(alias, serviceAddr+":"+port, mnKeyString, txID, indexOutStr);
@@ -365,18 +412,20 @@ CMasternodeConfig::CMasternodeEntry* MNModel::createLegacyMN(COutPoint& collater
     return ret_mn_entry;
 }
 
+// Future: remove after v6.0
 bool MNModel::removeLegacyMN(const std::string& alias_to_remove, const std::string& tx_id, unsigned int out_index, QString& ret_error)
 {
-    std::string strConfFile = "masternode.conf";
+    QString strConfFileQt(PIVX_MASTERNODE_CONF_FILENAME);
+    std::string strConfFile = strConfFileQt.toStdString();
     std::string strDataDir = GetDataDir().string();
     fs::path conf_file_path(strConfFile);
     if (strConfFile != conf_file_path.filename().string()) {
-        throw std::runtime_error(strprintf(_("masternode.conf %s resides outside data directory %s"), strConfFile, strDataDir));
+        throw std::runtime_error(strprintf(_("%s %s resides outside data directory %s"), strConfFile, strConfFile, strDataDir));
     }
 
     fs::path pathBootstrap = GetDataDir() / strConfFile;
     if (!fs::exists(pathBootstrap)) {
-        ret_error = tr("masternode.conf file doesn't exists");
+        ret_error = tr("%1 file doesn't exists").arg(strConfFileQt);
         return false;
     }
 
@@ -384,7 +433,7 @@ bool MNModel::removeLegacyMN(const std::string& alias_to_remove, const std::stri
     fsbridge::ifstream streamConfig(pathMasternodeConfigFile);
 
     if (!streamConfig.good()) {
-        ret_error = tr("Invalid masternode.conf file");
+        ret_error = tr("Invalid %1 file").arg(strConfFileQt);
         return false;
     }
 
@@ -408,7 +457,7 @@ bool MNModel::removeLegacyMN(const std::string& alias_to_remove, const std::stri
             iss.clear();
             if (!(iss >> alias >> ip >> privKey >> txHash >> outputIndex)) {
                 streamConfig.close();
-                ret_error = tr("Error parsing masternode.conf file");
+                ret_error = tr("Error parsing %1 file").arg(strConfFileQt);
                 return false;
             }
         }
@@ -428,26 +477,30 @@ bool MNModel::removeLegacyMN(const std::string& alias_to_remove, const std::stri
 
     streamConfig.close();
 
-    if (lineNumToRemove != -1) {
-        fs::path pathConfigFile = AbsPathForConfigVal(fs::path("masternode_temp.conf"));
-        FILE* configFile = fsbridge::fopen(pathConfigFile, "w");
-        fwrite(lineCopy.c_str(), std::strlen(lineCopy.c_str()), 1, configFile);
-        fclose(configFile);
-
-        fs::path pathOldConfFile = AbsPathForConfigVal(fs::path("old_masternode.conf"));
-        if (fs::exists(pathOldConfFile)) {
-            fs::remove(pathOldConfFile);
-        }
-        rename(pathMasternodeConfigFile, pathOldConfFile);
-
-        fs::path pathNewConfFile = AbsPathForConfigVal(fs::path("masternode.conf"));
-        rename(pathConfigFile, pathNewConfFile);
-
-        // Unlock collateral
-        COutPoint collateralOut(uint256S(tx_id), out_index);
-        walletModel->unlockCoin(collateralOut);
-        // Remove alias
-        masternodeConfig.remove(alias_to_remove);
-        return true;
+    if (lineNumToRemove == -1) {
+        ret_error = tr("MN alias %1 not found in %2 file").arg(QString::fromStdString(alias_to_remove)).arg(strConfFileQt);
+        return false;
     }
+
+    // Update file
+    fs::path pathConfigFile = AbsPathForConfigVal(fs::path("masternode_temp.conf"));
+    FILE* configFile = fsbridge::fopen(pathConfigFile, "w");
+    fwrite(lineCopy.c_str(), std::strlen(lineCopy.c_str()), 1, configFile);
+    fclose(configFile);
+
+    fs::path pathOldConfFile = AbsPathForConfigVal(fs::path("old_masternode.conf"));
+    if (fs::exists(pathOldConfFile)) {
+        fs::remove(pathOldConfFile);
+    }
+    rename(pathMasternodeConfigFile, pathOldConfFile);
+
+    fs::path pathNewConfFile = AbsPathForConfigVal(fs::path(strConfFile));
+    rename(pathConfigFile, pathNewConfFile);
+
+    // Unlock collateral
+    COutPoint collateralOut(uint256S(tx_id), out_index);
+    walletModel->unlockCoin(collateralOut);
+    // Remove alias
+    masternodeConfig.remove(alias_to_remove);
+    return true;
 }

@@ -5,7 +5,6 @@
 #ifndef MASTERNODEWIZARDDIALOG_H
 #define MASTERNODEWIZARDDIALOG_H
 
-#include "walletmodel.h"
 #include "qt/pivx/focuseddialog.h"
 #include "qt/pivx/snackbar.h"
 #include "masternodeconfig.h"

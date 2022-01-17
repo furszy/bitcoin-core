@@ -12,10 +12,9 @@
 
 #include "clientmodel.h"
 #include "guiutil.h"
-#include "masternodeconfig.h"
-#include "masternodeman.h"
 #include "qt/pivx/mnmodel.h"
 #include "qt/pivx/optionbutton.h"
+#include "qt/walletmodel.h"
 
 #define DECORATION_SIZE 65
 #define NUM_ITEMS 3
@@ -214,12 +213,15 @@ void MasterNodesWidget::startAlias(const QString& strAlias)
     QString strStatusHtml;
     strStatusHtml += "Alias: " + strAlias + " ";
 
-    for (const auto& mne : masternodeConfig.getEntries()) {
-        if (mne.getAlias() == strAlias.toStdString()) {
-            std::string strError;
-            strStatusHtml += (!startMN(mne, walletModel->getLastBlockProcessedNum(), strError)) ? ("failed to start.\nError: " + QString::fromStdString(strError)) : "successfully started.";
-            break;
-        }
+    int failed_amount;
+    int success_amount;
+    std::string alias = strAlias.toStdString();
+    std::string strError;
+    mnModel->startAllLegacyMNs(false, failed_amount, success_amount, &alias, &strError);
+    if (failed_amount > 0) {
+        strStatusHtml = tr("failed to start.\nError: %1").arg(QString::fromStdString(strError));
+    } else if (success_amount > 0) {
+        strStatusHtml = tr("successfully started");
     }
     // update UI and notify
     updateModelAndInform(strStatusHtml);
@@ -255,27 +257,7 @@ bool MasterNodesWidget::startAll(QString& failText, bool onlyMissing)
 {
     int amountOfMnFailed = 0;
     int amountOfMnStarted = 0;
-    for (const auto& mne : masternodeConfig.getEntries()) {
-        // Check for missing only
-        QString mnAlias = QString::fromStdString(mne.getAlias());
-        if (onlyMissing && !mnModel->isMNInactive(mnAlias)) {
-            if (!mnModel->isMNActive(mnAlias))
-                amountOfMnFailed++;
-            continue;
-        }
-
-        if (!mnModel->isMNCollateralMature(mnAlias)) {
-            amountOfMnFailed++;
-            continue;
-        }
-
-        std::string strError;
-        if (!startMN(mne, walletModel->getLastBlockProcessedNum(), strError)) {
-            amountOfMnFailed++;
-        } else {
-            amountOfMnStarted++;
-        }
-    }
+    mnModel->startAllLegacyMNs(onlyMissing, amountOfMnFailed, amountOfMnStarted);
     if (amountOfMnFailed > 0) {
         failText = tr("%1 Masternodes failed to start, %2 started").arg(amountOfMnFailed).arg(amountOfMnStarted);
         return false;

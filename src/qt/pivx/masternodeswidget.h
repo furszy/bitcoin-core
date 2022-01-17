@@ -8,7 +8,6 @@
 #include "qt/pivx/pwidget.h"
 #include "qt/pivx/furabstractlistitemdelegate.h"
 #include "qt/pivx/tooltipmenu.h"
-#include "walletmodel.h"
 
 #include <atomic>
 
