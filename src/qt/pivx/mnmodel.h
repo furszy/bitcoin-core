@@ -6,9 +6,10 @@
 #define MNMODEL_H
 
 #include <QAbstractTableModel>
-#include "masternode.h"
 #include "masternodeconfig.h"
 #include "qt/walletmodel.h"
+
+class CMasternode;
 
 class MNModel : public QAbstractTableModel
 {
@@ -59,6 +60,8 @@ public:
 
     // Return the specific chain amount value for the MN collateral output.
     CAmount getMNCollateralRequiredAmount();
+    // Return the specific chain min conf for the collateral tx
+    int getMasternodeCollateralMinConf();
     // Generates the collateral transaction
     bool createMNCollateral(const QString& alias, const QString& addr, COutPoint& ret_outpoint, QString& ret_error);
 

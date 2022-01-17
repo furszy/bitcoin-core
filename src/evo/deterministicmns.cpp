@@ -14,7 +14,6 @@
 #include "key_io.h"
 #include "guiinterface.h"
 #include "llmq/quorums_utils.h"
-#include "masternode.h" // for MasternodeCollateralMinConf
 #include "masternodeman.h" // for mnodeman (!TODO: remove)
 #include "script/standard.h"
 #include "spork.h"
@@ -568,7 +567,7 @@ void CDeterministicMNManager::SetTipIndex(const CBlockIndex* pindex)
 bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const CBlockIndex* pindexPrev, CValidationState& _state, CDeterministicMNList& mnListRet, bool debugLogs)
 {
     AssertLockHeld(cs);
-
+    const auto& consensus = Params().GetConsensus();
     int nHeight = pindexPrev->nHeight + 1;
 
     CDeterministicMNList oldList = GetListForBlock(pindexPrev);
@@ -589,7 +588,7 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
         // this works on the previous block, so confirmation will happen one block after nMasternodeMinimumConfirmations
         // has been reached, but the block hash will then point to the block at nMasternodeMinimumConfirmations
         int nConfirmations = pindexPrev->nHeight - dmn->pdmnState->nRegisteredHeight;
-        if (nConfirmations >= MasternodeCollateralMinConf()) {
+        if (nConfirmations >= consensus.MasternodeCollateralMinConf()) {
             auto newState = std::make_shared<CDeterministicMNState>(*dmn->pdmnState);
             newState->UpdateConfirmedHash(dmn->proTxHash, pindexPrev->GetBlockHash());
             newList.UpdateMN(dmn->proTxHash, newState);
@@ -762,7 +761,7 @@ bool CDeterministicMNManager::BuildNewListFromBlock(const CBlock& block, const C
             }
             if (!pl.commitment.IsNull()) {
                 // Double-check that the quorum index is in the active chain
-                const auto& params = Params().GetConsensus().llmqs.at((Consensus::LLMQType)pl.commitment.llmqType);
+                const auto& params = consensus.llmqs.at((Consensus::LLMQType)pl.commitment.llmqType);
                 uint32_t quorumHeight = pl.nHeight - (pl.nHeight % params.dkgInterval);
                 auto quorumIndex = pindexPrev->GetAncestor(quorumHeight);
                 if (!quorumIndex || quorumIndex->GetBlockHash() != pl.commitment.quorumHash) {

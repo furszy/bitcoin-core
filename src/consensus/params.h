@@ -177,6 +177,7 @@ struct Params {
     int nFutureTimeDriftPoS;
     CAmount nMaxMoneyOut;
     CAmount nMNCollateralAmt;
+    int nMNCollateralMinConf;
     CAmount nMNBlockReward;
     int64_t nProposalEstablishmentTime;
     int nStakeMinAge;
@@ -209,6 +210,7 @@ struct Params {
     uint256 ProofOfStakeLimit(const bool fV2) const { return fV2 ? posLimitV2 : posLimitV1; }
     bool MoneyRange(const CAmount& nValue) const { return (nValue >= 0 && nValue <= nMaxMoneyOut); }
     bool IsTimeProtocolV2(const int nHeight) const { return NetworkUpgradeActive(nHeight, UPGRADE_V4_0); }
+    int MasternodeCollateralMinConf() const { return nMNCollateralMinConf; }
 
     int FutureBlockTimeDrift(const int nHeight) const
     {

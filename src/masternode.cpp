@@ -12,24 +12,18 @@
 #include "tiertwo/tiertwo_sync_state.h"
 #include "wallet/wallet.h"
 
-#define MASTERNODE_MIN_CONFIRMATIONS_REGTEST 1
 #define MASTERNODE_MIN_MNP_SECONDS_REGTEST 90
 #define MASTERNODE_MIN_MNB_SECONDS_REGTEST 25
 #define MASTERNODE_PING_SECONDS_REGTEST 25
 #define MASTERNODE_EXPIRATION_SECONDS_REGTEST 12 * 60
 #define MASTERNODE_REMOVAL_SECONDS_REGTEST 13 * 60
 
-#define MASTERNODE_MIN_CONFIRMATIONS 15
 #define MASTERNODE_MIN_MNP_SECONDS (10 * 60)
 #define MASTERNODE_MIN_MNB_SECONDS (5 * 60)
 #define MASTERNODE_PING_SECONDS (5 * 60)
 #define MASTERNODE_EXPIRATION_SECONDS (120 * 60)
 #define MASTERNODE_REMOVAL_SECONDS (130 * 60)
 #define MASTERNODE_CHECK_SECONDS 5
-
-// keep track of the scanning errors I've seen
-std::map<uint256, int> mapSeenMasternodeScanningErrors;
-
 
 int MasternodeMinPingSeconds()
 {
@@ -39,11 +33,6 @@ int MasternodeMinPingSeconds()
 int MasternodeBroadcastSeconds()
 {
     return Params().IsRegTestNet() ? MASTERNODE_MIN_MNB_SECONDS_REGTEST : MASTERNODE_MIN_MNB_SECONDS;
-}
-
-int MasternodeCollateralMinConf()
-{
-    return Params().IsRegTestNet() ? MASTERNODE_MIN_CONFIRMATIONS_REGTEST : MASTERNODE_MIN_CONFIRMATIONS;
 }
 
 int MasternodePingSeconds()

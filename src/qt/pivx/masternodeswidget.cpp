@@ -204,23 +204,9 @@ void MasterNodesWidget::onEditMNClicked()
             }
         } else {
             inform(tr("Cannot start masternode, the collateral transaction has not been confirmed by the network yet.\n"
-                    "Please wait few more minutes (masternode collaterals require %1 confirmations).").arg(MasternodeCollateralMinConf()));
+                    "Please wait few more minutes (masternode collaterals require %1 confirmations).").arg(mnModel->getMasternodeCollateralMinConf()));
         }
     }
-}
-
-static bool startMN(const CMasternodeConfig::CMasternodeEntry& mne, int chainHeight, std::string& strError)
-{
-    CMasternodeBroadcast mnb;
-    if (!CMasternodeBroadcast::Create(mne.getIp(), mne.getPrivKey(), mne.getTxHash(), mne.getOutputIndex(), strError, mnb, false, chainHeight))
-        return false;
-
-    mnodeman.UpdateMasternodeList(mnb);
-    if (activeMasternode.pubKeyMasternode == mnb.GetPubKey()) {
-        activeMasternode.EnableHotColdMasterNode(mnb.vin, mnb.addr);
-    }
-    mnb.Relay();
-    return true;
 }
 
 void MasterNodesWidget::startAlias(const QString& strAlias)

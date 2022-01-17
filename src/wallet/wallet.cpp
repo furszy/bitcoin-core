@@ -2442,7 +2442,8 @@ bool CWallet::GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& 
     CTxOut txOut = wtx->tx->vout[nOutputIndex];
 
     // Masternode collateral value
-    if (txOut.nValue != Params().GetConsensus().nMNCollateralAmt) {
+    const auto& consensus = Params().GetConsensus();
+    if (txOut.nValue != consensus.nMNCollateralAmt) {
         strError = strprintf("Invalid collateral tx value, must be %s PIV", FormatMoney(Params().GetConsensus().nMNCollateralAmt));
         return error("%s: tx %s, index %d not a masternode collateral", __func__, strTxHash, nOutputIndex);
     }
@@ -2465,8 +2466,8 @@ bool CWallet::GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& 
     }
 
     // Depth must be at least MASTERNODE_MIN_CONFIRMATIONS
-    if (nDepth < MasternodeCollateralMinConf()) {
-        strError = strprintf("Collateral tx must have at least %d confirmations, has %d", MasternodeCollateralMinConf(), nDepth);
+    if (nDepth < consensus.MasternodeCollateralMinConf()) {
+        strError = strprintf("Collateral tx must have at least %d confirmations, has %d", consensus.MasternodeCollateralMinConf(), nDepth);
         return error("%s: %s", __func__, strError);
     }
 

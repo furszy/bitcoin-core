@@ -231,7 +231,7 @@ bool MasterNodeWizardDialog::createMN()
         return false;
     }
 
-    returnStr = tr("Masternode created! Wait %1 confirmations before starting it.").arg(MasternodeCollateralMinConf());
+    returnStr = tr("Masternode created! Wait %1 confirmations before starting it.").arg(mnModel->getMasternodeCollateralMinConf());
     return true;
 }
 

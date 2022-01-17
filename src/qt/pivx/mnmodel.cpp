@@ -4,7 +4,7 @@
 
 #include "qt/pivx/mnmodel.h"
 
-#include "activemasternode.h"
+#include "masternode.h"
 #include "masternodeman.h"
 #include "net.h"        // for validateMasternodeIP
 #include "tiertwo/tiertwo_sync_state.h"
@@ -27,6 +27,7 @@ void MNModel::init()
 
 void MNModel::updateMNList()
 {
+    int mnMinConf = getMasternodeCollateralMinConf();
     int end = nodes.size();
     nodes.clear();
     collateralTxAccepted.clear();
@@ -43,7 +44,7 @@ void MNModel::updateMNList()
         }
         nodes.insert(QString::fromStdString(mne.getAlias()), std::make_pair(QString::fromStdString(mne.getIp()), pmn));
         if (walletModel) {
-            collateralTxAccepted.insert(mne.getTxHash(), walletModel->getWalletTxDepth(txHash) >= MasternodeCollateralMinConf());
+            collateralTxAccepted.insert(mne.getTxHash(), walletModel->getWalletTxDepth(txHash) >= mnMinConf);
         }
     }
     Q_EMIT dataChanged(index(0, 0, QModelIndex()), index(end, 5, QModelIndex()) );
@@ -197,6 +198,11 @@ bool MNModel::validateMNIP(const QString& addrStr)
 CAmount MNModel::getMNCollateralRequiredAmount()
 {
     return Params().GetConsensus().nMNCollateralAmt;
+}
+
+int MNModel::getMasternodeCollateralMinConf()
+{
+    return Params().GetConsensus().MasternodeCollateralMinConf();
 }
 
 bool MNModel::createMNCollateral(
