@@ -6,6 +6,7 @@
 #include "budget/budgetproposal.h"
 #include "chainparams.h"
 #include "script/standard.h"
+#include "netmessagemaker.h"
 
 CBudgetProposal::CBudgetProposal():
         nAllotted(0),
@@ -252,6 +253,20 @@ void CBudgetProposal::SetSynced(bool synced)
             if (vote.IsValid()) vote.SetSynced(true);
         } else {
             vote.SetSynced(false);
+        }
+    }
+}
+
+void CBudgetProposal::ForceSyncVotes(CNode* pfrom, int& nInvCount) const
+{
+    for (const auto& it: mapVotes) {
+        const CBudgetVote& vote = it.second;
+        if (vote.IsValid()) {
+            CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
+            ss.reserve(1000);
+            ss << vote;
+            g_connman->PushMessage(pfrom, CNetMsgMaker(pfrom->GetSendVersion()).Make(NetMsgType::BUDGETVOTE, ss));
+            nInvCount++;
         }
     }
 }

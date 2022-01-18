@@ -1301,6 +1301,9 @@ bool static ProcessMessage(CNode* pfrom, std::string strCommand, CDataStream& vR
         LogPrintf("New outbound peer connected: version: %d, blocks=%d, peer=%d%s\n",
                   pfrom->nVersion.load(), pfrom->nStartingHeight, pfrom->GetId(),
                   (fLogIPs ? strprintf(", peeraddr=%s", pfrom->addr.ToString()) : ""));
+
+        // Now that we are connected, let's relay all the known votes.
+        //g_budgetman.SyncVotes(pfrom);
     }
 
     else if (strCommand == NetMsgType::SENDADDRV2) {

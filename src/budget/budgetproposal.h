@@ -67,6 +67,8 @@ public:
     // sync proposal votes with a node
     void SyncVotes(CNode* pfrom, bool fPartial, int& nInvCount) const;
 
+    void ForceSyncVotes(CNode* pfrom, int& nInvCount) const;
+
     // sets fValid and strInvalid, returns fValid
     bool UpdateValid(int nHeight, int mnCount);
     // Static checks that should be done only once - sets strInvalid

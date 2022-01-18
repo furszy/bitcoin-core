@@ -1694,3 +1694,30 @@ bool CheckCollateral(const uint256& nTxCollateralHash, const uint256& nExpectedH
 
     return CheckCollateralConfs(nTxCollateralHash, nCurrentHeight, nProposalHeight, strError);
 }
+
+static void relayPropVotes(CNode* pfrom, RecursiveMutex& cs,
+                           std::map<uint256, CBudgetProposal>& map,
+                           const int mn_sync_budget_type)
+{
+    CNetMsgMaker msgMaker(pfrom->GetSendVersion());
+    int nInvCount = 0;
+    {
+        LOCK(cs);
+        for (auto& it: map) {
+            CBudgetProposal* item = &(it.second);
+            if (item && item->IsValid()) {
+                g_connman->PushMessage(pfrom, CNetMsgMaker(pfrom->GetSendVersion()).Make(NetMsgType::BUDGETPROPOSAL, item->GetBroadcast()));
+                nInvCount++;
+                item->ForceSyncVotes(pfrom, nInvCount);
+            }
+        }
+    }
+    g_connman->PushMessage(pfrom, msgMaker.Make(NetMsgType::SYNCSTATUSCOUNT, mn_sync_budget_type, nInvCount));
+    LogPrintf("%s: sent %d objects\n", __func__, nInvCount);
+}
+
+void CBudgetManager::SyncVotes(CNode* node)
+{
+    LogPrintf("Relaying known votes to peer %s\n", node->GetAddrName());
+    relayPropVotes(node, cs_proposals, mapProposals, MASTERNODE_SYNC_BUDGET_PROP);
+}

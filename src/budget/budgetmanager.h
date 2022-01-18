@@ -215,6 +215,8 @@ public:
             READWRITE(obj.mapSeenFinalizedBudgetVotes, obj.mapOrphanFinalizedBudgetVotes);
         }
     }
+
+    void SyncVotes(CNode* node);
 };
 
 extern CBudgetManager g_budgetman;
