@@ -26,6 +26,7 @@
 
 #ifdef ENABLE_WALLET
 #include "coincontrol.h"
+#include "evo/specialtx_utils.h"
 #include "wallet/wallet.h"
 #include "wallet/rpcwallet.h"
 
@@ -145,6 +146,10 @@ std::string GetHelpString(int nParamNum, ProRegParam p)
     return strprintf(it->second, nParamNum);
 }
 
+void CheckOpResult(const OperationResult& res) {
+    if (!res) throw JSONRPCError(RPC_INTERNAL_ERROR, res.getError());
+}
+
 #ifdef ENABLE_WALLET
 static CKey GetKeyFromWallet(CWallet* pwallet, const CKeyID& keyID)
 {
@@ -258,50 +263,6 @@ static UniValue DmnToJson(const CDeterministicMNCPtr dmn)
     }
     ret.pushKV("collateralAddress", EncodeDestination(dest));
     return ret;
-}
-
-#ifdef ENABLE_WALLET
-
-template<typename SpecialTxPayload>
-static void FundSpecialTx(CWallet* pwallet, CMutableTransaction& tx, SpecialTxPayload& payload)
-{
-    SetTxPayload(tx, payload);
-
-    static CTxOut dummyTxOut(0, CScript() << OP_RETURN);
-    std::vector<CRecipient> vecSend;
-    bool dummyTxOutAdded = false;
-
-    if (tx.vout.empty()) {
-        // add dummy txout as CreateTransaction requires at least one recipient
-        tx.vout.emplace_back(dummyTxOut);
-        dummyTxOutAdded = true;
-    }
-
-    CAmount nFee;
-    CFeeRate feeRate = CFeeRate(0);
-    int nChangePos = -1;
-    std::string strFailReason;
-    std::set<int> setSubtractFeeFromOutputs;
-    if (!pwallet->FundTransaction(tx, nFee, false, feeRate, nChangePos, strFailReason, false, false, {}))
-        throw JSONRPCError(RPC_INTERNAL_ERROR, strFailReason);
-
-    if (dummyTxOutAdded && tx.vout.size() > 1) {
-        // FundTransaction added a change output, so we don't need the dummy txout anymore
-        // Removing it results in slight overpayment of fees, but we ignore this for now (as it's a very low amount)
-        auto it = std::find(tx.vout.begin(), tx.vout.end(), dummyTxOut);
-        assert(it != tx.vout.end());
-        tx.vout.erase(it);
-    }
-
-    UpdateSpecialTxInputsHash(tx, payload);
-}
-
-#endif
-
-template<typename SpecialTxPayload>
-static void UpdateSpecialTxInputsHash(const CMutableTransaction& tx, SpecialTxPayload& payload)
-{
-    payload.inputsHash = CalcTxInputsHash(tx);
 }
 
 template<typename SpecialTxPayload>
@@ -532,7 +493,7 @@ static UniValue ProTxRegister(const JSONRPCRequest& request, bool fSignAndSend)
     // make sure fee calculation works
     pl.vchSig.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
 
-    FundSpecialTx(pwallet, tx, pl);
+    CheckOpResult(FundSpecialTx(pwallet, tx, pl));
 
     if (fSignAndSend) {
         SignSpecialTxPayloadByString(pl, keyCollateral); // prove we own the collateral
@@ -656,7 +617,7 @@ UniValue protx_register_fund(const JSONRPCRequest& request)
     tx.nType = CTransaction::TxType::PROREG;
     tx.vout.emplace_back(collAmt, collateralScript);
 
-    FundSpecialTx(pwallet, tx, pl);
+    CheckOpResult(FundSpecialTx(pwallet, tx, pl));
 
     for (uint32_t i = 0; i < tx.vout.size(); i++) {
         if (tx.vout[i].nValue == collAmt && tx.vout[i].scriptPubKey == collateralScript) {
@@ -887,7 +848,7 @@ UniValue protx_update_service(const JSONRPCRequest& request)
     tx.nVersion = CTransaction::TxVersion::SAPLING;
     tx.nType = CTransaction::TxType::PROUPSERV;
 
-    FundSpecialTx(pwallet, tx, pl);
+    CheckOpResult(FundSpecialTx(pwallet, tx, pl));
     SignSpecialTxPayloadByHash(tx, pl, operatorKey);
 
     return SignAndSendSpecialTx(pwallet, tx, pl);
@@ -961,7 +922,7 @@ UniValue protx_update_registrar(const JSONRPCRequest& request)
 
     // make sure fee calculation works
     pl.vchSig.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
-    FundSpecialTx(pwallet, tx, pl);
+    CheckOpResult(FundSpecialTx(pwallet, tx, pl));
     SignSpecialTxPayloadByHash(tx, pl, ownerKey);
 
     return SignAndSendSpecialTx(pwallet, tx, pl);
@@ -1027,7 +988,7 @@ UniValue protx_revoke(const JSONRPCRequest& request)
     tx.nVersion = CTransaction::TxVersion::SAPLING;
     tx.nType = CTransaction::TxType::PROUPREV;
 
-    FundSpecialTx(pwallet, tx, pl);
+    CheckOpResult(FundSpecialTx(pwallet, tx, pl));
     SignSpecialTxPayloadByHash(tx, pl, operatorKey);
 
     return SignAndSendSpecialTx(pwallet, tx, pl);

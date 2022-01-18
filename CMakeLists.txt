@@ -417,6 +417,7 @@ set(COMMON_SOURCES
         ./src/evo/evodb.cpp
         ./src/evo/providertx.cpp
         ./src/evo/specialtx_validation.cpp
+        ./src/evo/specialtx_utils.cpp
         ./src/llmq/quorums_blockprocessor.cpp
         ./src/llmq/quorums_commitment.cpp
         ./src/llmq/quorums_connections.cpp
