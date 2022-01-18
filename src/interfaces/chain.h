@@ -19,6 +19,7 @@
 
 class ArgsManager;
 class CBlock;
+class CBlockIndex;
 class CBlockUndo;
 class CFeeRate;
 class CRPCCommand;
@@ -275,6 +276,9 @@ public:
         virtual void updatedBlockTip() {}
         virtual void chainStateFlushed(const CBlockLocator& locator) {}
     };
+
+    //! Check if all blocks needed to sync start block to current tip are present.
+    virtual bool hasDataFromTipDown(const CBlockIndex* start_block) = 0;
 
     //! Register handler for notifications.
     virtual std::unique_ptr<Handler> handleNotifications(std::shared_ptr<Notifications> notifications) = 0;
