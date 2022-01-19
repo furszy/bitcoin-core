@@ -36,6 +36,4 @@ bool UndoSpecialTxsInBlock(const CBlock& block, const CBlockIndex* pindex);
 // Validate given LLMQ final commitment with the list at pindexQuorum
 bool VerifyLLMQCommitment(const llmq::CFinalCommitment& qfc, const CBlockIndex* pindexPrev, CValidationState& state) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
-uint256 CalcTxInputsHash(const CTransaction& tx);
-
 #endif // PIVX_SPECIALTX_H
