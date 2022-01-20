@@ -92,7 +92,7 @@ CDKGMember::CDKGMember(CDeterministicMNCPtr _dmn, size_t _idx) :
 
 bool CDKGSession::Init(const CBlockIndex* _pindexQuorum, const std::vector<CDeterministicMNCPtr>& mns, const uint256& _myProTxHash)
 {
-    if (mns.size() < params.minSize) {
+    if (mns.size() < (size_t)params.minSize) {
         // don't use CDKGLogger until CDKGSession is fully initialized
         LogPrint(BCLog::DKG, "CDKGSession::%s: not enough members (%d < %d), aborting init\n", __func__, mns.size(), params.minSize);
         return false;
@@ -232,7 +232,7 @@ bool CDKGSession::PreVerifyMessage(const uint256& hash, const CDKGContribution& 
         retBan = true;
         return false;
     }
-    if (qc.vvec->size() != params.threshold) {
+    if (qc.vvec->size() != (size_t)params.threshold) {
         logger.Batch("invalid verification vector length");
         retBan = true;
         return false;
@@ -640,7 +640,7 @@ void CDKGSession::VerifyAndJustify(CDKGPendingMessages& pendingMessages)
         if (m->bad) {
             continue;
         }
-        if (m->badMemberVotes.size() >= params.dkgBadVotesThreshold) {
+        if (m->badMemberVotes.size() >= (size_t)params.dkgBadVotesThreshold) {
             logger.Batch("%s marked as bad as %d other members voted for this", m->dmn->proTxHash.ToString(), m->badMemberVotes.size());
             MarkBadMember(m->idx);
             continue;
@@ -1075,7 +1075,7 @@ bool CDKGSession::PreVerifyMessage(const uint256& hash, const CDKGPrematureCommi
         return false;
     }
 
-    for (size_t i = members.size(); i < params.size; i++) {
+    for (size_t i = members.size(); i < (size_t)params.size; i++) {
         if (qc.validMembers[i]) {
             retBan = true;
             logger.Batch("invalid validMembers bitset. bit %d should not be set", i);
@@ -1212,7 +1212,7 @@ std::vector<CFinalCommitment> CDKGSession::FinalizeCommitments()
     std::vector<CFinalCommitment> finalCommitments;
     for (const auto& p : commitmentsMap) {
         auto& cvec = p.second;
-        if (cvec.size() < params.minSize) {
+        if (cvec.size() < (size_t)params.minSize) {
             // commitment was signed by a minority
             continue;
         }
