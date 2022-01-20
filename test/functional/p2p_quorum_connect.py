@@ -14,6 +14,7 @@ from test_framework.util import (
     assert_equal,
     assert_true,
     bytes_to_hex_str,
+    connect_nodes,
     connect_nodes_clique,
     hash256,
     hex_str_to_bytes,
@@ -128,7 +129,17 @@ class DMNConnectionTest(PivxTestFramework):
 
     def has_mn_auth_connection(self, node, expected_proreg_tx_hash):
         peer_info = node.getpeerinfo()
-        return (len(peer_info) == 1) and (peer_info[0]["verif_mn_proreg_tx_hash"] == expected_proreg_tx_hash)
+        return (len(peer_info) == 1) and "verif_mn_proreg_tx_hash" in peer_info[0]\
+               and (peer_info[0]["verif_mn_proreg_tx_hash"] == expected_proreg_tx_hash)
+
+    def has_single_regular_connection(self, node):
+        peer_info = node.getpeerinfo()
+        return len(peer_info) == 1 and "verif_mn_proreg_tx_hash" not in peer_info[0]
+
+    def clean_conns_and_disconnect(self, node):
+        node.mnconnect("clear_conn")
+        self.disconnect_peers(node)
+        wait_until(lambda: len(node.getpeerinfo()) == 0, timeout=30)
 
     def run_test(self):
         self.disable_mocktime()
@@ -224,6 +235,29 @@ class DMNConnectionTest(PivxTestFramework):
         assert_equal(len(self.miner.getpeerinfo()), 0)
         self.log.info("Regular node disconnected auth connection successfully")
 
+        ##############################################################################
+        # 6) Now test regular connection refresh after selecting peer as quorum member
+        ##############################################################################
+        self.log.info("6) Now test regular connection refresh after selecting peer as quorum member..")
+        # Cleaning internal data first
+        mn5_node = self.nodes[mn5.idx]
+        self.clean_conns_and_disconnect(mn5_node)
+        self.clean_conns_and_disconnect(mn6_node)
+
+        # Create the regular connection
+        connect_nodes(mn5_node, mn6.idx)
+        wait_until(lambda: len(mn5_node.getpeerinfo()) == 1, timeout=30)
+        assert_true(self.has_single_regular_connection(mn5_node))
+        assert_true(self.has_single_regular_connection(mn6_node))
+
+        # Now refresh it to be a quorum member connection
+        quorum_hash = mn5_node.getbestblockhash()
+        assert mn5_node.mnconnect("quorum_members_conn", [mn6.proTx], 1, quorum_hash)
+        assert mn5_node.mnconnect("iqr_members_conn", [mn6.proTx], 1, quorum_hash)
+        assert mn6_node.mnconnect("iqr_members_conn", [mn5.proTx], 1, quorum_hash)
+
+        wait_until(lambda: self.has_mn_auth_connection(mn5_node, mn6.proTx), timeout=60)
+        self.log.info("Connection refreshed!")
 
 if __name__ == '__main__':
     DMNConnectionTest().main()

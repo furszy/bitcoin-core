@@ -58,6 +58,9 @@ public:
     // Set the local DMN so the node does not try to connect to himself
     void setLocalDMN(const uint256& pro_tx_hash) { WITH_LOCK(cs_vPendingMasternodes, local_dmn_pro_tx_hash = pro_tx_hash;); }
 
+    // Clear connections cache
+    void clear();
+
     // Manages the MN connections
     void ThreadOpenMasternodeConnections();
     void start(CScheduler& scheduler, const TierTwoConnMan::Options& options);
