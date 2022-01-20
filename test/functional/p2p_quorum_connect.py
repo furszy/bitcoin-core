@@ -7,15 +7,13 @@
 import time
 
 from random import getrandbits
-from test_framework.test_framework import PivxTestFramework
+from test_framework.test_framework import PivxDMNTestFramework
 from test_framework.mininode import P2PInterface
 from test_framework.messages import msg_version
 from test_framework.util import (
     assert_equal,
-    assert_true,
     bytes_to_hex_str,
     connect_nodes,
-    connect_nodes_clique,
     hash256,
     hex_str_to_bytes,
     wait_until,
@@ -25,78 +23,12 @@ class TestP2PConn(P2PInterface):
     def on_version(self, message):
         pass
 
-class DMNConnectionTest(PivxTestFramework):
+class DMNConnectionTest(PivxDMNTestFramework):
 
     def set_test_params(self):
-        # 1 miner, 1 controller, 6 remote dmns
-        self.num_nodes = 8
-        self.minerPos = 0
-        self.controllerPos = 1
-        self.setup_clean_chain = True
+        self.set_base_test_params()
         self.extra_args = [["-nuparams=v5_shield:1", "-nuparams=v6_evo:101", "-disabledkg"]] * self.num_nodes
         self.extra_args[0].append("-sporkkey=932HEevBSujW2ud7RfB1YF91AFygbBRQj3de3LyaCRqNzKKgWXi")
-
-    def add_new_dmn(self, mns, strType, op_keys=None, from_out=None):
-        mn = self.register_new_dmn(2 + len(mns),
-                                   self.minerPos,
-                                   self.controllerPos,
-                                   strType,
-                                   outpoint=from_out,
-                                   op_blskeys=op_keys)
-        mns.append(mn)
-        return mn
-
-    def check_mn_enabled_count(self, enabled, total):
-        for node in self.nodes:
-            node_count = node.getmasternodecount()
-            assert_equal(node_count['enabled'], enabled)
-            assert_equal(node_count['total'], total)
-
-    def wait_until_mnsync_completed(self):
-        SYNC_FINISHED = [999] * self.num_nodes
-        synced = [-1] * self.num_nodes
-        timeout = time.time() + 240
-        while synced != SYNC_FINISHED and time.time() < timeout:
-            synced = [node.mnsync("status")["RequestedMasternodeAssets"]
-                      for node in self.nodes]
-            if synced != SYNC_FINISHED:
-                time.sleep(5)
-        if synced != SYNC_FINISHED:
-            raise AssertionError("Unable to complete mnsync: %s" % str(synced))
-
-    def setup_phase(self):
-        # Disconnect every node and generate connections to all of them manually.
-        for node in self.nodes:
-            self.disconnect_peers(node)
-        connect_nodes_clique(self.nodes)
-        self.wait_for_peers_count(self.nodes, 14)
-
-        # Mine 110 blocks
-        self.log.info("Mining...")
-        self.miner.generate(2)
-        self.sync_blocks()
-        self.wait_until_mnsync_completed()
-        assert_equal("success", self.set_spork(self.minerPos, "SPORK_21_LEGACY_MNS_MAX_HEIGHT", 105))
-        self.miner.generate(108)
-        self.sync_blocks()
-        self.assert_equal_for_all(110, "getblockcount")
-
-        # -- DIP3 enforced and SPORK_21 active here --
-
-        # Create 6 DMNs and init the remote nodes
-        for i in range(6):
-            mn = self.add_new_dmn(self.mns, "fund")
-            self.nodes[mn.idx].initmasternode(mn.operator_sk, "", True)
-            time.sleep(1)
-        self.miner.generate(1)
-        self.sync_blocks()
-
-        # enabled/total masternodes: 6/6
-        self.check_mn_enabled_count(6, 6)
-        # Check status from remote nodes
-        assert_equal([self.nodes[idx].getmasternodestatus()['status'] for idx in range(2, self.num_nodes)],
-                     ["Ready"] * (self.num_nodes - 2))
-        self.log.info("All masternodes ready")
 
     def disconnect_peers(self, node):
         node.setnetworkactive(False)
@@ -143,11 +75,11 @@ class DMNConnectionTest(PivxTestFramework):
         wait_until(lambda: len(node.getpeerinfo()) == 0, timeout=30)
 
     def run_test(self):
-        self.disable_mocktime()
         self.miner = self.nodes[self.minerPos]
-        self.mns = []
-        # Create and start 6 DMN
-        self.setup_phase()
+
+        # initialize and start masternodes
+        self.setup_test()
+        assert_equal(len(self.mns), 6)
 
         ##############################################################
         # 1) Disconnect peers from DMN and add a direct DMN connection
@@ -245,8 +177,8 @@ class DMNConnectionTest(PivxTestFramework):
         # Create the regular connection
         connect_nodes(mn5_node, mn6.idx)
         self.wait_for_peers_count([mn5_node], 1)
-        assert_true(self.has_single_regular_connection(mn5_node))
-        assert_true(self.has_single_regular_connection(mn6_node))
+        assert self.has_single_regular_connection(mn5_node)
+        assert self.has_single_regular_connection(mn6_node)
 
         # Now refresh it to be a quorum member connection
         quorum_hash = mn5_node.getbestblockhash()
