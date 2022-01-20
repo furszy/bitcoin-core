@@ -760,6 +760,7 @@ const char* SINGLE_CONN = "single_conn";
 const char* QUORUM_MEMBERS_CONN = "quorum_members_conn";
 const char* IQR_MEMBERS_CONN = "iqr_members_conn";
 const char* PROBE_CONN = "probe_conn";
+const char* CLEAR_CONN = "clear_conn";
 
 /* What essentially does is add a pending MN connection
  * Can be in the following forms:
@@ -767,12 +768,13 @@ const char* PROBE_CONN = "probe_conn";
  * 2) Quorum members connection (set of DMNs to connect).
  * 3) Quorum relay members connections (set of DMNs to connect and relay intra-quorum messages).
  * 4) Probe DMN connection.
+ * 5) Clear tier two net connections cache
 **/
 UniValue mnconnect(const JSONRPCRequest& request)
 {
-    if (request.fHelp || request.params.size() < 2 || request.params.size() > 4) {
+    if (request.fHelp || request.params.size() > 4) {
         throw std::runtime_error(
-                "mnconnect \"op_type\" \"[pro_tx_hash, pro_tx_hash,..]\" (llmq_type \"quorum_hash\")\n"
+                "mnconnect \"op_type\" (\"[pro_tx_hash, pro_tx_hash,..]\" llmq_type \"quorum_hash\")\n"
                 "\nAdd manual quorum members connections for internal testing purposes of the tier two p2p network layer\n"
         );
     }
@@ -781,7 +783,19 @@ UniValue mnconnect(const JSONRPCRequest& request)
     if (!chainparams.IsRegTestNet())
         throw std::runtime_error("mnconnect for regression testing (-regtest mode) only");
 
-    RPCTypeCheck(request.params, {UniValue::VSTR, UniValue::VARR});
+    // Connection type
+    RPCTypeCheck(request.params, {UniValue::VSTR});
+    const std::string& op_type = request.params[0].get_str();
+
+    // DMNs pro_tx list
+    std::set<uint256> set_dmn_protxhash;
+    if (request.params.size() > 1) {
+        RPCTypeCheckArgument(request.params[1], UniValue::VARR);
+        const auto& array{request.params[1].get_array()};
+        for (unsigned int i = 0; i < array.size(); i++) {
+            set_dmn_protxhash.emplace(ParseHashV(array[i], strprintf("pro_tx_hash (index %d)", i)));
+        }
+    }
 
     Consensus::LLMQType llmq_type = Consensus::LLMQ_NONE;
     if (request.params.size() > 2) {
@@ -792,15 +806,6 @@ UniValue mnconnect(const JSONRPCRequest& request)
     uint256 quorum_hash;
     if (request.params.size() > 3) {
         quorum_hash = ParseHashV(request.params[3], "quorum_hash");
-    }
-
-    // First obtain the connection type
-    const std::string& op_type = request.params[0].get_str();
-    // Check provided mn_list
-    const auto& array{request.params[1].get_array()};
-    std::set<uint256> set_dmn_protxhash;
-    for (unsigned int i = 0; i < array.size(); i++) {
-        set_dmn_protxhash.emplace(ParseHashV(array[i], strprintf("pro_tx_hash (index %d)", i)));
     }
 
     const auto& mn_connan =  g_connman->GetTierTwoConnMan();
@@ -819,6 +824,9 @@ UniValue mnconnect(const JSONRPCRequest& request)
         return true;
     } else if (op_type == PROBE_CONN) {
         mn_connan->addPendingProbeConnections(set_dmn_protxhash);
+        return true;
+    } else if (op_type == CLEAR_CONN) {
+        mn_connan->clear();
         return true;
     }
     return false;

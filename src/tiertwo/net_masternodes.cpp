@@ -123,6 +123,15 @@ void TierTwoConnMan::addPendingProbeConnections(const std::set<uint256>& proTxHa
     masternodePendingProbes.insert(proTxHashes.begin(), proTxHashes.end());
 }
 
+void TierTwoConnMan::clear()
+{
+    LOCK(cs_vPendingMasternodes);
+    masternodeQuorumNodes.clear();
+    masternodeQuorumRelayMembers.clear();
+    vPendingMasternodes.clear();
+    masternodePendingProbes.clear();
+}
+
 void TierTwoConnMan::start(CScheduler& scheduler, const TierTwoConnMan::Options& options)
 {
     // Must be started after connman
