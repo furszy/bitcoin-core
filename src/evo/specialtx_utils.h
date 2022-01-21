@@ -5,8 +5,35 @@
 #ifndef PIVX_SPECIALTX_UTILS_H
 #define PIVX_SPECIALTX_UTILS_H
 
+#include "bls/bls_wrapper.h"
+#include "messagesigner.h"
 #include "operationresult.h"
 #include "primitives/transaction.h"
+
+template<typename SpecialTxPayload>
+OperationResult SignSpecialTxPayloadByHash(const CMutableTransaction& tx, SpecialTxPayload& payload, const CKey& key)
+{
+    payload.vchSig.clear();
+    uint256 hash = ::SerializeHash(payload);
+    return CHashSigner::SignHash(hash, key, payload.vchSig) ? OperationResult{true} :
+            OperationResult{false, "failed to sign special tx payload"};
+}
+
+template<typename SpecialTxPayload>
+OperationResult SignSpecialTxPayloadByHash(const CMutableTransaction& tx, SpecialTxPayload& payload, const CBLSSecretKey& key)
+{
+    payload.sig = key.Sign(::SerializeHash(payload));
+    return payload.sig.IsValid() ? OperationResult{true} : OperationResult{false, "failed to sign special tx payload"};
+}
+
+template<typename SpecialTxPayload>
+OperationResult SignSpecialTxPayloadByString(SpecialTxPayload& payload, const CKey& key)
+{
+    payload.vchSig.clear();
+    std::string m = payload.MakeSignString();
+    return CMessageSigner::SignMessage(m, payload.vchSig, key) ? OperationResult{true} :
+            OperationResult{false, "failed to sign special tx payload"};
+}
 
 template<typename SpecialTxPayload>
 static void UpdateSpecialTxInputsHash(const CMutableTransaction& tx, SpecialTxPayload& payload)

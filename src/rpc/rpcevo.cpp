@@ -265,37 +265,6 @@ static UniValue DmnToJson(const CDeterministicMNCPtr dmn)
     return ret;
 }
 
-template<typename SpecialTxPayload>
-static void SignSpecialTxPayloadByHash(const CMutableTransaction& tx, SpecialTxPayload& payload, const CKey& key)
-{
-    payload.vchSig.clear();
-
-    uint256 hash = ::SerializeHash(payload);
-    if (!CHashSigner::SignHash(hash, key, payload.vchSig)) {
-        throw JSONRPCError(RPC_INTERNAL_ERROR, "failed to sign special tx payload");
-    }
-}
-
-template<typename SpecialTxPayload>
-static void SignSpecialTxPayloadByHash(const CMutableTransaction& tx, SpecialTxPayload& payload, const CBLSSecretKey& key)
-{
-    payload.sig = key.Sign(::SerializeHash(payload));
-    if (!payload.sig.IsValid()) {
-        throw JSONRPCError(RPC_INTERNAL_ERROR, "failed to sign special tx payload");
-    }
-}
-
-template<typename SpecialTxPayload>
-static void SignSpecialTxPayloadByString(SpecialTxPayload& payload, const CKey& key)
-{
-    payload.vchSig.clear();
-
-    std::string m = payload.MakeSignString();
-    if (!CMessageSigner::SignMessage(m, payload.vchSig, key)) {
-        throw JSONRPCError(RPC_INTERNAL_ERROR, "failed to sign special tx payload");
-    }
-}
-
 static std::string TxInErrorToString(int i, const CTxIn& txin, const std::string& strError)
 {
     return strprintf("Input %d (%s): %s", i, txin.prevout.ToStringShort(), strError);
@@ -496,7 +465,7 @@ static UniValue ProTxRegister(const JSONRPCRequest& request, bool fSignAndSend)
     CheckOpResult(FundSpecialTx(pwallet, tx, pl));
 
     if (fSignAndSend) {
-        SignSpecialTxPayloadByString(pl, keyCollateral); // prove we own the collateral
+        CheckOpResult(SignSpecialTxPayloadByString(pl, keyCollateral)); // prove we own the collateral
         // check the payload, add the tx inputs sigs, and send the tx.
         return SignAndSendSpecialTx(pwallet, tx, pl);
     }
@@ -849,7 +818,7 @@ UniValue protx_update_service(const JSONRPCRequest& request)
     tx.nType = CTransaction::TxType::PROUPSERV;
 
     CheckOpResult(FundSpecialTx(pwallet, tx, pl));
-    SignSpecialTxPayloadByHash(tx, pl, operatorKey);
+    CheckOpResult(SignSpecialTxPayloadByHash(tx, pl, operatorKey));
 
     return SignAndSendSpecialTx(pwallet, tx, pl);
 }
@@ -923,7 +892,7 @@ UniValue protx_update_registrar(const JSONRPCRequest& request)
     // make sure fee calculation works
     pl.vchSig.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
     CheckOpResult(FundSpecialTx(pwallet, tx, pl));
-    SignSpecialTxPayloadByHash(tx, pl, ownerKey);
+    CheckOpResult(SignSpecialTxPayloadByHash(tx, pl, ownerKey));
 
     return SignAndSendSpecialTx(pwallet, tx, pl);
 }
@@ -989,7 +958,7 @@ UniValue protx_revoke(const JSONRPCRequest& request)
     tx.nType = CTransaction::TxType::PROUPREV;
 
     CheckOpResult(FundSpecialTx(pwallet, tx, pl));
-    SignSpecialTxPayloadByHash(tx, pl, operatorKey);
+    CheckOpResult(SignSpecialTxPayloadByHash(tx, pl, operatorKey));
 
     return SignAndSendSpecialTx(pwallet, tx, pl);
 }
