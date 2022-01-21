@@ -299,12 +299,6 @@ static std::string SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransact
 {
     SetTxPayload(tx, pl);
 
-    CValidationState state;
-    CCoinsViewCache view(pcoinsTip.get());
-    if (!WITH_LOCK(cs_main, return CheckSpecialTx(tx, GetChainTip(), &view, state); )) {
-        throw JSONRPCError(RPC_MISC_ERROR, FormatStateMessage(state));
-    }
-
     const OperationResult& sigRes = SignTransaction(pwallet, tx);
     if (!sigRes) {
         throw JSONRPCError(RPC_INTERNAL_ERROR, sigRes.getError());
