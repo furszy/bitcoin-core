@@ -57,6 +57,15 @@ OperationResult FundSpecialTx(CWallet* pwallet, CMutableTransaction& tx, Special
     return res;
 }
 
+OperationResult SignAndSendSpecialTx(CWallet* pwallet, CMutableTransaction& tx);
+
+template<typename SpecialTxPayload>
+OperationResult SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransaction& tx, const SpecialTxPayload& pl)
+{
+    SetTxPayload(tx, pl);
+    return SignAndSendSpecialTx(pwallet, tx);
+}
+
 #endif // ENABLE_WALLET
 
 #endif //PIVX_SPECIALTX_UTILS_H

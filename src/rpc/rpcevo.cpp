@@ -267,24 +267,6 @@ static UniValue DmnToJson(const CDeterministicMNCPtr dmn)
 
 #ifdef ENABLE_WALLET
 
-template<typename SpecialTxPayload>
-static std::string SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransaction& tx, const SpecialTxPayload& pl)
-{
-    SetTxPayload(tx, pl);
-
-    if (!pwallet->SignTransaction(tx)) {
-        throw JSONRPCError(RPC_INTERNAL_ERROR, "signature failed");
-    }
-
-    CWallet::CommitResult res = pwallet->CommitTransaction(MakeTransactionRef(tx),nullptr, g_connman.get(), nullptr);
-    CValidationState& state = res.state;
-    if (state.IsInvalid()) {
-        throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%s: %s", state.GetRejectReason(), state.GetDebugMessage()));
-    }
-
-    return tx.GetHash().GetHex();
-}
-
 // Parses inputs (starting from index paramIdx) and returns ProReg payload
 static ProRegPL ParseProRegPLParams(const UniValue& params, unsigned int paramIdx)
 {
@@ -435,7 +417,8 @@ static UniValue ProTxRegister(const JSONRPCRequest& request, bool fSignAndSend)
     if (fSignAndSend) {
         CheckOpResult(SignSpecialTxPayloadByString(pl, keyCollateral)); // prove we own the collateral
         // check the payload, add the tx inputs sigs, and send the tx.
-        return SignAndSendSpecialTx(pwallet, tx, pl);
+        CheckOpResult(SignAndSendSpecialTx(pwallet, tx, pl));
+        return tx.GetHash().GetHex();
     }
     // external signing with collateral key
     pl.vchSig.clear();
@@ -504,7 +487,8 @@ UniValue protx_register_submit(const JSONRPCRequest& request)
     pl.vchSig = DecodeBase64(request.params[1].get_str().c_str());
 
     // check the payload, add the tx inputs sigs, and send the tx.
-    return SignAndSendSpecialTx(pwallet, tx, pl);
+    CheckOpResult(SignAndSendSpecialTx(pwallet, tx, pl));
+    return tx.GetHash().GetHex();
 }
 
 UniValue protx_register_fund(const JSONRPCRequest& request)
@@ -566,7 +550,8 @@ UniValue protx_register_fund(const JSONRPCRequest& request)
     // update payload on tx (with final collateral outpoint)
     pl.vchSig.clear();
     // check the payload, add the tx inputs sigs, and send the tx.
-    return SignAndSendSpecialTx(pwallet, tx, pl);
+    CheckOpResult(SignAndSendSpecialTx(pwallet, tx, pl));
+    return tx.GetHash().GetHex();
 }
 
 #endif  //ENABLE_WALLET
@@ -788,7 +773,8 @@ UniValue protx_update_service(const JSONRPCRequest& request)
     CheckOpResult(FundSpecialTx(pwallet, tx, pl));
     CheckOpResult(SignSpecialTxPayloadByHash(tx, pl, operatorKey));
 
-    return SignAndSendSpecialTx(pwallet, tx, pl);
+    CheckOpResult(SignAndSendSpecialTx(pwallet, tx, pl));
+    return tx.GetHash().GetHex();
 }
 
 UniValue protx_update_registrar(const JSONRPCRequest& request)
@@ -862,7 +848,8 @@ UniValue protx_update_registrar(const JSONRPCRequest& request)
     CheckOpResult(FundSpecialTx(pwallet, tx, pl));
     CheckOpResult(SignSpecialTxPayloadByHash(tx, pl, ownerKey));
 
-    return SignAndSendSpecialTx(pwallet, tx, pl);
+    CheckOpResult(SignAndSendSpecialTx(pwallet, tx, pl));
+    return tx.GetHash().GetHex();
 }
 
 UniValue protx_revoke(const JSONRPCRequest& request)
@@ -928,7 +915,8 @@ UniValue protx_revoke(const JSONRPCRequest& request)
     CheckOpResult(FundSpecialTx(pwallet, tx, pl));
     CheckOpResult(SignSpecialTxPayloadByHash(tx, pl, operatorKey));
 
-    return SignAndSendSpecialTx(pwallet, tx, pl);
+    CheckOpResult(SignAndSendSpecialTx(pwallet, tx, pl));
+    return tx.GetHash().GetHex();
 }
 #endif
 

@@ -4,6 +4,7 @@
 
 #include "evo/specialtx_utils.h"
 
+#include "net.h"
 #include "script/script.h"
 #include "wallet/wallet.h"
 
@@ -36,6 +37,21 @@ OperationResult FundSpecialTx(CWallet* pwallet, CMutableTransaction& tx)
         auto it = std::find(tx.vout.begin(), tx.vout.end(), dummyTxOut);
         assert(it != tx.vout.end());
         tx.vout.erase(it);
+    }
+
+    return {true};
+}
+
+OperationResult SignAndSendSpecialTx(CWallet* pwallet, CMutableTransaction& tx)
+{
+    if (!pwallet->SignTransaction(tx)) {
+        return {false, "signature failed"};
+    }
+
+    CWallet::CommitResult res = pwallet->CommitTransaction(MakeTransactionRef(tx), nullptr, g_connman.get(), nullptr);
+    CValidationState& state = res.state;
+    if (state.IsInvalid()) {
+        return {false, strprintf("%s: %s", state.GetRejectReason(), state.GetDebugMessage())};
     }
 
     return {true};
