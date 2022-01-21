@@ -265,43 +265,15 @@ static UniValue DmnToJson(const CDeterministicMNCPtr dmn)
     return ret;
 }
 
-static std::string TxInErrorToString(int i, const CTxIn& txin, const std::string& strError)
-{
-    return strprintf("Input %d (%s): %s", i, txin.prevout.ToStringShort(), strError);
-}
-
 #ifdef ENABLE_WALLET
-
-static OperationResult SignTransaction(CWallet* const pwallet, CMutableTransaction& tx)
-{
-    LOCK2(cs_main, pwallet->cs_wallet);
-    const CTransaction txConst(tx);
-    for (unsigned int i = 0; i < tx.vin.size(); i++) {
-        CTxIn& txin = tx.vin[i];
-        const Coin& coin = pcoinsTip->AccessCoin(txin.prevout);
-        if (coin.IsSpent()) {
-            return errorOut(TxInErrorToString(i, txin, "not found or already spent"));
-        }
-        SigVersion sv = tx.GetRequiredSigVersion();
-        txin.scriptSig.clear();
-        SignatureData sigdata;
-        if (!ProduceSignature(MutableTransactionSignatureCreator(pwallet, &tx, i, coin.out.nValue, SIGHASH_ALL),
-                              coin.out.scriptPubKey, sigdata, sv, false)) {
-            return errorOut(TxInErrorToString(i, txin, "signature failed"));
-        }
-        UpdateTransaction(tx, i, sigdata);
-    }
-    return OperationResult(true);
-}
 
 template<typename SpecialTxPayload>
 static std::string SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransaction& tx, const SpecialTxPayload& pl)
 {
     SetTxPayload(tx, pl);
 
-    const OperationResult& sigRes = SignTransaction(pwallet, tx);
-    if (!sigRes) {
-        throw JSONRPCError(RPC_INTERNAL_ERROR, sigRes.getError());
+    if (!pwallet->SignTransaction(tx)) {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "signature failed");
     }
 
     CWallet::CommitResult res = pwallet->CommitTransaction(MakeTransactionRef(tx),nullptr, g_connman.get(), nullptr);
@@ -433,10 +405,6 @@ static UniValue ProTxRegister(const JSONRPCRequest& request, bool fSignAndSend)
     pl.nVersion = ProRegPL::CURRENT_VERSION;
     pl.collateralOutpoint = COutPoint(collateralHash, (uint32_t)collateralIndex);
 
-    CMutableTransaction tx;
-    tx.nVersion = CTransaction::TxVersion::SAPLING;
-    tx.nType = CTransaction::TxType::PROREG;
-
     // referencing unspent collateral outpoint
     Coin coin;
     if (!WITH_LOCK(cs_main, return pcoinsTip->GetUTXOCoin(pl.collateralOutpoint, coin); )) {
@@ -459,6 +427,9 @@ static UniValue ProTxRegister(const JSONRPCRequest& request, bool fSignAndSend)
     // make sure fee calculation works
     pl.vchSig.resize(CPubKey::COMPACT_SIGNATURE_SIZE);
 
+    CMutableTransaction tx;
+    tx.nVersion = CTransaction::TxVersion::SAPLING;
+    tx.nType = CTransaction::TxType::PROREG;
     CheckOpResult(FundSpecialTx(pwallet, tx, pl));
 
     if (fSignAndSend) {
