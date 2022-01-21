@@ -304,10 +304,13 @@ static std::string SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransact
         throw JSONRPCError(RPC_INTERNAL_ERROR, sigRes.getError());
     }
 
-    TryATMP(tx, false);
-    const uint256& hashTx = tx.GetHash();
-    RelayTx(hashTx);
-    return hashTx.GetHex();
+    CWallet::CommitResult res = pwallet->CommitTransaction(MakeTransactionRef(tx),nullptr, g_connman.get(), nullptr);
+    CValidationState& state = res.state;
+    if (state.IsInvalid()) {
+        throw JSONRPCError(RPC_TRANSACTION_REJECTED, strprintf("%s: %s", state.GetRejectReason(), state.GetDebugMessage()));
+    }
+
+    return tx.GetHash().GetHex();
 }
 
 // Parses inputs (starting from index paramIdx) and returns ProReg payload
