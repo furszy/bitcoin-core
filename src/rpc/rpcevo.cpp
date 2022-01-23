@@ -299,7 +299,6 @@ static ProRegPL ParseProRegPLParams(const UniValue& params, unsigned int paramId
     pl.scriptPayout = GetScriptForDestination(CTxDestination(ParsePubKeyIDFromAddress(strAddPayee)));
 
     // operator reward
-    pl.nOperatorReward = 0;
     if (params.size() > paramIdx + 5) {
         int64_t operReward = 0;
         if (!ParseFixedPoint(params[paramIdx + 5].getValStr(), 2, &operReward)) {
