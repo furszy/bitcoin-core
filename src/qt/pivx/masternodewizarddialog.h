@@ -49,6 +49,7 @@ private:
     MNModel* mnModel{nullptr};
     bool createMN();
     void inform(const QString& text);
+    bool errorOut(const QString& err);
 };
 
 #endif // MASTERNODEWIZARDDIALOG_H

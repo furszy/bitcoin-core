@@ -370,8 +370,6 @@ void MasterNodesWidget::onCreateMNClicked()
     MasterNodeWizardDialog *dialog = new MasterNodeWizardDialog(walletModel, mnModel, window);
     if (openDialogWithOpaqueBackgroundY(dialog, window, 5, 7)) {
         if (dialog->isOk) {
-            // Update list
-            mnModel->addMn(dialog->mnEntry);
             updateListState();
             // add mn
             inform(dialog->returnStr);

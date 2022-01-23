@@ -199,12 +199,6 @@ bool MasterNodeWizardDialog::createMN()
     std::string ipAddress = addressStr.toStdString();
     std::string port = portStr.toStdString();
 
-    // create the mn key
-    CKey secret;
-    secret.MakeNewKey(false);
-    std::string mnKeyString = KeyIO::EncodeSecret(secret);
-    std::string mnPubKeyStr = secret.GetPubKey().GetHash().GetHex();
-
     // Look for a valid collateral utxo
     COutPoint collateralOut;
 
@@ -212,12 +206,7 @@ bool MasterNodeWizardDialog::createMN()
     if (!walletModel->getMNCollateralCandidate(collateralOut)) {
         // New receive address
         auto r = walletModel->getNewAddress(alias);
-        if (!r) {
-            // generate address fail
-            returnStr = tr(r.getError().c_str());
-            return false;
-        }
-
+        if (!r) return errorOut(tr(r.getError().c_str()));
         if (!mnModel->createMNCollateral(addressLabel,
                                          QString::fromStdString(r.getObjResult()->ToString()),
                                          collateralOut,
@@ -227,13 +216,52 @@ bool MasterNodeWizardDialog::createMN()
         }
     }
 
-    mnEntry = mnModel->createLegacyMN(collateralOut, alias, ipAddress, port, mnKeyString, mnPubKeyStr, returnStr);
-    if (!mnEntry) {
-        // error str set inside createLegacyMN
-        return false;
-    }
+    if (walletModel->isV6Enforced()) {
+        // Deterministic
 
-    returnStr = tr("Masternode created! Wait %1 confirmations before starting it.").arg(mnModel->getMasternodeCollateralMinConf());
+        // For now, create every single key inside the wallet
+        // later this can be customized by the user.
+
+        // Create owner addr
+        const auto r = walletModel->getNewAddress("dmn_owner_" + alias);
+        if (!r) return errorOut(tr(r.getError().c_str()));
+        const CKeyID* ownerKeyId = r.getObjResult()->getKeyID();
+
+        // Create payout addr
+        const auto payoutAddr = walletModel->getNewAddress("dmn_payout_" + alias);
+        if (!payoutAddr) return errorOut(tr(payoutAddr.getError().c_str()));
+        const std::string& payoutStr{payoutAddr.getObjResult()->ToString()};
+
+        // For now, collateral key is always inside the wallet
+        std::string error_str;
+        bool res = mnModel->createDMN(alias,
+                                      collateralOut,
+                                      ipAddress,
+                                      port,
+                                      ownerKeyId,
+                                      nullopt, // generate operator key
+                                      nullopt, // use owner key as voting key
+                                      {payoutStr}, // use owner key as payout script
+                                      error_str,
+                                      nullopt, // operator percentage
+                                      nullopt); // operator payout script
+        if (!res) {
+            return errorOut(tr(error_str.c_str()));
+        }
+        returnStr = tr("Deterministic Masternode created! It will appear on your list on the next mined block!");
+    } else {
+        // Legacy
+        CKey secret;
+        secret.MakeNewKey(false);
+        std::string mnKeyString = KeyIO::EncodeSecret(secret);
+        std::string mnPubKeyStr = secret.GetPubKey().GetHash().GetHex();
+
+        mnEntry = mnModel->createLegacyMN(collateralOut, alias, ipAddress, port, mnKeyString, mnPubKeyStr, returnStr);
+        if (!mnEntry) return false;
+        // Update list
+        mnModel->addMn(mnEntry);
+        returnStr = tr("Masternode created! Wait %1 confirmations before starting it.").arg(mnModel->getMasternodeCollateralMinConf());
+    }
     return true;
 }
 
@@ -276,6 +304,12 @@ void MasterNodeWizardDialog::inform(const QString& text)
     snackBar->setText(text);
     snackBar->resize(this->width(), snackBar->height());
     openDialog(snackBar, this);
+}
+
+bool MasterNodeWizardDialog::errorOut(const QString& err)
+{
+    returnStr = err;
+    return false;
 }
 
 MasterNodeWizardDialog::~MasterNodeWizardDialog()

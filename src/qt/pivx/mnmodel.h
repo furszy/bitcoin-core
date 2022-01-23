@@ -85,6 +85,21 @@ public:
     CAmount getMNCollateralRequiredAmount();
     // Return the specific chain min conf for the collateral tx
     int getMasternodeCollateralMinConf();
+
+    bool createDMN(const std::string& alias,
+                   const COutPoint& collateral,
+                   std::string& serviceAddr,
+                   const std::string& servicePort,
+                   const CKeyID* ownerAddr,
+                   const Optional<std::string>& operatorPubKey,
+                   const Optional<std::string>& votingAddr,
+                   const Optional<std::string>& payoutAddr,
+                   std::string& strError,
+                   const Optional<int>& operatorPercentage = nullopt,
+                   const Optional<std::string>& operatorPayoutAddr = nullopt);
+
+
+
     // Generates the collateral transaction
     bool createMNCollateral(const QString& alias, const QString& addr, COutPoint& ret_outpoint, QString& ret_error);
     // Creates the mnb and broadcast it to the network
