@@ -68,4 +68,6 @@ OperationResult SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransaction
 
 #endif // ENABLE_WALLET
 
+Optional<CKeyID> ParsePubKeyIDFromAddress(const std::string& strAddress, std::string& strError);
+
 #endif //PIVX_SPECIALTX_UTILS_H

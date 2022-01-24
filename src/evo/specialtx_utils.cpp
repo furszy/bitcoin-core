@@ -58,3 +58,23 @@ OperationResult SignAndSendSpecialTx(CWallet* pwallet, CMutableTransaction& tx)
 }
 
 #endif
+
+Optional<CKeyID> ParsePubKeyIDFromAddress(const std::string& strAddress, std::string& strError)
+{
+    bool isStaking{false}, isShield{false};
+    const CWDestination& cwdest = Standard::DecodeDestination(strAddress, isStaking, isShield);
+    if (isStaking) {
+        strError = "cold staking addresses not supported";
+        return nullopt;
+    }
+    if (isShield) {
+        strError = "shield addresses not supported";
+        return nullopt;
+    }
+    const CKeyID* keyID = boost::get<CKeyID>(Standard::GetTransparentDestination(cwdest));
+    if (!keyID) {
+        strError = strprintf("invalid PIVX address %s", strAddress);
+        return nullopt;
+    }
+    return *keyID;
+}

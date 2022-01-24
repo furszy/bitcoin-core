@@ -203,19 +203,12 @@ static CKey ParsePrivKey(CWallet* pwallet, const std::string &strKeyOrAddress, b
 
 static CKeyID ParsePubKeyIDFromAddress(const std::string& strAddress)
 {
-    bool isStaking{false}, isShield{false};
-    const CWDestination& cwdest = Standard::DecodeDestination(strAddress, isStaking, isShield);
-    if (isStaking) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "cold staking addresses not supported");
+    std::string strError;
+    auto ret = ParsePubKeyIDFromAddress(strAddress, strError);
+    if (!ret) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strError);
     }
-    if (isShield) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "shield addresses not supported");
-    }
-    const CKeyID* keyID = boost::get<CKeyID>(Standard::GetTransparentDestination(cwdest));
-    if (!keyID) {
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, strprintf("invalid PIVX address %s", strAddress));
-    }
-    return *keyID;
+    return *ret;
 }
 
 static CBLSPublicKey ParseBLSPubKey(const CChainParams& params, const std::string& strKey)
