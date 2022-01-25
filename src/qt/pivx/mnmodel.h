@@ -6,10 +6,33 @@
 #define MNMODEL_H
 
 #include <QAbstractTableModel>
+#include "amount.h"
 #include "masternodeconfig.h"
-#include "qt/walletmodel.h"
+#include "primitives/transaction.h"
 
 class CMasternode;
+class WalletModel;
+
+class MasternodeWrapper
+{
+public:
+    explicit MasternodeWrapper(
+            const QString& _label,
+            const QString& _ipPortStr,
+            CMasternode* _masternode,
+            COutPoint& _collateralId,
+            const Optional<QString>& _mnPubKey) :
+            label(_label), ipPort(_ipPortStr), masternode(_masternode), collateralId(_collateralId), mnPubKey(_mnPubKey) { };
+
+    QString label;
+    QString ipPort;
+    CMasternode* masternode{nullptr};
+    // Cache collateral id and MN pk to be used if 'masternode' is null.
+    // (Denoting MNs that were not initialized on the conf file or removed from the network list)
+    // when masternode is not null, the collateralId is directly pointing to masternode.vin.prevout.
+    Optional<COutPoint> collateralId{nullopt};
+    Optional<QString> mnPubKey{nullopt};
+};
 
 class MNModel : public QAbstractTableModel
 {
@@ -34,13 +57,13 @@ public:
         COLLATERAL_ID = 6,
         COLLATERAL_OUT_INDEX = 7,
         PRIV_KEY = 8,
-        WAS_COLLATERAL_ACCEPTED = 9
+        WAS_COLLATERAL_ACCEPTED = 9,
+        COLUMN_COUNT
     };
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
     int columnCount(const QModelIndex &parent = QModelIndex()) const override;
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
-    QModelIndex index(int row, int column, const QModelIndex& parent) const override;
     bool removeMn(const QModelIndex& index);
     bool addMn(CMasternodeConfig::CMasternodeEntry* entry);
     void updateMNList();
@@ -74,15 +97,18 @@ public:
                                                         std::string& serviceAddr,
                                                         const std::string& port,
                                                         const std::string& mnKeyString,
+                                                        const std::string& mnPubKeyStr,
                                                         QString& ret_error);
 
     bool removeLegacyMN(const std::string& alias_to_remove, const std::string& tx_id, unsigned int out_index, QString& ret_error);
 
 private:
-    WalletModel* walletModel;
-    // alias mn node ---> pair <ip, master node>
-    QMap<QString, std::pair<QString, CMasternode*>> nodes;
+    WalletModel* walletModel{nullptr};
+    // alias mn node ---> <ip, master node>
+    QList<MasternodeWrapper> nodes;
     QMap<std::string, bool> collateralTxAccepted;
+
+    const MasternodeWrapper* getMNWrapper(const QString& mnAlias);
 };
 
 #endif // MNMODEL_H

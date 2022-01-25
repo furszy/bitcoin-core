@@ -203,6 +203,7 @@ bool MasterNodeWizardDialog::createMN()
     CKey secret;
     secret.MakeNewKey(false);
     std::string mnKeyString = KeyIO::EncodeSecret(secret);
+    std::string mnPubKeyStr = secret.GetPubKey().GetHash().GetHex();
 
     // Look for a valid collateral utxo
     COutPoint collateralOut;
@@ -226,7 +227,7 @@ bool MasterNodeWizardDialog::createMN()
         }
     }
 
-    mnEntry = mnModel->createLegacyMN(collateralOut, alias, ipAddress, port, mnKeyString, returnStr);
+    mnEntry = mnModel->createLegacyMN(collateralOut, alias, ipAddress, port, mnKeyString, mnPubKeyStr, returnStr);
     if (!mnEntry) {
         // error str set inside createLegacyMN
         return false;
