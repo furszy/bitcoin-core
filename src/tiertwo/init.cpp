@@ -115,6 +115,14 @@ bool LoadTierTwo(int chain_active_height, bool fReindexChainState)
         LogPrintf("Error reading mnpayments.dat - cached data discarded\n");
     }
 
+    // ###################################### //
+    // ## Legacy Parse 'masternodes.conf'  ## //
+    // ###################################### //
+    std::string strErr;
+    if (!masternodeConfig.read(strErr)) {
+        return UIError(strprintf(_("Error reading masternode configuration file: %s"), strErr));
+    }
+
     // ############################## //
     // ## Net MNs Metadata Manager ## //
     // ############################## //
