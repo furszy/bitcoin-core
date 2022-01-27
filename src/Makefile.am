@@ -214,6 +214,7 @@ BITCOIN_CORE_H = \
   init.h \
   tiertwo/init.h \
   interfaces/handler.h \
+  interfaces/tiertwo.h \
   interfaces/wallet.h \
   invalid.h \
   invalid_outpoints.json.h \
@@ -594,6 +595,7 @@ libbitcoin_util_a_SOURCES = \
   compat/strnlen.cpp \
   fs.cpp \
   interfaces/handler.cpp \
+  interfaces/tiertwo.cpp \
   logging.cpp \
   random.cpp \
   randomenv.cpp \

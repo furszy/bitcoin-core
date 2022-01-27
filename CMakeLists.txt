@@ -234,6 +234,7 @@ set(SERVER_SOURCES
         ./src/tiertwo/init.cpp
         ./src/interfaces/handler.cpp
         ./src/interfaces/wallet.cpp
+        ./src/interfaces/tiertwo.cpp
         ./src/dbwrapper.cpp
         ./src/legacy/validation_zerocoin_legacy.cpp
         ./src/mapport.cpp
