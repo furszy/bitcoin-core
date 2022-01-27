@@ -1256,28 +1256,17 @@ bool AppInitMain()
         fs::path chainstateDir = GetDataDir() / "chainstate";
         fs::path sporksDir = GetDataDir() / "sporks";
         fs::path zerocoinDir = GetDataDir() / "zerocoin";
+        fs::path evoDir = GetDataDir() / "evodb";
 
-        LogPrintf("Deleting blockchain folders blocks, chainstate, sporks and zerocoin\n");
-        // We delete in 4 individual steps in case one of the folder is missing already
+        LogPrintf("Deleting blockchain folders blocks, chainstate, sporks, zerocoin and evo\n");
+        std::vector<fs::path> removeDirs{blocksDir, chainstateDir, sporksDir, zerocoinDir, evoDir};
+        // We delete in 5 individual steps in case one of the folder is missing already
         try {
-            if (fs::exists(blocksDir)){
-                fs::remove_all(blocksDir);
-                LogPrintf("-resync: folder deleted: %s\n", blocksDir.string().c_str());
-            }
-
-            if (fs::exists(chainstateDir)){
-                fs::remove_all(chainstateDir);
-                LogPrintf("-resync: folder deleted: %s\n", chainstateDir.string().c_str());
-            }
-
-            if (fs::exists(sporksDir)){
-                fs::remove_all(sporksDir);
-                LogPrintf("-resync: folder deleted: %s\n", sporksDir.string().c_str());
-            }
-
-            if (fs::exists(zerocoinDir)){
-                fs::remove_all(zerocoinDir);
-                LogPrintf("-resync: folder deleted: %s\n", zerocoinDir.string().c_str());
+            for (const auto& dir : removeDirs) {
+                if (fs::exists(dir)) {
+                    fs::remove_all(dir);
+                    LogPrintf("-resync: folder deleted: %s\n", dir.string().c_str());
+                }
             }
         } catch (const fs::filesystem_error& error) {
             LogPrintf("Failed to delete blockchain folders %s\n", error.what());
