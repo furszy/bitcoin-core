@@ -39,7 +39,8 @@ public:
         QString address = index.sibling(index.row(), MNModel::ADDRESS).data(Qt::DisplayRole).toString();
         QString status = index.sibling(index.row(), MNModel::STATUS).data(Qt::DisplayRole).toString();
         bool wasCollateralAccepted = index.sibling(index.row(), MNModel::WAS_COLLATERAL_ACCEPTED).data(Qt::DisplayRole).toBool();
-        row->updateView("Address: " + address, label, status, wasCollateralAccepted);
+        uint16_t type = index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt();
+        row->updateView("Address: " + address, label, status, wasCollateralAccepted, type);
     }
 
     QColor rectColor(bool isHovered, bool isSelected) override
@@ -119,10 +120,15 @@ MasterNodesWidget::MasterNodesWidget(PIVXGUI *parent) :
 
 void MasterNodesWidget::showEvent(QShowEvent *event)
 {
-    if (mnModel) mnModel->updateMNList();
+    if (!mnModel) return;
+    const auto& updateList = [&](){
+        mnModel->updateMNList();
+        updateListState();
+    };
+    updateList();
     if (!timer) {
         timer = new QTimer(this);
-        connect(timer, &QTimer::timeout, [this]() {mnModel->updateMNList();});
+        connect(timer, &QTimer::timeout, updateList);
     }
     timer->start(30000);
 }

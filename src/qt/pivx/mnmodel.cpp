@@ -4,6 +4,7 @@
 
 #include "qt/pivx/mnmodel.h"
 
+#include "interfaces/tiertwo.h"
 #include "evo/specialtx_utils.h"
 #include "masternode.h"
 #include "masternodeman.h"
@@ -22,6 +23,25 @@
 #include <QFile>
 #include <QHostAddress>
 
+uint16_t MasternodeWrapper::getType() const
+{
+    if (!dmnView) {
+        return LEGACY;
+    }
+
+    uint16_t type = 0;
+    if (dmnView->hasOwnerKey) {
+        type |= DMN_OWNER;
+    }
+
+    if (dmnView->hasVotingKey) {
+        type |= DMN_VOTER;
+    }
+
+    // todo: add operator
+    return type;
+}
+
 MNModel::MNModel(QObject *parent) : QAbstractTableModel(parent) {}
 
 void MNModel::init()
@@ -32,7 +52,6 @@ void MNModel::init()
 void MNModel::updateMNList()
 {
     int mnMinConf = getMasternodeCollateralMinConf();
-    int end = nodes.size();
     nodes.clear();
     collateralTxAccepted.clear();
     for (const CMasternodeConfig::CMasternodeEntry& mne : masternodeConfig.getEntries()) {
@@ -46,14 +65,48 @@ void MNModel::updateMNList()
                 QString::fromStdString(mne.getIp()),
                 pmn,
                 pmn ? pmn->vin.prevout : txIn.prevout,
-                Optional<QString>(QString::fromStdString(mne.getPubKeyStr())))
+                Optional<QString>(QString::fromStdString(mne.getPubKeyStr())),
+                nullptr) // dmn view
         );
 
         if (walletModel) {
             collateralTxAccepted.insert(mne.getTxHash(), walletModel->getWalletTxDepth(txHash) >= mnMinConf);
         }
     }
-    Q_EMIT dataChanged(index(0, 0, QModelIndex()), index(end, 5, QModelIndex()) );
+
+    // Now add DMNs
+    for (const auto& dmn : interfaces::g_tiertwo->getKnownDMNs()) {
+        // Try the owner address as "alias", if not found use the payout script, if not, use the voting address, if not use the service.
+        std::string alias;
+        if (dmn->hasOwnerKey && dmn->ownerAddrLabel) {
+            alias = *dmn->ownerAddrLabel;
+        } else if (dmn->hasPayoutScript && dmn->payoutAddrLabel) {
+            alias = *dmn->payoutAddrLabel;
+        } else if (dmn->hasVotingKey && dmn->votingAddrLabel) {
+            alias = *dmn->votingAddrLabel;
+        } else if (!dmn->service.empty()) {
+            alias = dmn->service;
+        } else {
+            // future think: could use the proTxHash if no label is found.
+            alias = "no alias available";
+        }
+
+        nodes.append(MasternodeWrapper(
+                QString::fromStdString(alias),
+                QString::fromStdString(dmn->service),
+                nullptr,
+                dmn->collateralOut,
+                nullopt,
+                dmn));
+
+        if (walletModel) {
+            const auto& txHash = dmn->collateralOut.hash;
+            collateralTxAccepted.insert(txHash.GetHex(), walletModel->getWalletTxDepth(txHash) >= mnMinConf);
+        }
+    }
+
+    Q_EMIT dataChanged(index(0, 0, QModelIndex()),
+                       index(nodes.size(), ColumnIndex::COLUMN_COUNT, QModelIndex()));
 }
 
 int MNModel::rowCount(const QModelIndex &parent) const
@@ -70,6 +123,12 @@ int MNModel::columnCount(const QModelIndex &parent) const
     return ColumnIndex::COLUMN_COUNT;
 }
 
+static QString formatTooltip(const MasternodeWrapper& wrapper)
+{
+    return QObject::tr((wrapper.getType() == MNViewType::LEGACY) ?
+            "Legacy Masternode\nIt will be disabled after v6.0 enforcement" :
+            "Deterministic Masternode");
+}
 
 QVariant MNModel::data(const QModelIndex &index, int role) const
 {
@@ -78,7 +137,9 @@ QVariant MNModel::data(const QModelIndex &index, int role) const
 
     int row = index.row();
     const MasternodeWrapper& mnWrapper = nodes.at(row);
-    if (role == Qt::DisplayRole || role == Qt::EditRole) {
+    switch (role) {
+    case Qt::DisplayRole:
+    case Qt::EditRole: {
         switch (index.column()) {
             case ALIAS:
                 return mnWrapper.label;
@@ -92,15 +153,21 @@ QVariant MNModel::data(const QModelIndex &index, int role) const
                 return mnWrapper.collateralId ? QString::number(mnWrapper.collateralId->n) : "Not available";
             case STATUS: {
                 std::string status = "MISSING";
-                if (mnWrapper.masternode) {
-                    status = mnWrapper.masternode->Status();
-                    // Quick workaround to the current Masternode status types.
-                    // If the status is REMOVE and there is no pubkey associated to the Masternode
-                    // means that the MN is not in the network list and was created in
-                    // updateMNList(). Which.. denotes a not started masternode.
-                    // This will change in the future with the MasternodeWrapper introduction.
-                    if (status == "REMOVE" && !mnWrapper.masternode->pubKeyCollateralAddress.IsValid()) {
-                        return "MISSING";
+                if (mnWrapper.dmnView) {
+                    // Deterministic MN
+                    status = mnWrapper.dmnView->isPoSeBanned ? "PoSe BANNED" : "ENABLED";
+                } else {
+                    // Legacy MN
+                    if (mnWrapper.masternode) {
+                        status = mnWrapper.masternode->Status();
+                        // Quick workaround to the current Masternode status types.
+                        // If the status is REMOVE and there is no pubkey associated to the Masternode
+                        // means that the MN is not in the network list and was created in
+                        // updateMNList(). Which.. denotes a not started masternode.
+                        // This will change in the future with the MasternodeWrapper introduction.
+                        if (status == "REMOVE" && !mnWrapper.masternode->pubKeyCollateralAddress.IsValid()) {
+                            return "MISSING";
+                        }
                     }
                 }
                 return QString::fromStdString(status);
@@ -118,8 +185,14 @@ QVariant MNModel::data(const QModelIndex &index, int role) const
             case WAS_COLLATERAL_ACCEPTED:{
                 return mnWrapper.collateralId && collateralTxAccepted.value(mnWrapper.collateralId->hash.GetHex());
             }
+            case TYPE:{
+                return mnWrapper.getType();
+            }
         }
     }
+    case Qt::ToolTipRole:
+        return formatTooltip(mnWrapper);
+    } // end role switch
     return QVariant();
 }
 
@@ -146,8 +219,8 @@ bool MNModel::addMn(CMasternodeConfig::CMasternodeEntry* mne)
                  QString::fromStdString(mne->getAlias()),
                  QString::fromStdString(mne->getIp()),
                  pmn, pmn ? pmn->vin.prevout : collateralId,
-                 Optional<QString>(QString::fromStdString(mne->getPubKeyStr())))
-                 );
+                 Optional<QString>(QString::fromStdString(mne->getPubKeyStr())),
+                 nullptr));
     endInsertRows();
     return true;
 }

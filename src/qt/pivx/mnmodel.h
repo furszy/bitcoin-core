@@ -11,7 +11,16 @@
 #include "primitives/transaction.h"
 
 class CMasternode;
+class DMNView;
 class WalletModel;
+
+enum MNViewType : uint16_t
+{
+    LEGACY = 0,
+    DMN_OWNER = (1 << 0),
+    DMN_OPERATOR = (1 << 1),
+    DMN_VOTER = (1 << 2)
+};
 
 class MasternodeWrapper
 {
@@ -21,8 +30,10 @@ public:
             const QString& _ipPortStr,
             CMasternode* _masternode,
             COutPoint& _collateralId,
-            const Optional<QString>& _mnPubKey) :
-            label(_label), ipPort(_ipPortStr), masternode(_masternode), collateralId(_collateralId), mnPubKey(_mnPubKey) { };
+            const Optional<QString>& _mnPubKey,
+            const std::shared_ptr<DMNView>& _dmnView) :
+            label(_label), ipPort(_ipPortStr), masternode(_masternode),
+            collateralId(_collateralId), mnPubKey(_mnPubKey), dmnView(_dmnView) { };
 
     QString label;
     QString ipPort;
@@ -32,6 +43,11 @@ public:
     // when masternode is not null, the collateralId is directly pointing to masternode.vin.prevout.
     Optional<COutPoint> collateralId{nullopt};
     Optional<QString> mnPubKey{nullopt};
+
+    // DMN data
+    std::shared_ptr<DMNView> dmnView{nullptr};
+
+    uint16_t getType() const;
 };
 
 class MNModel : public QAbstractTableModel
@@ -58,6 +74,7 @@ public:
         COLLATERAL_OUT_INDEX = 7,
         PRIV_KEY = 8,
         WAS_COLLATERAL_ACCEPTED = 9,
+        TYPE = 10, /**< Whether is from a Legacy or Deterministic MN */
         COLUMN_COUNT
     };
 
