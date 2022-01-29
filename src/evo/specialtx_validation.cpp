@@ -465,7 +465,7 @@ bool VerifyLLMQCommitment(const llmq::CFinalCommitment& qfc, const CBlockIndex* 
         // Get members and check signatures (for not-null commitments)
         if (!qfc.IsNull()) {
             std::vector<CBLSPublicKey> allkeys;
-            for (const auto m : deterministicMNManager->GetAllQuorumMembers((Consensus::LLMQType)qfc.llmqType, pindexQuorum)) {
+            for (const auto& m : deterministicMNManager->GetAllQuorumMembers((Consensus::LLMQType)qfc.llmqType, pindexQuorum)) {
                 allkeys.emplace_back(m->pdmnState->pubKeyOperator.Get());
             }
             if (!qfc.Verify(allkeys, *params)) {
