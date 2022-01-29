@@ -267,9 +267,9 @@ void SetThreadPriority(int nPriority);
  * .. and a wrapper that just calls func once
  */
 template <typename Callable>
-void TraceThread(const char* name, Callable func)
+void TraceThread(const std::string name, Callable func)
 {
-    std::string s = strprintf("pivx-%s", name);
+    std::string s = "pivx-" + name;
     util::ThreadRename(s.c_str());
     try {
         LogPrintf("%s thread start\n", name);
@@ -279,10 +279,10 @@ void TraceThread(const char* name, Callable func)
         LogPrintf("%s thread interrupt\n", name);
         throw;
     } catch (std::exception& e) {
-        PrintExceptionContinue(&e, name);
+        PrintExceptionContinue(&e, name.c_str());
         throw;
     } catch (...) {
-        PrintExceptionContinue(NULL, name);
+        PrintExceptionContinue(nullptr, name.c_str());
         throw;
     }
 }
