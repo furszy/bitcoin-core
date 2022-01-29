@@ -84,10 +84,9 @@ void CDKGPendingMessages::Clear()
 
 //////
 
-CDKGSessionHandler::CDKGSessionHandler(const Consensus::LLMQParams& _params, CEvoDB& _evoDb, ctpl::thread_pool& _messageHandlerPool, CBLSWorker& _blsWorker, CDKGSessionManager& _dkgManager) :
+CDKGSessionHandler::CDKGSessionHandler(const Consensus::LLMQParams& _params, CEvoDB& _evoDb, CBLSWorker& _blsWorker, CDKGSessionManager& _dkgManager) :
     params(_params),
     evoDb(_evoDb),
-    messageHandlerPool(_messageHandlerPool),
     blsWorker(_blsWorker),
     dkgManager(_dkgManager),
     curSession(std::make_shared<CDKGSession>(_params, _evoDb, _blsWorker, _dkgManager)),
@@ -96,18 +95,13 @@ CDKGSessionHandler::CDKGSessionHandler(const Consensus::LLMQParams& _params, CEv
     pendingJustifications((size_t)_params.size * 2),
     pendingPrematureCommitments((size_t)_params.size * 2)
 {
-    phaseHandlerThread = std::thread([this] {
-        util::ThreadRename(strprintf("quorum-phase-%d", (uint8_t)params.type).c_str());
-        PhaseHandlerThread();
-    });
+    if (params.type == Consensus::LLMQ_NONE) {
+        throw std::runtime_error("Can't initialize CDKGSessionHandler with LLMQ_NONE type.");
+    }
 }
 
 CDKGSessionHandler::~CDKGSessionHandler()
 {
-    stopRequested = true;
-    if (phaseHandlerThread.joinable()) {
-        phaseHandlerThread.join();
-    }
 }
 
 void CDKGSessionHandler::UpdatedBlockTip(const CBlockIndex* pindexNew)
@@ -145,6 +139,24 @@ void CDKGSessionHandler::ProcessMessage(CNode* pfrom, const std::string& strComm
         pendingJustifications.PushPendingMessage(pfrom->GetId(), vRecv, MSG_QUORUM_JUSTIFICATION);
     } else if (strCommand == NetMsgType::QPCOMMITMENT) {
         pendingPrematureCommitments.PushPendingMessage(pfrom->GetId(), vRecv, MSG_QUORUM_PREMATURE_COMMITMENT);
+    }
+}
+
+void CDKGSessionHandler::StartThread()
+{
+    if (phaseHandlerThread.joinable()) {
+        throw std::runtime_error("Tried to start an already started CDKGSessionHandler thread.");
+    }
+
+    std::string threadName = strprintf("quorum-phase-%d", params.type);
+    phaseHandlerThread = std::thread(&TraceThread<std::function<void()> >, threadName, std::function<void()>(std::bind(&CDKGSessionHandler::PhaseHandlerThread, this)));
+}
+
+void CDKGSessionHandler::StopThread()
+{
+    stopRequested = true;
+    if (phaseHandlerThread.joinable()) {
+        phaseHandlerThread.join();
     }
 }
 

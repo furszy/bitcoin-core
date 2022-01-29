@@ -19,21 +19,29 @@ std::unique_ptr<CDKGSessionManager> quorumDKGSessionManager{nullptr};
 static const std::string DB_VVEC = "qdkg_V";
 static const std::string DB_SKCONTRIB = "qdkg_S";
 
-void CDKGSessionManager::StartMessageHandlerPool()
+CDKGSessionManager::CDKGSessionManager(CEvoDB& _evoDb, CBLSWorker& _blsWorker) :
+        evoDb(_evoDb),
+        blsWorker(_blsWorker)
 {
     for (const auto& qt : Params().GetConsensus().llmqs) {
         dkgSessionHandlers.emplace(std::piecewise_construct,
                 std::forward_as_tuple(qt.first),
-                std::forward_as_tuple(qt.second, evoDb, messageHandlerPool, blsWorker, *this));
+                std::forward_as_tuple(qt.second, evoDb, blsWorker, *this));
     }
-
-    messageHandlerPool.resize(2);
-    RenameThreadPool(messageHandlerPool, "pivx-q-msg");
 }
 
-void CDKGSessionManager::StopMessageHandlerPool()
+void CDKGSessionManager::StartThreads()
 {
-    messageHandlerPool.stop(true);
+    for (auto& it : dkgSessionHandlers) {
+        it.second.StartThread();
+    }
+}
+
+void CDKGSessionManager::StopThreads()
+{
+    for (auto& it : dkgSessionHandlers) {
+        it.second.StopThread();
+    }
 }
 
 void CDKGSessionManager::UpdatedBlockTip(const CBlockIndex* pindexNew, bool fInitialDownload)

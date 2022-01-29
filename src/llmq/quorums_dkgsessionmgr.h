@@ -46,11 +46,11 @@ private:
     std::map<ContributionsCacheKey, ContributionsCacheEntry> contributionsCache;
 
 public:
-    CDKGSessionManager(CEvoDB& _evoDb, CBLSWorker& _blsWorker) : evoDb(_evoDb), blsWorker(_blsWorker) {}
+    CDKGSessionManager(CEvoDB& _evoDb, CBLSWorker& _blsWorker);
     ~CDKGSessionManager() {};
 
-    void StartMessageHandlerPool();
-    void StopMessageHandlerPool();
+    void StartThreads();
+    void StopThreads();
 
     void UpdatedBlockTip(const CBlockIndex *pindexNew, bool fInitialDownload);
 

@@ -41,14 +41,14 @@ void StartLLMQSystem()
         blsWorker->Start();
     }
     if (quorumDKGSessionManager) {
-        quorumDKGSessionManager->StartMessageHandlerPool();
+        quorumDKGSessionManager->StartThreads();
     }
 }
 
 void StopLLMQSystem()
 {
     if (quorumDKGSessionManager) {
-        quorumDKGSessionManager->StopMessageHandlerPool();
+        quorumDKGSessionManager->StopThreads();
     }
     if (blsWorker) {
         blsWorker->Stop();
