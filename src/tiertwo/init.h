@@ -17,11 +17,20 @@ namespace boost {
 
 std::string GetTierTwoHelpString(bool showDebug);
 
+/** Init the interfaces objects */
+void InitTierTwoInterfaces();
+
+/** Resets the interfaces objects */
+void ResetTierTwoInterfaces();
+
 /** Inits the tier two global objects */
 void InitTierTwoPreChainLoad(bool fReindex);
 
 /** Inits the tier two global objects that require access to the coins tip cache */
 void InitTierTwoPostCoinsCacheLoad();
+
+/** Initialize chain tip */
+void InitTierTwoChainTip();
 
 /** Loads from disk all the tier two related objects */
 bool LoadTierTwo(int chain_active_height, bool fReindexChainState);

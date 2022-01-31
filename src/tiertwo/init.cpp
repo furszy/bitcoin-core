@@ -6,6 +6,7 @@
 
 #include "budget/budgetdb.h"
 #include "evo/evodb.h"
+#include "evo/evonotificationinterface.h"
 #include "flatdb.h"
 #include "guiinterface.h"
 #include "guiinterfaceutil.h"
@@ -18,6 +19,8 @@
 #include "wallet/wallet.h"
 
 #include <boost/thread.hpp>
+
+static std::unique_ptr<EvoNotificationInterface> pEvoNotificationInterface{nullptr};
 
 std::string GetTierTwoHelpString(bool showDebug)
 {
@@ -37,6 +40,26 @@ std::string GetTierTwoHelpString(bool showDebug)
     return strUsage;
 }
 
+void InitTierTwoInterfaces()
+{
+    pEvoNotificationInterface = std::make_unique<EvoNotificationInterface>();
+    RegisterValidationInterface(pEvoNotificationInterface.get());
+}
+
+void ResetTierTwoInterfaces()
+{
+    if (pEvoNotificationInterface) {
+        UnregisterValidationInterface(pEvoNotificationInterface.get());
+        pEvoNotificationInterface.reset();
+    }
+
+    if (activeMasternodeManager) {
+        UnregisterValidationInterface(activeMasternodeManager);
+        delete activeMasternodeManager;
+        activeMasternodeManager = nullptr;
+    }
+}
+
 void InitTierTwoPreChainLoad(bool fReindex)
 {
     int64_t nEvoDbCache = 1024 * 1024 * 16; // TODO
@@ -50,6 +73,13 @@ void InitTierTwoPostCoinsCacheLoad()
 {
     // Initialize LLMQ system
     llmq::InitLLMQSystem(*evoDb);
+}
+
+void InitTierTwoChainTip()
+{
+    // force UpdatedBlockTip to initialize nCachedBlockHeight for DS, MN payments and budgets
+    // but don't call it directly to prevent triggering of other listeners like zmq etc.
+    pEvoNotificationInterface->InitializeCurrentBlockTip();
 }
 
 // Sets the last CACHED_BLOCK_HASHES hashes into masternode manager cache
@@ -113,6 +143,14 @@ bool LoadTierTwo(int chain_active_height, bool fReindexChainState)
         LogPrintf("Missing masternode payment cache - mnpayments.dat, will try to recreate\n");
     else if (readResult3 != CMasternodePaymentDB::Ok) {
         LogPrintf("Error reading mnpayments.dat - cached data discarded\n");
+    }
+
+    // ###################################### //
+    // ## Legacy Parse 'masternodes.conf'  ## //
+    // ###################################### //
+    std::string strErr;
+    if (!masternodeConfig.read(strErr)) {
+        return UIError(strprintf(_("Error reading masternode configuration file: %s"), strErr));
     }
 
     // ############################## //

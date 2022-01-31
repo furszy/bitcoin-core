@@ -851,10 +851,11 @@ public:
     std::map<libzcash::SaplingPaymentAddress, std::vector<SaplingNoteEntry>> ListNotes() const;
 
     /// Get 10000 PIV output and keys which can be used for the Masternode
-    bool GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet,
-            CKey& keyRet, std::string strTxHash, std::string strOutputIndex, std::string& strError);
-    /// Extract txin information and keys from output
-    bool GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, bool fColdStake = false);
+    bool GetMasternodeVinAndKeys(CPubKey& pubKeyRet,
+                                 CKey& keyRet,
+                                 const COutPoint& collateralOut,
+                                 bool fValidateCollateral,
+                                 std::string& strError);
 
     bool IsSpent(const COutPoint& outpoint) const;
     bool IsSpent(const uint256& hash, unsigned int n) const;
