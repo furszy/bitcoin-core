@@ -159,22 +159,19 @@ void MasterNodesWidget::onMNClicked(const QModelIndex& _index)
     ui->listMn->setCurrentIndex(_index);
     QRect rect = ui->listMn->visualRect(_index);
     QPoint pos = rect.topRight();
-    pos.setX(pos.x() - (DECORATION_SIZE * 2));
-    pos.setY(pos.y() + (DECORATION_SIZE * 1.5));
-    if (!this->menu) {
-        this->menu = new TooltipMenu(window, this);
-        this->menu->setEditBtnText(tr("Start"));
-        this->menu->setDeleteBtnText(tr("Delete"));
-        this->menu->setCopyBtnText(tr("Info"));
-        connect(this->menu, &TooltipMenu::message, this, &AddressesWidget::message);
-        connect(this->menu, &TooltipMenu::onEditClicked, this, &MasterNodesWidget::onEditMNClicked);
-        connect(this->menu, &TooltipMenu::onDeleteClicked, this, &MasterNodesWidget::onDeleteMNClicked);
-        connect(this->menu, &TooltipMenu::onCopyClicked, this, &MasterNodesWidget::onInfoMNClicked);
-        this->menu->adjustSize();
+    pos.setX((int) pos.x() - (DECORATION_SIZE * 2));
+    pos.setY((int) pos.y() + (DECORATION_SIZE * 1.5));
+    if (!menu) {
+        menu = new TooltipMenu(window, this);
+        connect(menu, &TooltipMenu::message, this, &AddressesWidget::message);
+        menu->addBtn(0, tr("Start"), [this](){onEditMNClicked();});
+        menu->addBtn(1, tr("Delete"), [this](){onDeleteMNClicked();});
+        menu->addBtn(2, tr("Info"), [this](){onInfoMNClicked();});
+        menu->adjustSize();
     } else {
-        this->menu->hide();
+        menu->hide();
     }
-    this->index = _index;
+    index = _index;
     menu->move(pos);
     menu->show();
 
