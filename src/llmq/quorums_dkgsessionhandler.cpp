@@ -451,10 +451,8 @@ static bool ProcessPendingMessageBatch(CDKGSession& session, CDKGPendingMessages
         }
         const auto& msg = *p.second;
 
-        auto hash = ::SerializeHash(msg);
-
         bool ban = false;
-        if (!session.PreVerifyMessage(hash, msg, ban)) {
+        if (!session.PreVerifyMessage(msg, ban)) {
             if (ban) {
                 LogPrint(BCLog::NET, "%s -- banning node due to failed preverification, peer=%d\n", __func__, p.first);
                 {
@@ -465,7 +463,7 @@ static bool ProcessPendingMessageBatch(CDKGSession& session, CDKGPendingMessages
             LogPrint(BCLog::NET, "%s -- skipping message due to failed preverification, peer=%d\n", __func__, p.first);
             continue;
         }
-        hashes.emplace_back(hash);
+        hashes.emplace_back(::SerializeHash(msg));
         preverifiedMessages.emplace_back(p);
     }
     if (preverifiedMessages.empty()) {
