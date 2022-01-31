@@ -188,6 +188,9 @@ QVariant MNModel::data(const QModelIndex &index, int role) const
             case TYPE:{
                 return mnWrapper.getType();
             }
+            case IS_POSE_ENABLED:{
+                return mnWrapper.dmnView && !mnWrapper.dmnView->isPoSeBanned;
+            }
         }
     }
     case Qt::ToolTipRole:

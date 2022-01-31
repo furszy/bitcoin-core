@@ -195,21 +195,32 @@ void MasterNodesWidget::onEditMNClicked()
 {
     if (walletModel) {
         if (!walletModel->isRegTestNetwork() && !checkMNsNetwork()) return;
-        if (index.sibling(index.row(), MNModel::WAS_COLLATERAL_ACCEPTED).data(Qt::DisplayRole).toBool()) {
-            // Start MN
-            QString strAlias = this->index.data(Qt::DisplayRole).toString();
-            if (ask(tr("Start Masternode"), tr("Are you sure you want to start masternode %1?\n").arg(strAlias))) {
-                WalletModel::UnlockContext ctx(walletModel->requestUnlock());
-                if (!ctx.isValid()) {
-                    // Unlock wallet was cancelled
-                    inform(tr("Cannot edit masternode, wallet locked"));
-                    return;
+        uint16_t mnType = index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt();
+        if (mnType == MNViewType::LEGACY) {
+            if (index.sibling(index.row(), MNModel::WAS_COLLATERAL_ACCEPTED).data(Qt::DisplayRole).toBool()) {
+                // Start MN
+                QString strAlias = this->index.data(Qt::DisplayRole).toString();
+                if (ask(tr("Start Masternode"), tr("Are you sure you want to start masternode %1?\n").arg(strAlias))) {
+                    WalletModel::UnlockContext ctx(walletModel->requestUnlock());
+                    if (!ctx.isValid()) {
+                        // Unlock wallet was cancelled
+                        inform(tr("Cannot edit masternode, wallet locked"));
+                        return;
+                    }
+                    startAlias(strAlias);
                 }
-                startAlias(strAlias);
+            } else {
+                inform(tr(
+                        "Cannot start masternode, the collateral transaction has not been confirmed by the network yet.\n"
+                        "Please wait few more minutes (masternode collaterals require %1 confirmations).").arg(
+                        mnModel->getMasternodeCollateralMinConf()));
             }
         } else {
-            inform(tr("Cannot start masternode, the collateral transaction has not been confirmed by the network yet.\n"
-                    "Please wait few more minutes (masternode collaterals require %1 confirmations).").arg(mnModel->getMasternodeCollateralMinConf()));
+            // Deterministic
+            bool isEnabled = index.sibling(index.row(), MNModel::IS_POSE_ENABLED).data(Qt::DisplayRole).toBool();
+            if (isEnabled) {
+                inform(tr("Cannot start an already started Masternode"));
+            }
         }
     }
 }

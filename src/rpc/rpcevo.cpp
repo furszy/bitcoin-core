@@ -595,8 +595,8 @@ static void AddDMNEntryToList(UniValue& ret, CWallet* pwallet, const CDeterminis
     // No need to check wallet if not wallet_only and not verbose
     bool skipWalletCheck = !fFromWallet && !fVerbose;
 
-    if (pwallet && !skipWalletCheck) {
-        LOCK(pwallet->cs_wallet);
+    if (pwallet && !skipWalletCheck) { // TODO: First can only do the controller/owner DMNs, that is how the GUI works now..
+        LOCK2(cs_main, pwallet->cs_wallet); // ERROR, this was locking cs_wallet first, then cs_main in GetTransaction.
         hasOwnerKey = pwallet->HaveKey(dmn->pdmnState->keyIDOwner);
         hasVotingKey = pwallet->HaveKey(dmn->pdmnState->keyIDVoting);
         ownsPayeeScript = CheckWalletOwnsScript(pwallet, dmn->pdmnState->scriptPayout);

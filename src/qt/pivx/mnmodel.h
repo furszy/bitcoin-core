@@ -75,6 +75,7 @@ public:
         PRIV_KEY = 8,
         WAS_COLLATERAL_ACCEPTED = 9,
         TYPE = 10, /**< Whether is from a Legacy or Deterministic MN */
+        IS_POSE_ENABLED = 11, /**< Whether the DMN is enabled or not*/
         COLUMN_COUNT
     };
 
