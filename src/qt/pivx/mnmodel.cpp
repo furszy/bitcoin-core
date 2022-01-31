@@ -5,6 +5,7 @@
 #include "qt/pivx/mnmodel.h"
 
 #include "bls/key_io.h"
+#include "coincontrol.h"
 #include "interfaces/tiertwo.h"
 #include "evo/specialtx_utils.h"
 #include "masternode.h"
@@ -204,6 +205,8 @@ bool MNModel::removeMn(const QModelIndex& modelIndex)
 {
     int idx = modelIndex.row();
     beginRemoveRows(QModelIndex(), idx, idx);
+    auto mnWrapper = nodes.at(idx);
+    if (mnWrapper.collateralId) collateralTxAccepted.remove(mnWrapper.collateralId->hash.GetHex());
     nodes.removeAt(idx);
     endRemoveRows();
     Q_EMIT dataChanged(index(idx, 0, QModelIndex()), index(idx, 5, QModelIndex()) );
@@ -414,6 +417,50 @@ bool MNModel::createDMN(const std::string& alias,
 
     // All good
     return true;
+}
+
+OperationResult MNModel::killDMN(const uint256& collateralHash, unsigned int outIndex)
+{
+    auto p_wallet = vpwallets[0]; // TODO: Move to walletModel
+    const auto& tx = p_wallet->GetWalletTx(collateralHash);
+    if (!tx || outIndex >= tx->tx->vout.size()) return {false, "collateral not found"};
+    const auto& output = tx->tx->vout[outIndex];
+
+    COutPoint collateral_output(collateralHash, outIndex);
+    CCoinControl coinControl;
+    coinControl.Select(collateral_output);
+    QList<SendCoinsRecipient> recipients;
+    auto ownAddr = walletModel->getNewAddress("");
+    if (!ownAddr) return {false, ownAddr.getError()};
+    CAmount amountToSend = output.nValue - CWallet::minTxFee.GetFeePerK();
+    recipients.push_back(SendCoinsRecipient{QString::fromStdString(ownAddr.getObjResult()->ToString()), "", amountToSend, ""});
+    WalletModelTransaction currentTransaction(recipients);
+    walletModel->unlockCoin(collateral_output);
+    WalletModel::SendCoinsReturn prepareStatus = walletModel->prepareTransaction(&currentTransaction, &coinControl, false);
+
+    CClientUIInterface::MessageBoxFlags informType;
+    QString returnMsg = GuiTransactionsUtils::ProcessSendCoinsReturn(
+            prepareStatus,
+            walletModel,
+            informType, // this flag is not needed
+            BitcoinUnits::formatWithUnit(walletModel->getOptionsModel()->getDisplayUnit(),
+                                         currentTransaction.getTransactionFee()),
+            true
+    );
+
+    if (prepareStatus.status != WalletModel::OK) {
+        walletModel->lockCoin(collateral_output);
+        return {false, returnMsg.toStdString()};
+    }
+
+    WalletModel::SendCoinsReturn sendStatus = walletModel->sendCoins(currentTransaction);
+    returnMsg = GuiTransactionsUtils::ProcessSendCoinsReturn(sendStatus, walletModel, informType);
+    if (sendStatus.status != WalletModel::OK) {
+        walletModel->lockCoin(collateral_output);
+        return {false, returnMsg.toStdString()};
+    }
+
+    return {true};
 }
 
 bool MNModel::createMNCollateral(

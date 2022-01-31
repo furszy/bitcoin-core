@@ -8,6 +8,7 @@
 #include <QAbstractTableModel>
 #include "amount.h"
 #include "masternodeconfig.h"
+#include "operationresult.h"
 #include "primitives/transaction.h"
 
 class CMasternode;
@@ -116,7 +117,8 @@ public:
                    const Optional<int>& operatorPercentage = nullopt,
                    const Optional<std::string>& operatorPayoutAddr = nullopt);
 
-
+    // Completely stops the Masternode spending the collateral
+    OperationResult killDMN(const uint256& collateralHash, unsigned int outIndex);
 
     // Generates the collateral transaction
     bool createMNCollateral(const QString& alias, const QString& addr, COutPoint& ret_outpoint, QString& ret_error);

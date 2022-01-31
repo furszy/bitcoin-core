@@ -343,6 +343,7 @@ void MasterNodesWidget::onDeleteMNClicked()
     QString txId = index.sibling(index.row(), MNModel::COLLATERAL_ID).data(Qt::DisplayRole).toString();
     QString outIndex = index.sibling(index.row(), MNModel::COLLATERAL_OUT_INDEX).data(Qt::DisplayRole).toString();
     QString qAliasString = index.data(Qt::DisplayRole).toString();
+    bool isLegacy = ((uint16_t) index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt()) == MNViewType::LEGACY;
 
     bool convertOK = false;
     unsigned int indexOut = outIndex.toUInt(&convertOK);
@@ -351,18 +352,34 @@ void MasterNodesWidget::onDeleteMNClicked()
         return;
     }
 
-    if (!ask(tr("Delete Masternode"), tr("You are just about to delete Masternode:\n%1\n\nAre you sure?").arg(qAliasString))) {
-        return;
-    }
+    if (isLegacy) {
+        if (!ask(tr("Delete Masternode"), tr("You are just about to delete Masternode:\n%1\n\nAre you sure?").arg(qAliasString))) {
+            return;
+        }
 
-    QString errorStr;
-    if (!mnModel->removeLegacyMN(qAliasString.toStdString(), txId.toStdString(), indexOut, errorStr)) {
-        inform(errorStr);
-        return;
+        QString errorStr;
+        if (!mnModel->removeLegacyMN(qAliasString.toStdString(), txId.toStdString(), indexOut, errorStr)) {
+            inform(errorStr);
+            return;
+        }
+        // Update list
+        mnModel->removeMn(index);
+        updateListState();
+    } else {
+        if (!ask(tr("Delete Masternode"), tr("You are just about to spend the collateral\n"
+                                             "(creating a transaction to yourself)\n"
+                                             "of your Masternode:\n\n%1\n\nAre you sure?")
+            .arg(qAliasString))) {
+            return;
+        }
+
+        auto res = mnModel->killDMN(uint256S(txId.toStdString()), indexOut);
+        if (!res) {
+            inform(QString::fromStdString(res.getError()));
+            return;
+        }
+        inform("Deterministic Masternode removed successfully! the change will be reflected on the next mined block");
     }
-    // Update list
-    mnModel->removeMn(index);
-    updateListState();
 }
 
 void MasterNodesWidget::onCreateMNClicked()
