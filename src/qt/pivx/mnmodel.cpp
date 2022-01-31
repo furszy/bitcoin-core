@@ -4,6 +4,7 @@
 
 #include "qt/pivx/mnmodel.h"
 
+#include "bls/key_io.h"
 #include "interfaces/tiertwo.h"
 #include "evo/specialtx_utils.h"
 #include "masternode.h"
@@ -295,7 +296,8 @@ static OperationResult createDMNInternal(const COutPoint& collateral,
                                          const CBLSPublicKey& operatorPubKey,
                                          const Optional<CKeyID>& votingAddr,
                                          const CKeyID& payoutAddr,
-                                         const Optional<uint16_t> operatorPercentage,
+                                         const Optional<CBLSSecretKey>& operatorSk,
+                                         const Optional<uint16_t>& operatorPercentage,
                                          const Optional<CKeyID>& operatorPayoutAddr)
 {
     ProRegPL pl;
@@ -324,7 +326,12 @@ static OperationResult createDMNInternal(const COutPoint& collateral,
     res = SignSpecialTxPayloadByString(pl, keyCollateral);
     if (!res) return res;
 
-    return SignAndSendSpecialTx(wallet, tx, pl);
+    std::map<std::string, std::string> extraValues;
+    if (operatorSk) {
+        // Only if the operator sk was provided
+        extraValues.emplace("operatorSk", bls::EncodeSecret(Params(), *operatorSk));
+    }
+    return SignAndSendSpecialTx(wallet, tx, pl, &extraValues);
 }
 
 bool MNModel::createDMN(const std::string& alias,
@@ -377,12 +384,14 @@ bool MNModel::createDMN(const std::string& alias,
     Optional<CBLSSecretKey> operatorSk{nullopt};
     CBLSPublicKey operatorPk;
     if (operatorPubKey) {
-        if (!operatorPk.SetHexStr(*operatorPubKey)) {
+        auto opPk = bls::DecodePublic(Params(), *operatorPubKey);
+        if (!opPk || !opPk->IsValid()) {
             strError = "invalid operator pubkey";
             return false;
         }
+        operatorPk = *opPk;
     } else {
-        // Stored in masternode conf locally as well
+        // Stored within the register tx
         operatorSk = CBLSSecretKey();
         operatorSk->MakeNewKey();
         operatorPk = operatorSk->GetPublicKey();
@@ -395,6 +404,7 @@ bool MNModel::createDMN(const std::string& alias,
                              operatorPk,
                              Optional<CKeyID>(*ownerAddr), // voting key
                              payoutKeyId, // payout script
+                             operatorSk, // only if the operator was provided (or locally created)
                              nullopt,   // operator percentage
                              nullopt);  // operator percentage
     if (!res) {

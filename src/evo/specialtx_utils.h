@@ -57,13 +57,13 @@ OperationResult FundSpecialTx(CWallet* pwallet, CMutableTransaction& tx, Special
     return res;
 }
 
-OperationResult SignAndSendSpecialTx(CWallet* pwallet, CMutableTransaction& tx);
+OperationResult SignAndSendSpecialTx(CWallet* pwallet, CMutableTransaction& tx, std::map<std::string, std::string>* extras = nullptr);
 
 template<typename SpecialTxPayload>
-OperationResult SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransaction& tx, const SpecialTxPayload& pl)
+OperationResult SignAndSendSpecialTx(CWallet* const pwallet, CMutableTransaction& tx, const SpecialTxPayload& pl, std::map<std::string, std::string>* extras = nullptr)
 {
     SetTxPayload(tx, pl);
-    return SignAndSendSpecialTx(pwallet, tx);
+    return SignAndSendSpecialTx(pwallet, tx, extras);
 }
 
 #endif // ENABLE_WALLET

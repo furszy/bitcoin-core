@@ -42,13 +42,13 @@ OperationResult FundSpecialTx(CWallet* pwallet, CMutableTransaction& tx)
     return {true};
 }
 
-OperationResult SignAndSendSpecialTx(CWallet* pwallet, CMutableTransaction& tx)
+OperationResult SignAndSendSpecialTx(CWallet* pwallet, CMutableTransaction& tx, std::map<std::string, std::string>* extras)
 {
     if (!pwallet->SignTransaction(tx)) {
         return {false, "signature failed"};
     }
 
-    CWallet::CommitResult res = pwallet->CommitTransaction(MakeTransactionRef(tx), nullptr, g_connman.get(), nullptr);
+    CWallet::CommitResult res = pwallet->CommitTransaction(MakeTransactionRef(tx), nullptr, g_connman.get(), extras);
     CValidationState& state = res.state;
     if (state.IsInvalid()) {
         return {false, strprintf("%s: %s", state.GetRejectReason(), state.GetDebugMessage())};
