@@ -12,6 +12,7 @@
 
 #include <QIntValidator>
 #include <QRegularExpression>
+#include <QGraphicsDropShadowEffect>
 
 static inline QString formatParagraph(const QString& str) {
     return "<p align=\"justify\" style=\"text-align:center;\">" + str + "</p>";
@@ -32,6 +33,16 @@ static void initBtn(std::initializer_list<QPushButton*> args)
         btn->raise();
         btn->setVisible(false);
     }
+}
+
+static void setCardShadow(QWidget* edit)
+{
+    QGraphicsDropShadowEffect* shadowEffect = new QGraphicsDropShadowEffect();
+    shadowEffect->setColor(QColor(77, 77, 77, 30));
+    shadowEffect->setXOffset(0);
+    shadowEffect->setYOffset(4);
+    shadowEffect->setBlurRadius(6);
+    edit->setGraphicsEffect(shadowEffect);
 }
 
 MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnModel, QWidget *parent) :
@@ -86,7 +97,7 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     QRegularExpression rx("^(?:(?![\\#\\s]).)*");
     ui->lineEditName->setValidator(new QRegularExpressionValidator(rx, ui->lineEditName));
 
-    // Frame 4
+    // Frame 3
     setCssProperty(ui->labelTitle4, "text-title-dialog");
     setCssProperty({ui->labelSubtitleIp, ui->labelSubtitlePort}, "text-title");
     setCssSubtitleScreen(ui->labelSubtitleAddressIp);
@@ -102,6 +113,18 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     } else {
         ui->lineEditPort->setText("51472");
     }
+
+    // Frame 4
+    setCssProperty(ui->labelSummary, "text-title-dialog");
+    setCssProperty({ui->containerOwner, ui->containerOperator}, "card-governance");
+    setCssProperty({ui->labelOwnerSection, ui->labelOperatorSection}, "text-section-title");
+    setCssProperty({ui->labelTitleMainAddr, ui->labelTitlePayoutAddr, ui->labelTitleCollateral, ui->labelTitleCollateralIndex,
+                    ui->labelTitleOperatorKey, ui->labelTitleOperatorService, ui->labelTitleOperatorPayout, ui->labelTitleOperatorPercentage,
+                    ui->labelTitleOperatorService}, "text-title-right");
+    setCssProperty({ui->labelMainAddr, ui->labelPayoutAddr, ui->labelCollateralIndex, ui->labelCollateralHash,
+                    ui->labelOperatorKey, ui->labelOperatorPayout, ui->labelOperatorPercentage, ui->labelOperatorService}, "text-body2-dialog");
+    setCardShadow(ui->containerOwner);
+    setCardShadow(ui->containerOperator);
 
     // Confirm icons
     ui->stackedIcon1->addWidget(icConfirm1);
@@ -128,7 +151,7 @@ void MasterNodeWizardDialog::showEvent(QShowEvent *event)
 
 void MasterNodeWizardDialog::accept()
 {
-    switch(pos) {
+    switch (pos) {
         case 0:{
             ui->stackedWidget->setCurrentIndex(1);
             ui->pushName4->setChecked(false);
@@ -164,10 +187,41 @@ void MasterNodeWizardDialog::accept()
             }
             icConfirm4->setVisible(true);
             isOk = createMN();
+            if (!isOk) {
+                inform(returnStr);
+                return;
+            }
+            if (!mnSummary) QDialog::accept();
+            ui->pushName4->setChecked(true);
+        }
+        case 3: {
+            ui->btnBack->setVisible(false);
+            ui->btnNext->setText("CLOSE");
+            ui->stackedWidget->setCurrentIndex(3);
+            setSummary();
+            break;
+        }
+        case 4: {
             QDialog::accept();
         }
     }
     pos++;
+}
+
+static void setShortText(QLabel* label, const QString& str, int size)
+{
+    label->setText(str.left(size) + "..." + str.right(size));
+}
+
+void MasterNodeWizardDialog::setSummary()
+{
+    assert(mnSummary);
+    setShortText(ui->labelMainAddr, QString::fromStdString(mnSummary->ownerAddr), 14);
+    setShortText(ui->labelPayoutAddr, QString::fromStdString(mnSummary->ownerPayoutAddr), 14);
+    setShortText(ui->labelCollateralHash, QString::fromStdString(mnSummary->collateralOut.hash.GetHex()), 20);
+    ui->labelCollateralIndex->setText(QString::number(mnSummary->collateralOut.n));
+    ui->labelOperatorService->setText(QString::fromStdString(mnSummary->service));
+    ui->labelOperatorKey->setText(QString::fromStdString(mnSummary->operatorKey));
 }
 
 bool MasterNodeWizardDialog::createMN()
@@ -223,9 +277,9 @@ bool MasterNodeWizardDialog::createMN()
         // later this can be customized by the user.
 
         // Create owner addr
-        const auto r = walletModel->getNewAddress("dmn_owner_" + alias);
-        if (!r) return errorOut(tr(r.getError().c_str()));
-        const CKeyID* ownerKeyId = r.getObjResult()->getKeyID();
+        const auto ownerAddr = walletModel->getNewAddress("dmn_owner_" + alias);
+        if (!ownerAddr) return errorOut(tr(ownerAddr.getError().c_str()));
+        const CKeyID* ownerKeyId = ownerAddr.getObjResult()->getKeyID();
 
         // Create payout addr
         const auto payoutAddr = walletModel->getNewAddress("dmn_payout_" + alias);
@@ -248,6 +302,18 @@ bool MasterNodeWizardDialog::createMN()
         if (!res) {
             return errorOut(tr(error_str.c_str()));
         }
+
+        std::string ownerAddrStr = ownerAddr.getObjResult()->ToString();
+        mnSummary = std::make_unique<MNSummary>(alias,
+                                                ipAddress+":"+port,
+                                                collateralOut,
+                                                ownerAddrStr,
+                                                payoutAddr.getObjResult()->ToString(),
+                                                "fa3b23b341ccba23ab398befea2321bc46f", // todo: add real operator key..
+                                                ownerAddrStr, // voting key, for now fixed to owner addr
+                                                0, // operator percentage
+                                                nullopt); // operator payout
+
         returnStr = tr("Deterministic Masternode created! It will appear on your list on the next mined block!");
     } else {
         // Legacy

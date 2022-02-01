@@ -18,6 +18,30 @@ class MasterNodeWizardDialog;
 class QPushButton;
 }
 
+struct MNSummary
+{
+    MNSummary(const std::string& _alias, const std::string& _service, const COutPoint& _collateralOut,
+              const std::string& _ownerAddr, const std::string& _ownerPayoutAddr, const std::string& _operatorKey,
+              const std::string& _votingKey, int _operatorPercentage,
+              const Optional<std::string>& _operatorPayoutAddr) : alias(_alias), service(_service),
+                                                            collateralOut(_collateralOut),
+                                                            ownerAddr(_ownerAddr),
+                                                            ownerPayoutAddr(_ownerPayoutAddr),
+                                                            operatorKey(_operatorKey), votingKey(_votingKey),
+                                                            operatorPercentage(_operatorPercentage),
+                                                            operatorPayoutAddr(_operatorPayoutAddr) {}
+
+    std::string alias;
+    std::string service;
+    COutPoint collateralOut;
+    std::string ownerAddr;
+    std::string ownerPayoutAddr;
+    std::string operatorKey;
+    std::string votingKey;
+    int operatorPercentage{0};
+    Optional<std::string> operatorPayoutAddr;
+};
+
 class MasterNodeWizardDialog : public FocusedDialog, public PWidget::Translator
 {
     Q_OBJECT
@@ -44,10 +68,12 @@ private:
     QPushButton* icConfirm4;
     SnackBar *snackBar = nullptr;
     int pos = 0;
+    std::unique_ptr<MNSummary> mnSummary{nullptr};
 
     WalletModel* walletModel{nullptr};
     MNModel* mnModel{nullptr};
     bool createMN();
+    void setSummary();
     void inform(const QString& text);
     bool errorOut(const QString& err);
 };
