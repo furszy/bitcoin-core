@@ -2,11 +2,11 @@
 # Copyright (c) 2021 The PIVX Core developers
 # Distributed under the MIT software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
-"""Test deterministic masternodes"""
+"""Test DKG and PoSe ban of missing nodes"""
 
 import time
 
-from test_framework.test_framework import PivxDMNTestFramework
+from test_framework.test_framework import PivxDMNTestFramework, ExpectedDKGMessages
 from test_framework.util import (
     assert_equal,
     wait_until,
@@ -32,15 +32,19 @@ class DkgPoseTest(PivxDMNTestFramework):
         assert_equal(len(self.mns), 6)
 
         # Mine a LLMQ final commitment regularly with 3 signers
-        _, bad_mnode = self.mine_quorum()
+        qfc, bad_mnode = self.mine_quorum()
         assert_equal(171, miner.getblockcount())
         assert bad_mnode is None
+        self.check_final_commitment(qfc, valid=[1, 1, 1], signers=[1, 1, 1])
 
         # Mine the next final commitment after disconnecting a member
-        _, bad_mnode = self.mine_quorum(invalidate_func=self.disable_network_for_node,
-                                        skip_bad_member_sync=True)
+        dkg_msgs = [ExpectedDKGMessages(s_contrib=True, s_complaint=True, s_justif=False, s_commit=True,
+                                        r_contrib=2, r_complaint=2, r_justif=0, r_commit=2) for _ in range(2)]
+        qfc, bad_mnode = self.mine_quorum(invalidate_func=self.disable_network_for_node,
+                                          skip_bad_member_sync=True, expected_messages=dkg_msgs)
         assert_equal(191, miner.getblockcount())
         assert bad_mnode is not None
+        self.check_final_commitment(qfc, valid=[1, 1, 0], signers=[1, 1, 0])
 
         # Check PoSe
         self.log.info("Check that node %d has been PoSe punished..." % bad_mnode.idx)
@@ -56,7 +60,7 @@ class DkgPoseTest(PivxDMNTestFramework):
         # Keep mining commitments until the bad node is banned
         timeout = time.time() + 600
         while time.time() < timeout:
-            self.mine_quorum(invalidated_idx=bad_mnode.idx, skip_bad_member_sync=True)
+            self.mine_quorum(invalidated_idx=bad_mnode.idx, skip_bad_member_sync=True, expected_messages=dkg_msgs)
             pose_height = miner.listmasternodes(bad_mnode.proTx)[0]["dmnstate"]["PoSeBanHeight"]
             if pose_height != -1:
                 self.log.info("Node %d has been PoSeBanned at height %d" % (bad_mnode.idx, pose_height))

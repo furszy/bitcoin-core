@@ -1348,6 +1348,20 @@ class SkipTest(Exception):
 '''
 PivxTestFramework extensions
 '''
+
+class ExpectedDKGMessages:
+    def __init__(self,
+                 s_contrib=True, s_complaint=False, s_justif=False, s_commit=True,
+                 r_contrib=3, r_complaint=0, r_justif=0, r_commit=3):
+        self.sent_contrib = s_contrib
+        self.sent_complaint = s_complaint
+        self.sent_justif = s_justif
+        self.sent_commit = s_commit
+        self.recv_contrib = r_contrib
+        self.recv_complaint = r_complaint
+        self.recv_justif = r_justif
+        self.recv_commit = r_commit
+
 class PivxDMNTestFramework(PivxTestFramework):
 
     def set_base_test_params(self):
@@ -1453,32 +1467,32 @@ class PivxDMNTestFramework(PivxTestFramework):
             conn = self.get_quorum_connections(self.nodes[mn.idx], members)
             self.log.info("Authenticated connections to node %d: %s" % (mn.idx, conn))
 
-    def wait_for_dkg_phase(self, phase, quorum_hash, quorum_height, members_online, missing_count):
-        assert_greater_than(missing_count, -1)
-        online_count = len(members_online)
+    def wait_for_dkg_phase(self, phase, quorum_hash, quorum_height, members_online, expected_msgs_list):
+        assert_equal(len(members_online), len(expected_msgs_list))
 
         def check_phase():
             status = [self.nodes[mn.idx].quorumdkgstatus()["session"]
                       for mn in members_online]
-            for s in status:
+            for i, s in enumerate(status):
                 if "llmq_test" not in s:
                     return False
                 s = s["llmq_test"]
+                msgs = expected_msgs_list[i]
                 if (s["quorumHash"] != quorum_hash
                         or s["quorumHeight"] != quorum_height
                         or s["phase"] != phase
-                        or s["sentContributions"] != (phase != 1)
-                        or s["sentComplaint"] != (phase > 2 and missing_count > 0)
-                        or s["sentJustification"]
-                        or s["sentPrematureCommitment"] != (phase > 4)
-                        or s["receivedContributions"] != (0 if phase == 1 else online_count)
-                        or s["receivedComplaints"] != (0 if phase <= 2 else (online_count * missing_count))
-                        or s["receivedJustifications"] != 0
-                        or s["receivedPrematureCommitments"] != (0 if phase <= 4 else online_count)):
+                        or s["sentContributions"] != (phase != 1 and msgs.sent_contrib)
+                        or s["sentComplaint"] != (phase > 2 and msgs.sent_complaint)
+                        or s["sentJustification"] != (phase > 3 and msgs.sent_justif)
+                        or s["sentPrematureCommitment"] != (phase > 4 and msgs.sent_commit)
+                        or s["receivedContributions"] != (0 if phase == 1 else msgs.recv_contrib)
+                        or s["receivedComplaints"] != (0 if phase <= 2 else msgs.recv_complaint)
+                        or s["receivedJustifications"] != (0 if phase <= 3 else msgs.recv_justif)
+                        or s["receivedPrematureCommitments"] != (0 if phase <= 4 else msgs.recv_commit)):
                     return False
             return True
 
-        timeout = time.time() + 60
+        timeout = time.time() + 30
         while time.time() < timeout:
             if check_phase():
                 return  # all good
@@ -1486,7 +1500,8 @@ class PivxDMNTestFramework(PivxTestFramework):
 
         # Timeout: print the cause
         self.log.error("Cannot reach phase %d" % phase)
-        for mo in members_online:
+        for i, mo in enumerate(members_online):
+            msgs = expected_msgs_list[i]
             self.log.error("Checking node %d..." % mo.idx)
             conn = self.get_quorum_connections(self.nodes[mo.idx], members_online)
             self.log.error("Connected to: %s" % str(conn))
@@ -1496,14 +1511,14 @@ class PivxDMNTestFramework(PivxTestFramework):
             assert_equal(fs["quorumHash"], quorum_hash)
             assert_equal(fs["quorumHeight"], quorum_height)
             assert_equal(fs["phase"], phase)
-            assert_equal(fs["sentContributions"], (phase != 1))
-            assert_equal(fs["sentComplaint"], (phase > 2 and missing_count > 0))
-            assert_equal(fs["sentJustification"], False)
-            assert_equal(fs["sentPrematureCommitment"], (phase > 4))
-            assert_equal(fs["receivedContributions"], (0 if phase == 1 else online_count))
-            assert_equal(fs["receivedComplaints"], (0 if phase <= 2 else (online_count * missing_count)))
-            assert_equal(fs["receivedJustifications"], 0)
-            assert_equal(fs["receivedPrematureCommitments"], (0 if phase <= 4 else online_count))
+            assert_equal(fs["sentContributions"], (phase != 1 and msgs.sent_contrib))
+            assert_equal(fs["sentComplaint"], (phase > 2 and msgs.sent_complaint))
+            assert_equal(fs["sentJustification"], (phase > 3 and msgs.sent_justif))
+            assert_equal(fs["sentPrematureCommitment"], (phase > 4 and msgs.sent_commit))
+            assert_equal(fs["receivedContributions"], (0 if phase == 1 else msgs.recv_contrib))
+            assert_equal(fs["receivedComplaints"], (0 if phase <= 2 else msgs.recv_complaint))
+            assert_equal(fs["receivedJustifications"], (0 if phase <= 3 else msgs.recv_justif))
+            assert_equal(fs["receivedPrematureCommitments"], (0 if phase <= 4 else msgs.recv_commit))
 
     def get_quorum_members(self, quorum_hash):
         members = []
@@ -1538,7 +1553,8 @@ class PivxDMNTestFramework(PivxTestFramework):
     bad_member : Masternode object for non participating node
                  (or None if all members participated)
     """
-    def mine_quorum(self, invalidate_func=None, invalidated_idx=None, skip_bad_member_sync=False):
+    def mine_quorum(self, invalidate_func=None, invalidated_idx=None, skip_bad_member_sync=False,
+                    expected_messages=[ExpectedDKGMessages() for _ in range(3)]):
         nodes_to_sync = self.nodes.copy()
         if invalidated_idx is not None:
             assert invalidate_func is None
@@ -1555,22 +1571,24 @@ class PivxDMNTestFramework(PivxTestFramework):
         members = self.get_quorum_members(quorum_hash)
         self.log.info("members: %s" % str([m.idx for m in members]))
         bad_member = None
-        mvalid = msigners = [1, 1, 1]
         if invalidate_func is not None:
             assert invalidated_idx is None
-            bad_member = members.pop()
+            bad_member = members[-1]
             invalidate_func(self.nodes[bad_member.idx])
-            mvalid[2] = msigners[2] = 0
             if skip_bad_member_sync:
                 nodes_to_sync.pop(bad_member.idx)
         elif invalidated_idx in [m.idx for m in members]:
             bad_member = next(m for m in members if m.idx == invalidated_idx)
-            j = members.index(bad_member)
-            mvalid[j] = msigners[j] = 0
-            members.remove(bad_member)
         if bad_member is not None:
-            self.log.info("Removed node %d" % bad_member.idx)
-        assert_equal(len(members), 3 if bad_member is None else 2)
+            if skip_bad_member_sync:
+                members.remove(bad_member)
+            self.log.info("Node %d selected as bad" % bad_member.idx)
+        else:
+            # No bad member selected with invalidated_idx set (the invalidated
+            # masternode is not part of the current quorum): reset expected messages
+            if invalidated_idx is not None:
+                expected_messages = [ExpectedDKGMessages() for _ in range(len(members))]
+
         self.wait_for_mn_connections(members)
         phase_string = [
             "1 (Initialization)",
@@ -1586,13 +1604,12 @@ class PivxDMNTestFramework(PivxTestFramework):
                                     quorum_hash,
                                     quorum_height,
                                     members,
-                                    missing_count=(0 if bad_member is None else 1))
+                                    expected_messages)
             miner.generate(2 if phase != 6 else 1)
             self.sync_all(nodes_to_sync)
             time.sleep(1 if phase != 5 else 2)  # sleep a bit more during finalization
         assert_equal(quorum_height + 11, miner.getblockcount())
         qfc = miner.getminedcommitment(100, quorum_hash)
-        self.check_final_commitment(qfc, valid=mvalid, signers=msigners)
         comm_height = miner.getblock(qfc['block_hash'], True)['height']
         assert_equal(comm_height, quorum_height + 11)
         self.log.info("Final commitment correctly mined on chain")
