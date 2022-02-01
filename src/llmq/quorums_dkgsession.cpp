@@ -24,40 +24,45 @@
 namespace llmq
 {
 
-// Supported error types:
-// - contribution-omit
-// - contribution-lie
-// - complain-lie
-// - justify-lie
-// - justify-omit
-// - commit-omit
-// - commit-lie
-
 static RecursiveMutex cs_simDkgError;
-static std::map<std::string, double> simDkgErrorMap;
+static std::map<std::string, double> simDkgErrorMap = {
+        {"contribution-omit", 0.0},
+        {"contribution-lie", 0.0},
+        {"complain-lie", 0.0},
+        {"justify-lie", 0.0},
+        {"justify-omit", 0.0},
+        {"commit-omit", 0.0},
+        {"commit-lie", 0.0}
+};
 
-void SetSimulatedDKGErrorRate(const std::string& type, double rate)
+bool SetSimulatedDKGErrorRate(const std::string& error_type, double rate)
 {
     LOCK(cs_simDkgError);
-    simDkgErrorMap[type] = rate;
+    auto it = simDkgErrorMap.find(error_type);
+    if (it != simDkgErrorMap.end()) {
+        it->second = rate;
+        return true;
+    }
+    return false;
 }
 
-static double GetSimulatedErrorRate(const std::string& type)
+static double GetSimulatedErrorRate(const std::string& error_type)
 {
     LOCK(cs_simDkgError);
-    auto it = simDkgErrorMap.find(type);
+    auto it = simDkgErrorMap.find(error_type);
     if (it != simDkgErrorMap.end()) {
         return it->second;
     }
     return 0;
 }
 
-bool CDKGSession::ShouldSimulateError(const std::string& type)
+bool CDKGSession::ShouldSimulateError(const std::string& error_type)
 {
     if (params.type != Consensus::LLMQType::LLMQ_TEST) {
+        // error simulation available only for LLMQ_TEST
         return false;
     }
-    double rate = GetSimulatedErrorRate(type);
+    double rate = GetSimulatedErrorRate(error_type);
     return GetRandBool(rate);
 }
 

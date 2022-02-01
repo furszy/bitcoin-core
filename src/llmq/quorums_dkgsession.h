@@ -334,8 +334,11 @@ public:
     CDKGMember* GetMember(const uint256& proTxHash) const;
 
 private:
-    bool ShouldSimulateError(const std::string& type);
+    bool ShouldSimulateError(const std::string& error_type);
 };
+
+// Return false if error_type is not found
+bool SetSimulatedDKGErrorRate(const std::string& error_type, double rate);
 
 }
 

@@ -7,6 +7,7 @@
 #include "chainparams.h"
 #include "llmq/quorums_blockprocessor.h"
 #include "llmq/quorums_commitment.h"
+#include "llmq/quorums_dkgsession.h"
 #include "llmq/quorums_debug.h"
 #include "llmq/quorums_utils.h"
 #include "net.h"
@@ -129,11 +130,45 @@ UniValue quorumdkgstatus(const JSONRPCRequest& request)
     return ret;
 }
 
+UniValue quorumdkgsimerror(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() != 2) {
+        throw std::runtime_error(
+                "quorumdkgsimerror \"error_type\" rate\n"
+                "This enables simulation of errors and malicious behaviour in the DKG.\n"
+                "Only available on testnet/regtest for LLMQ_TEST llmq type.\n"
+                "\nArguments:\n"
+                "1. \"error_type\"          (string, required) Error type.\n"
+                "2. rate                  (number, required) Rate at which to simulate this error type.\n"
+                "\nExamples:\n"
+                + HelpExampleRpc("quorumdkgsimerror", "\"justify-lie\", 0.1")
+                + HelpExampleCli("quorumdkgsimerror", "\"justify-lie\" 0.1")
+        );
+    }
+
+    if (!Params().IsTestChain()) {
+        throw JSONRPCError(RPC_MISC_ERROR, "This command cannot be used on main net.");
+    }
+
+    std::string error_type = request.params[0].get_str();
+    double rate = ParseDoubleV(request.params[1], "rate");
+    if (rate < 0 || rate > 1) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, "invalid rate. Must be between 0 and 1");
+    }
+
+    if (!llmq::SetSimulatedDKGErrorRate(error_type, rate)) {
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("invalid error_type: %s", error_type));
+    }
+
+    return NullUniValue;
+}
+
 static const CRPCCommand commands[] =
 { //  category       name                      actor (function)      okSafe argNames
   //  -------------- ------------------------- --------------------- ------ --------
     { "evo",         "getminedcommitment",     &getminedcommitment,  true,  {"llmq_type", "quorum_hash"}  },
     { "evo",         "getquorummembers",       &getquorummembers,    true,  {"llmq_type", "quorum_hash"}  },
+    { "evo",         "quorumdkgsimerror",      &quorumdkgsimerror,   true,  {"error_type", "rate"}  },
     { "evo",         "quorumdkgstatus",        &quorumdkgstatus,     true,  {"detail_level"}  },
 };
 
