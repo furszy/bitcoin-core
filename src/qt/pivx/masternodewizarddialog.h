@@ -63,12 +63,13 @@ private Q_SLOTS:
     void onBackClicked();
 private:
     Ui::MasterNodeWizardDialog *ui;
-    QPushButton* icConfirm1;
-    QPushButton* icConfirm3;
-    QPushButton* icConfirm4;
-    SnackBar *snackBar = nullptr;
+    QList<QPushButton*> list_icConfirm{};
+    QList<QPushButton*> list_pushNumber{};
+    QList<QPushButton*> list_pushName{};
+    SnackBar* snackBar{nullptr};
     int pos = 0;
     std::unique_ptr<MNSummary> mnSummary{nullptr};
+    bool isDeterministic{false};
 
     WalletModel* walletModel{nullptr};
     MNModel* mnModel{nullptr};
@@ -76,6 +77,9 @@ private:
     void setSummary();
     void inform(const QString& text);
     bool errorOut(const QString& err);
+
+    void moveToNextPage(int currentPos, int nextPos);
+    void moveBack(int backPos);
 };
 
 #endif // MASTERNODEWIZARDDIALOG_H

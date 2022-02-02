@@ -22,16 +22,28 @@ static inline QString formatHtmlContent(const QString& str) {
     return "<html><body>" + str + "</body></html>";
 }
 
-static void initBtn(std::initializer_list<QPushButton*> args)
+static void initTopBtns(const QList<QPushButton*>& icons, const QList<QPushButton*>& numbers, const QList<QPushButton*>& names)
 {
+    assert(icons.size() == names.size() && names.size() == numbers.size());
     QSize BUTTON_SIZE = QSize(22, 22);
-    for (QPushButton* btn : args) {
-        btn->setMinimumSize(BUTTON_SIZE);
-        btn->setMaximumSize(BUTTON_SIZE);
-        btn->move(0, 0);
-        btn->show();
-        btn->raise();
-        btn->setVisible(false);
+    for (int i=0; i < icons.size(); i++) {
+        auto pushNumber = numbers[i];
+        auto pushIcon = icons[i];
+        auto pushName = names[i];
+
+        setCssProperty(pushNumber, "btn-number-check");
+        pushNumber->setEnabled(false);
+
+        setCssProperty(pushName, "btn-name-check");
+        pushName->setEnabled(false);
+
+        setCssProperty(pushIcon, "ic-step-confirm");
+        pushIcon->setMinimumSize(BUTTON_SIZE);
+        pushIcon->setMaximumSize(BUTTON_SIZE);
+        pushIcon->move(0, 0);
+        pushIcon->show();
+        pushIcon->raise();
+        pushIcon->setVisible(false);
     }
 }
 
@@ -48,29 +60,21 @@ static void setCardShadow(QWidget* edit)
 MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnModel, QWidget *parent) :
     FocusedDialog(parent),
     ui(new Ui::MasterNodeWizardDialog),
-    icConfirm1(new QPushButton(this)),
-    icConfirm3(new QPushButton(this)),
-    icConfirm4(new QPushButton(this)),
     walletModel(model),
     mnModel(_mnModel)
 {
     ui->setupUi(this);
-
-    this->setStyleSheet(parent->styleSheet());
+    setStyleSheet(parent->styleSheet());
     setCssProperty(ui->frame, "container-dialog");
     ui->frame->setContentsMargins(10,10,10,10);
 
-    setCssProperty({ui->labelLine1, ui->labelLine3}, "line-purple");
-    setCssProperty({ui->groupBoxName, ui->groupContainer}, "container-border");
-    setCssProperty({ui->pushNumber1, ui->pushNumber3, ui->pushNumber4}, "btn-number-check");
-    setCssProperty({ui->pushName1, ui->pushName3, ui->pushName4}, "btn-name-check");
+    isDeterministic = walletModel->isV6Enforced();
 
-    ui->pushNumber1->setEnabled(false);
-    ui->pushNumber3->setEnabled(false);
-    ui->pushNumber4->setEnabled(false);
-    ui->pushName1->setEnabled(false);
-    ui->pushName3->setEnabled(false);
-    ui->pushName4->setEnabled(false);
+    for (int i = 0; i < 5; i++) list_icConfirm.push_back(new QPushButton(this));
+    list_pushNumber = {ui->pushNumber1, ui->pushNumber2, ui->pushNumber3, ui->pushNumber4, ui->pushNumber5};
+    list_pushName = {ui->pushName1, ui->pushName2, ui->pushName3, ui->pushName4, ui->pushName5};
+    setCssProperty({ui->labelLine1, ui->labelLine2, ui->labelLine3, ui->labelLine4}, "line-purple");
+    setCssProperty({ui->groupBoxName, ui->groupContainer}, "container-border");
 
     // Frame 1
     setCssProperty(ui->labelTitle1, "text-title-dialog");
@@ -127,11 +131,12 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     setCardShadow(ui->containerOperator);
 
     // Confirm icons
-    ui->stackedIcon1->addWidget(icConfirm1);
-    ui->stackedIcon3->addWidget(icConfirm3);
-    ui->stackedIcon4->addWidget(icConfirm4);
-    initBtn({icConfirm1, icConfirm3, icConfirm4});
-    setCssProperty({icConfirm1, icConfirm3, icConfirm4}, "ic-step-confirm");
+    ui->stackedIcon1->addWidget(list_icConfirm[0]);
+    ui->stackedIcon2->addWidget(list_icConfirm[1]);
+    ui->stackedIcon3->addWidget(list_icConfirm[2]);
+    ui->stackedIcon4->addWidget(list_icConfirm[3]);
+    ui->stackedIcon5->addWidget(list_icConfirm[4]);
+    initTopBtns(list_icConfirm, list_pushNumber, list_pushName);
 
     // Connect btns
     setCssBtnPrimary(ui->btnNext);
@@ -149,16 +154,27 @@ void MasterNodeWizardDialog::showEvent(QShowEvent *event)
     if (ui->btnNext) ui->btnNext->setFocus();
 }
 
+void setBtnsChecked(QList<QPushButton*> btns, int start, int end)
+{
+    for (int i=start; i < btns.size(); i++) {
+        btns[i]->setChecked(i <= end);
+    }
+}
+
+void MasterNodeWizardDialog::moveToNextPage(int currentPos, int nextPos)
+{
+    ui->stackedWidget->setCurrentIndex(nextPos);
+    list_icConfirm[currentPos]->setVisible(true);
+    list_pushNumber[nextPos]->setChecked(true);
+    setBtnsChecked(list_pushName, pos, nextPos);
+}
+
 void MasterNodeWizardDialog::accept()
 {
+    int nextPos = pos + 1;
     switch (pos) {
-        case 0:{
-            ui->stackedWidget->setCurrentIndex(1);
-            ui->pushName4->setChecked(false);
-            ui->pushName3->setChecked(true);
-            ui->pushName1->setChecked(true);
-            icConfirm1->setVisible(true);
-            ui->pushNumber3->setChecked(true);
+        case 0: {
+            moveToNextPage(pos, nextPos);
             ui->btnBack->setVisible(true);
             ui->lineEditName->setFocus();
             break;
@@ -170,13 +186,7 @@ void MasterNodeWizardDialog::accept()
                 return;
             }
             setCssEditLine(ui->lineEditName, true, true);
-
-            ui->stackedWidget->setCurrentIndex(2);
-            ui->pushName4->setChecked(false);
-            ui->pushName3->setChecked(true);
-            ui->pushName1->setChecked(true);
-            icConfirm3->setVisible(true);
-            ui->pushNumber4->setChecked(true);
+            moveToNextPage(pos, nextPos);
             ui->lineEditIpAddress->setFocus();
             break;
         }
@@ -185,23 +195,32 @@ void MasterNodeWizardDialog::accept()
             if (ui->lineEditIpAddress->text().isEmpty()) {
                 return;
             }
-            icConfirm4->setVisible(true);
-            isOk = createMN();
-            if (!isOk) {
-                inform(returnStr);
-                return;
+            if (!isDeterministic) {
+                isOk = createMN();
+                QDialog::accept();
+            } else {
+                moveToNextPage(pos, nextPos);
             }
-            if (!mnSummary) QDialog::accept();
-            ui->pushName4->setChecked(true);
+            break;
         }
         case 3: {
+            // todo: add owner page
+            moveToNextPage(pos, nextPos);
+            break;
+        }
+        case 4: {
+            // todo: add operator page
+            moveToNextPage(pos, nextPos);
+            break;
+        }
+        case 5: {
             ui->btnBack->setVisible(false);
             ui->btnNext->setText("CLOSE");
             ui->stackedWidget->setCurrentIndex(3);
             setSummary();
             break;
         }
-        case 4: {
+        case 6: {
             QDialog::accept();
         }
     }
@@ -270,7 +289,7 @@ bool MasterNodeWizardDialog::createMN()
         }
     }
 
-    if (walletModel->isV6Enforced()) {
+    if (isDeterministic) {
         // Deterministic
 
         // For now, create every single key inside the wallet
@@ -331,33 +350,27 @@ bool MasterNodeWizardDialog::createMN()
     return true;
 }
 
+void MasterNodeWizardDialog::moveBack(int backPos)
+{
+    ui->stackedWidget->setCurrentIndex(backPos);
+    list_icConfirm[pos]->setVisible(false);
+    setBtnsChecked(list_pushName, backPos, backPos);
+    setBtnsChecked(list_pushNumber, backPos, backPos);
+}
+
 void MasterNodeWizardDialog::onBackClicked()
 {
     if (pos == 0) return;
     pos--;
-    switch(pos) {
+    moveBack(pos);
+    switch (pos) {
         case 0:{
-            ui->stackedWidget->setCurrentIndex(0);
-            ui->btnNext->setFocus();
-            ui->pushNumber1->setChecked(true);
-            ui->pushNumber4->setChecked(false);
-            ui->pushNumber3->setChecked(false);
-            ui->pushName4->setChecked(false);
-            ui->pushName3->setChecked(false);
-            ui->pushName1->setChecked(true);
-            icConfirm1->setVisible(false);
             ui->btnBack->setVisible(false);
+            ui->btnNext->setFocus();
             break;
         }
         case 1: {
-            ui->stackedWidget->setCurrentIndex(1);
             ui->lineEditName->setFocus();
-            ui->pushNumber4->setChecked(false);
-            ui->pushNumber3->setChecked(true);
-            ui->pushName4->setChecked(false);
-            ui->pushName3->setChecked(true);
-            icConfirm3->setVisible(false);
-
             break;
         }
     }

@@ -234,7 +234,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QStackedWidget" name="stackedIcon3">
+          <widget class="QStackedWidget" name="stackedIcon2">
            <property name="minimumSize">
             <size>
              <width>22</width>
@@ -280,7 +280,7 @@
               <number>0</number>
              </property>
              <item alignment="Qt::AlignVCenter">
-              <widget class="QPushButton" name="pushNumber3">
+              <widget class="QPushButton" name="pushNumber2">
                <property name="minimumSize">
                 <size>
                  <width>22</width>
@@ -313,7 +313,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QLabel" name="labelLine3">
+          <widget class="QLabel" name="labelLine2">
            <property name="minimumSize">
             <size>
              <width>0</width>
@@ -335,7 +335,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QStackedWidget" name="stackedIcon4">
+          <widget class="QStackedWidget" name="stackedIcon3">
            <property name="minimumSize">
             <size>
              <width>22</width>
@@ -381,7 +381,7 @@
               <number>0</number>
              </property>
              <item alignment="Qt::AlignVCenter">
-              <widget class="QPushButton" name="pushNumber4">
+              <widget class="QPushButton" name="pushNumber3">
                <property name="minimumSize">
                 <size>
                  <width>22</width>
@@ -411,6 +411,208 @@
             </layout>
            </widget>
            <widget class="QWidget" name="page_8"/>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="labelLine3">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>1</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>1</height>
+            </size>
+           </property>
+           <property name="styleSheet">
+            <string notr="true"/>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QStackedWidget" name="stackedIcon4">
+           <property name="minimumSize">
+            <size>
+             <width>22</width>
+             <height>22</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>22</width>
+             <height>22</height>
+            </size>
+           </property>
+           <property name="currentIndex">
+            <number>0</number>
+           </property>
+           <widget class="QWidget" name="pageIcon54">
+            <property name="minimumSize">
+             <size>
+              <width>22</width>
+              <height>22</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>22</width>
+              <height>22</height>
+             </size>
+            </property>
+            <layout class="QVBoxLayout" name="layoutIcon43">
+             <property name="spacing">
+              <number>0</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item alignment="Qt::AlignVCenter">
+              <widget class="QPushButton" name="pushNumber4">
+               <property name="minimumSize">
+                <size>
+                 <width>22</width>
+                 <height>22</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>22</width>
+                 <height>22</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>4</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+               <property name="autoExclusive">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="page_9"/>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="labelLine4">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>1</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>16777215</width>
+             <height>1</height>
+            </size>
+           </property>
+           <property name="styleSheet">
+            <string notr="true"/>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QStackedWidget" name="stackedIcon5">
+           <property name="minimumSize">
+            <size>
+             <width>22</width>
+             <height>22</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>22</width>
+             <height>22</height>
+            </size>
+           </property>
+           <property name="currentIndex">
+            <number>0</number>
+           </property>
+           <widget class="QWidget" name="pageIcon64">
+            <property name="minimumSize">
+             <size>
+              <width>22</width>
+              <height>22</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>22</width>
+              <height>22</height>
+             </size>
+            </property>
+            <layout class="QVBoxLayout" name="layoutIcon63">
+             <property name="spacing">
+              <number>0</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item alignment="Qt::AlignVCenter">
+              <widget class="QPushButton" name="pushNumber5">
+               <property name="minimumSize">
+                <size>
+                 <width>22</width>
+                 <height>22</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>22</width>
+                 <height>22</height>
+                </size>
+               </property>
+               <property name="text">
+                <string>5</string>
+               </property>
+               <property name="checkable">
+                <bool>true</bool>
+               </property>
+               <property name="checked">
+                <bool>false</bool>
+               </property>
+               <property name="autoExclusive">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="page_9"/>
           </widget>
          </item>
          <item>
@@ -538,7 +740,7 @@
              </spacer>
             </item>
             <item>
-             <widget class="QPushButton" name="pushName3">
+             <widget class="QPushButton" name="pushName2">
               <property name="minimumSize">
                <size>
                 <width>80</width>
@@ -579,6 +781,50 @@
              </spacer>
             </item>
             <item>
+             <widget class="QPushButton" name="pushName3">
+              <property name="minimumSize">
+               <size>
+                <width>80</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>80</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="focusPolicy">
+               <enum>Qt::NoFocus</enum>
+              </property>
+              <property name="text">
+               <string>Service</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="autoExclusive">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_7">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Expanding</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
              <widget class="QPushButton" name="pushName4">
               <property name="minimumSize">
                <size>
@@ -596,7 +842,7 @@
                <enum>Qt::NoFocus</enum>
               </property>
               <property name="text">
-               <string>Address</string>
+               <string>Owner</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -607,7 +853,51 @@
              </widget>
             </item>
             <item>
-             <spacer name="horizontalSpacer_7">
+             <spacer name="horizontalSpacer_756">
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="sizeType">
+               <enum>QSizePolicy::Expanding</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushName5">
+              <property name="minimumSize">
+               <size>
+                <width>80</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>80</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="focusPolicy">
+               <enum>Qt::NoFocus</enum>
+              </property>
+              <property name="text">
+               <string>Operator</string>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+              <property name="autoExclusive">
+               <bool>false</bool>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <spacer name="horizontalSpacer_761">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -893,13 +1183,13 @@
           <item alignment="Qt::AlignHCenter">
            <widget class="QLabel" name="labelSubtitleAddressIp">
             <property name="text">
-             <string>Address of the node that must always be online running the actual master node.</string>
+             <string>Service of the node that must always be online</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignCenter</set>
             </property>
             <property name="wordWrap">
-             <bool>true</bool>
+             <bool>false</bool>
             </property>
            </widget>
           </item>
@@ -1101,7 +1391,7 @@
                     <widget class="QWidget" name="containerOwnerKey" native="true">
                      <layout class="QVBoxLayout" name="verticalLayout_7">
                       <property name="spacing">
-                       <number>3</number>
+                       <number>4</number>
                       </property>
                       <property name="leftMargin">
                        <number>0</number>
@@ -1139,7 +1429,7 @@
                      </property>
                      <layout class="QVBoxLayout" name="verticalLayout_8">
                       <property name="spacing">
-                       <number>3</number>
+                       <number>4</number>
                       </property>
                       <property name="leftMargin">
                        <number>0</number>
@@ -1201,7 +1491,7 @@
                     <widget class="QWidget" name="widget_4" native="true">
                      <layout class="QVBoxLayout" name="verticalLayout_10">
                       <property name="spacing">
-                       <number>3</number>
+                       <number>4</number>
                       </property>
                       <property name="leftMargin">
                        <number>3</number>
@@ -1236,7 +1526,7 @@
                     <widget class="QWidget" name="widget_3" native="true">
                      <layout class="QVBoxLayout" name="verticalLayout_9">
                       <property name="spacing">
-                       <number>3</number>
+                       <number>4</number>
                       </property>
                       <property name="leftMargin">
                        <number>0</number>
@@ -1320,7 +1610,7 @@
                     <widget class="QWidget" name="containerOperatorKey" native="true">
                      <layout class="QVBoxLayout" name="verticalLayout_7">
                       <property name="spacing">
-                       <number>3</number>
+                       <number>4</number>
                       </property>
                       <property name="leftMargin">
                        <number>3</number>
@@ -1358,7 +1648,7 @@
                      </property>
                      <layout class="QVBoxLayout" name="verticalLayout_8">
                       <property name="spacing">
-                       <number>3</number>
+                       <number>4</number>
                       </property>
                       <property name="leftMargin">
                        <number>0</number>
@@ -1420,7 +1710,7 @@
                     <widget class="QWidget" name="widget_4" native="true">
                      <layout class="QVBoxLayout" name="verticalLayout_10">
                       <property name="spacing">
-                       <number>3</number>
+                       <number>4</number>
                       </property>
                       <property name="leftMargin">
                        <number>3</number>
@@ -1455,7 +1745,7 @@
                     <widget class="QWidget" name="widget_3" native="true">
                      <layout class="QVBoxLayout" name="verticalLayout_9">
                       <property name="spacing">
-                       <number>3</number>
+                       <number>4</number>
                       </property>
                       <property name="leftMargin">
                        <number>0</number>

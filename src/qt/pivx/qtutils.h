@@ -71,6 +71,7 @@ void setCssTitleScreen(QLabel* label);
 void setCssSubtitleScreen(QWidget* wid);
 void setCssTextBodyDialog(std::initializer_list<QWidget*> args);
 void setCssTextBodyDialog(QWidget* widget);
+void setCssProperty(const std::list<QPushButton*>& args, const QString& value);
 void setCssProperty(std::initializer_list<QWidget*> args, const QString& value);
 void setCssProperty(QWidget* wid, const QString& value, bool forceUpdate = false);
 void forceUpdateStyle(QWidget* widget, bool forceUpdate);
