@@ -6,6 +6,7 @@
 #include "llmq/quorums_dkgsession.h"
 
 #include "activemasternode.h"
+#include "bls/key_io.h"
 #include "chainparams.h"
 #include "cxxtimer.hpp"
 #include "evo/specialtx_validation.h"
@@ -980,7 +981,7 @@ void CDKGSession::SendCommitment(CDKGPendingMessages& pendingMessages)
     }
     t2.stop();
 
-    logger.Batch("pubKeyShare=%s", skShare.GetPublicKey().ToString());
+    logger.Batch("pubKeyShare=%s", bls::EncodePublic(Params(), skShare.GetPublicKey()));
 
     cxxtimer::Timer t3(true);
     qc.quorumPublicKey = (*vvec)[0];
@@ -1215,6 +1216,8 @@ std::vector<CFinalCommitment> CDKGSession::FinalizeCommitments()
         it->second.emplace_back(qc);
     }
 
+    const CChainParams& chainparams = Params();
+
     std::vector<CFinalCommitment> finalCommitments;
     for (const auto& p : commitmentsMap) {
         auto& cvec = p.second;
@@ -1280,7 +1283,7 @@ std::vector<CFinalCommitment> CDKGSession::FinalizeCommitments()
         finalCommitments.emplace_back(fqc);
 
         logger.Batch("final commitment: validMembers=%d, signers=%d, quorumPublicKey=%s, time1=%d, time2=%d, time3=%d, total=%d",
-                        fqc.CountValidMembers(), fqc.CountSigners(), fqc.quorumPublicKey.ToString(),
+                        fqc.CountValidMembers(), fqc.CountSigners(), bls::EncodePublic(chainparams, fqc.quorumPublicKey),
                         t1.count(), t2.count(), t3.count(), totalTimer.count());
     }
 
