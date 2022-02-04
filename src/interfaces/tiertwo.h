@@ -45,6 +45,9 @@ public:
     // Initialize cache
     void init();
 
+    // Return true if the bls key is valid
+    bool isBlsPubKeyValid(const std::string& blsKey);
+
     // Return the DMNs that this wallet "owns".
     // future: add filter to return by owner, operator, voter or a combination of them.
     std::vector<std::shared_ptr<DMNView>> getKnownDMNs() { return WITH_LOCK(cs_cache, return m_cached_dmns;); };

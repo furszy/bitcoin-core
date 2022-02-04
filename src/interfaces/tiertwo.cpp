@@ -3,6 +3,8 @@
 // file COPYING or https://www.opensource.org/licenses/mit-license.php.
 
 #include "interfaces/tiertwo.h"
+
+#include "bls/key_io.h"
 #include "evo/deterministicmns.h"
 #include "optional.h"
 #include "validation.h"
@@ -11,6 +13,12 @@
 namespace interfaces {
 
 std::unique_ptr<TierTwo> g_tiertwo;
+
+bool TierTwo::isBlsPubKeyValid(const std::string& blsKey)
+{
+    auto opKey = bls::DecodePublic(Params(), blsKey);
+    return opKey && opKey->IsValid();
+}
 
 std::shared_ptr<DMNView> createDMNViewIfMine(CWallet* pwallet, const CDeterministicMNCPtr& dmn)
 {
