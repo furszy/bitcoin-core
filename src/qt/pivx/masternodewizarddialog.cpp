@@ -6,6 +6,7 @@
 #include "qt/pivx/forms/ui_masternodewizarddialog.h"
 
 #include "key_io.h"
+#include "interfaces/tiertwo.h"
 #include "qt/pivx/mnmodel.h"
 #include "qt/pivx/qtutils.h"
 #include "qt/walletmodel.h"
@@ -76,7 +77,7 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     setCssProperty({ui->labelLine1, ui->labelLine2, ui->labelLine3, ui->labelLine4}, "line-purple");
     setCssProperty({ui->groupBoxName, ui->groupContainer}, "container-border");
 
-    // Frame 1
+    // Frame Intro
     setCssProperty(ui->labelTitle1, "text-title-dialog");
     setCssProperty(ui->labelMessage1a, "text-main-grey");
     setCssProperty(ui->labelMessage1b, "text-main-purple");
@@ -87,7 +88,7 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
                         "to the network (however, these coins are still yours and will never leave your possession).").arg(collateralAmountStr)) +
                 formatParagraph(tr("You can deactivate the node and unlock the coins at any time."))));
 
-    // Frame 3
+    // Frame Collateral
     setCssProperty(ui->labelTitle3, "text-title-dialog");
     setCssProperty(ui->labelMessage3, "text-main-grey");
 
@@ -101,7 +102,7 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     QRegularExpression rx("^(?:(?![\\#\\s]).)*");
     ui->lineEditName->setValidator(new QRegularExpressionValidator(rx, ui->lineEditName));
 
-    // Frame 3
+    // Frame Service
     setCssProperty(ui->labelTitle4, "text-title-dialog");
     setCssProperty({ui->labelSubtitleIp, ui->labelSubtitlePort}, "text-title");
     setCssSubtitleScreen(ui->labelSubtitleAddressIp);
@@ -118,7 +119,23 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
         ui->lineEditPort->setText("51472");
     }
 
-    // Frame 4
+    // Frame Owner
+    setCssProperty(ui->labelTitle5, "text-title-dialog");
+    setCssSubtitleScreen(ui->labelSubtitleOwner);
+    setCssProperty({ui->labelSubtitleOwnerAddress, ui->labelSubtitlePayoutAddress}, "text-title");
+    initCssEditLine(ui->lineEditOwnerAddress);
+    initCssEditLine(ui->lineEditPayoutAddress);
+
+    // Frame Operator
+    setCssProperty(ui->labelTitle6, "text-title-dialog");
+    setCssSubtitleScreen(ui->labelSubtitleOperator);
+    setCssProperty({ui->labelSubtitleOperatorKey, ui->labelSubtitleOperatorReward}, "text-title");
+    initCssEditLine(ui->lineEditOperatorKey);
+    initCssEditLine(ui->lineEditOperatorPayoutAddress);
+    initCssEditLine(ui->lineEditPercentage);
+    ui->lineEditPercentage->setValidator(new QIntValidator(1, 99));
+
+    // Frame Summary
     setCssProperty(ui->labelSummary, "text-title-dialog");
     setCssProperty({ui->containerOwner, ui->containerOperator}, "card-governance");
     setCssProperty({ui->labelOwnerSection, ui->labelOperatorSection}, "text-section-title");
@@ -165,7 +182,7 @@ void MasterNodeWizardDialog::moveToNextPage(int currentPos, int nextPos)
 {
     ui->stackedWidget->setCurrentIndex(nextPos);
     list_icConfirm[currentPos]->setVisible(true);
-    list_pushNumber[nextPos]->setChecked(true);
+    if (list_pushNumber.size() != nextPos) list_pushNumber[nextPos]->setChecked(true);
     setBtnsChecked(list_pushName, pos, nextPos);
 }
 
@@ -173,13 +190,13 @@ void MasterNodeWizardDialog::accept()
 {
     int nextPos = pos + 1;
     switch (pos) {
-        case 0: {
+        case Pages::INTRO: {
             moveToNextPage(pos, nextPos);
             ui->btnBack->setVisible(true);
             ui->lineEditName->setFocus();
             break;
         }
-        case 1: {
+        case Pages::ALIAS: {
             // No empty names accepted.
             if (ui->lineEditName->text().isEmpty()) {
                 setCssEditLine(ui->lineEditName, false, true);
@@ -190,7 +207,7 @@ void MasterNodeWizardDialog::accept()
             ui->lineEditIpAddress->setFocus();
             break;
         }
-        case 2: {
+        case Pages::SERVICE: {
             // No empty address accepted
             if (ui->lineEditIpAddress->text().isEmpty()) {
                 return;
@@ -199,32 +216,43 @@ void MasterNodeWizardDialog::accept()
                 isOk = createMN();
                 QDialog::accept();
             } else {
-                moveToNextPage(pos, nextPos);
+                // Ask if the user want to customize the owner, operator and voter addresses and keys
+                // if not, the process will generate all the values for them and present them in the summary page.
+                isWaitingForAsk = true;
+                hide();
             }
             break;
         }
-        case 3: {
-            // todo: add owner page
+        case Pages::OWNER: {
+            if (!validateOwner()) return; // invalid state informed internally
             moveToNextPage(pos, nextPos);
             break;
         }
-        case 4: {
-            // todo: add operator page
-            moveToNextPage(pos, nextPos);
-            break;
+        case Pages::OPERATOR: {
+            if (!validateOperator()) return; // invalid state informed internally
+            completeTask();
+            return;
         }
-        case 5: {
-            ui->btnBack->setVisible(false);
-            ui->btnNext->setText("CLOSE");
-            ui->stackedWidget->setCurrentIndex(3);
-            setSummary();
-            break;
-        }
-        case 6: {
+        case Pages::SUMMARY: {
             QDialog::accept();
+            break;
         }
     }
     pos++;
+}
+
+void MasterNodeWizardDialog::completeTask()
+{
+    for (auto btn : list_icConfirm) { btn->setVisible(true); }
+    setBtnsChecked(list_pushNumber, 0, list_pushNumber.size());
+    setBtnsChecked(list_pushName, 0, list_pushNumber.size());
+    ui->btnBack->setVisible(false);
+    ui->btnNext->setText("CLOSE");
+    pos = Pages::SUMMARY;
+    ui->stackedWidget->setCurrentIndex(pos);
+    isOk = createMN();
+    if (isOk) setSummary();
+    else QDialog::accept();
 }
 
 static void setShortText(QLabel* label, const QString& str, int size)
@@ -240,7 +268,51 @@ void MasterNodeWizardDialog::setSummary()
     setShortText(ui->labelCollateralHash, QString::fromStdString(mnSummary->collateralOut.hash.GetHex()), 20);
     ui->labelCollateralIndex->setText(QString::number(mnSummary->collateralOut.n));
     ui->labelOperatorService->setText(QString::fromStdString(mnSummary->service));
-    ui->labelOperatorKey->setText(QString::fromStdString(mnSummary->operatorKey));
+    setShortText(ui->labelOperatorKey, QString::fromStdString(mnSummary->operatorKey), 20);
+    if (mnSummary->operatorPayoutAddr) {
+        setShortText(ui->labelOperatorPayout, QString::fromStdString(*mnSummary->operatorPayoutAddr), 14);
+        ui->labelOperatorPercentage->setText(QString::number(mnSummary->operatorPercentage)+ " %");
+    } else {
+        ui->labelOperatorPayout->setText(tr("No address"));
+    }
+}
+
+CallResult<std::pair<std::string, CKeyID>> MasterNodeWizardDialog::getOrCreateOwnerAddress(const std::string& alias)
+{
+    QString ownerAddrStr(ui->lineEditOwnerAddress->text());
+    if (ownerAddrStr.isEmpty()) {
+        // Create owner addr
+        const auto ownerAddr = walletModel->getNewAddress("dmn_owner_" + alias);
+        if (!ownerAddr) return {ownerAddr.getError()};
+        const CKeyID* ownerKeyId = ownerAddr.getObjResult()->getKeyID();
+        return {{ownerAddr.getObjResult()->ToString(), *ownerKeyId}};
+    } else {
+        if (!walletModel->isMine(ownerAddrStr)) {
+            return {"Invalid owner address, must be owned by this wallet"}; // Shouldn't happen..
+        }
+        std::string addrStr = ownerAddrStr.toStdString();
+        auto opKeyId = walletModel->getKeyIDFromAddr(addrStr);
+        if (!opKeyId) return {"Invalid owner address id"};
+        return {{addrStr, *opKeyId}};
+    }
+}
+
+// Future: generalize with getOrCreateOwnerAddress.
+CallResult<std::pair<std::string, CKeyID>> MasterNodeWizardDialog::getOrCreatePayoutAddress(const std::string& alias)
+{
+    QString payoutAddrStr(ui->lineEditPayoutAddress->text());
+    if (payoutAddrStr.isEmpty()) {
+        // Create payout addr
+        const auto ownerAddr = walletModel->getNewAddress("dmn_payout_" + alias);
+        if (!ownerAddr) return {ownerAddr.getError()};
+        const CKeyID* ownerKeyId = ownerAddr.getObjResult()->getKeyID();
+        return {{ownerAddr.getObjResult()->ToString(), *ownerKeyId}};
+    } else {
+        std::string addrStr = payoutAddrStr.toStdString();
+        auto opKeyId = walletModel->getKeyIDFromAddr(addrStr);
+        if (!opKeyId) return {"Invalid payout address id"};
+        return {{addrStr, *opKeyId}};
+    }
 }
 
 bool MasterNodeWizardDialog::createMN()
@@ -290,45 +362,55 @@ bool MasterNodeWizardDialog::createMN()
     }
 
     if (isDeterministic) {
-        // Deterministic
+        // 1) Get or create the owner addr
+        auto opOwnerAddrAndKeyId = getOrCreateOwnerAddress(alias);
+        if (!opOwnerAddrAndKeyId.getRes()) {
+            return errorOut(tr(opOwnerAddrAndKeyId.getError().c_str()));
+        }
+        auto ownerAddrAndKeyId = opOwnerAddrAndKeyId.getObjResult();
+        std::string ownerAddrStr = ownerAddrAndKeyId->first;
+        CKeyID ownerKeyId = ownerAddrAndKeyId->second;
 
-        // For now, create every single key inside the wallet
-        // later this can be customized by the user.
+        // 2) Get or create the payout addr
+        auto opPayoutAddrAndKeyId = getOrCreatePayoutAddress(alias);
+        if (!opPayoutAddrAndKeyId.getRes()) {
+            return errorOut(tr(opPayoutAddrAndKeyId.getError().c_str()));
+        }
+        auto payoutAddrAndKeyId = opPayoutAddrAndKeyId.getObjResult();
+        std::string payoutAddrStr = payoutAddrAndKeyId->first;
+        CKeyID payoutKeyId = payoutAddrAndKeyId->second;
 
-        // Create owner addr
-        const auto ownerAddr = walletModel->getNewAddress("dmn_owner_" + alias);
-        if (!ownerAddr) return errorOut(tr(ownerAddr.getError().c_str()));
-        const CKeyID* ownerKeyId = ownerAddr.getObjResult()->getKeyID();
-
-        // Create payout addr
-        const auto payoutAddr = walletModel->getNewAddress("dmn_payout_" + alias);
-        if (!payoutAddr) return errorOut(tr(payoutAddr.getError().c_str()));
-        const std::string& payoutStr{payoutAddr.getObjResult()->ToString()};
+        // 3) Get operator data
+        QString operatorKey = ui->lineEditOperatorKey->text();
+        Optional<CKeyID> operatorPayoutKeyId = walletModel->getKeyIDFromAddr(ui->lineEditOperatorPayoutAddress->text().toStdString());
+        int operatorPercentage = ui->lineEditPercentage->text().isEmpty() ? 0 : (int) ui->lineEditPercentage->text().toUInt();
 
         // For now, collateral key is always inside the wallet
         std::string error_str;
-        bool res = mnModel->createDMN(alias,
+        auto res = mnModel->createDMN(alias,
                                       collateralOut,
                                       ipAddress,
                                       port,
                                       ownerKeyId,
-                                      nullopt, // generate operator key
+                                      operatorKey.isEmpty() ? nullopt : Optional<std::string>(operatorKey.toStdString()),
                                       nullopt, // use owner key as voting key
-                                      {payoutStr}, // use owner key as payout script
+                                      payoutKeyId, // use owner key as payout script
                                       error_str,
-                                      nullopt, // operator percentage
-                                      nullopt); // operator payout script
+                                      operatorPercentage, // operator percentage
+                                      operatorPayoutKeyId); // operator payout script
         if (!res) {
             return errorOut(tr(error_str.c_str()));
         }
 
-        std::string ownerAddrStr = ownerAddr.getObjResult()->ToString();
+        // If the operator key was created locally, let's get it for the summary
+        // future: move "operatorSk" to a constant field
+        std::string operatorSk = walletModel->getStrFromTxExtraData(*res.getObjResult(), "operatorSk");
         mnSummary = std::make_unique<MNSummary>(alias,
                                                 ipAddress+":"+port,
                                                 collateralOut,
                                                 ownerAddrStr,
-                                                payoutAddr.getObjResult()->ToString(),
-                                                "fa3b23b341ccba23ab398befea2321bc46f", // todo: add real operator key..
+                                                payoutAddrStr,
+                                                operatorSk.empty() ? operatorKey.toStdString() : operatorSk,
                                                 ownerAddrStr, // voting key, for now fixed to owner addr
                                                 0, // operator percentage
                                                 nullopt); // operator payout
@@ -347,6 +429,44 @@ bool MasterNodeWizardDialog::createMN()
         mnModel->addMn(mnEntry);
         returnStr = tr("Masternode created! Wait %1 confirmations before starting it.").arg(mnModel->getMasternodeCollateralMinConf());
     }
+    return true;
+}
+
+bool MasterNodeWizardDialog::validateOwner()
+{
+    QString ownerAddress(ui->lineEditOwnerAddress->text());
+    if (!ownerAddress.isEmpty() && !walletModel->isMine(ownerAddress)) {
+        setCssEditLine(ui->lineEditOwnerAddress, false, true);
+        inform(tr("Invalid main address, must be an address from this wallet"));
+        return false;
+    }
+
+    QString payoutAddress(ui->lineEditPayoutAddress->text());
+    if (!payoutAddress.isEmpty() && !walletModel->validateAddress(payoutAddress)) {
+        setCssEditLine(ui->lineEditPayoutAddress, false, true);
+        inform(tr("Invalid payout address"));
+        return false;
+    }
+
+    return true;
+}
+
+bool MasterNodeWizardDialog::validateOperator()
+{
+    QString operatorKey(ui->lineEditOperatorKey->text());
+    if (!operatorKey.isEmpty() && !interfaces::g_tiertwo->isBlsPubKeyValid(operatorKey.toStdString())) {
+        setCssEditLine(ui->lineEditOperatorKey, false, true);
+        inform(tr("Invalid operator public key"));
+        return false;
+    }
+
+    QString payoutAddress(ui->lineEditOperatorPayoutAddress->text());
+    if (!payoutAddress.isEmpty() && !walletModel->validateAddress(payoutAddress)) {
+        setCssEditLine(ui->lineEditOperatorPayoutAddress, false, true);
+        inform(tr("Invalid payout address"));
+        return false;
+    }
+
     return true;
 }
 

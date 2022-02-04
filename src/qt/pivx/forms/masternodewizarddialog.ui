@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>715</width>
+    <width>717</width>
     <height>602</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string notr="true">N/A</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_1">
+  <layout class="QVBoxLayout" name="verticalLayout_base">
    <property name="spacing">
     <number>0</number>
    </property>
@@ -37,7 +37,7 @@
      <property name="frameShadow">
       <enum>QFrame::Raised</enum>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout_2">
+     <layout class="QVBoxLayout" name="verticalLayout_frame">
       <property name="spacing">
        <number>0</number>
       </property>
@@ -208,7 +208,7 @@
              </item>
             </layout>
            </widget>
-           <widget class="QWidget" name="page_5"/>
+           <widget class="QWidget" name="page_55"/>
           </widget>
          </item>
          <item alignment="Qt::AlignVCenter">
@@ -309,7 +309,7 @@
              </item>
             </layout>
            </widget>
-           <widget class="QWidget" name="page_7"/>
+           <widget class="QWidget" name="page_75"/>
           </widget>
          </item>
          <item>
@@ -410,7 +410,7 @@
              </item>
             </layout>
            </widget>
-           <widget class="QWidget" name="page_8"/>
+           <widget class="QWidget" name="page_85"/>
           </widget>
          </item>
          <item>
@@ -511,7 +511,7 @@
              </item>
             </layout>
            </widget>
-           <widget class="QWidget" name="page_9"/>
+           <widget class="QWidget" name="page_91"/>
           </widget>
          </item>
          <item>
@@ -612,7 +612,7 @@
              </item>
             </layout>
            </widget>
-           <widget class="QWidget" name="page_9"/>
+           <widget class="QWidget" name="page_99"/>
           </widget>
          </item>
          <item>
@@ -949,7 +949,7 @@
          </size>
         </property>
         <widget class="QWidget" name="page_1">
-         <layout class="QVBoxLayout" name="verticalLayout_3" stretch="0,0,3,0,0,0">
+         <layout class="QVBoxLayout" name="verticalLayout_1" stretch="0,0,3,0,0,0">
           <property name="spacing">
            <number>6</number>
           </property>
@@ -1057,8 +1057,8 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="page_3">
-         <layout class="QVBoxLayout" name="verticalLayout_4" stretch="0,0,0,0,3">
+        <widget class="QWidget" name="page_2">
+         <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0,0,0,0,3">
           <property name="spacing">
            <number>6</number>
           </property>
@@ -1144,8 +1144,8 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="page_4">
-         <layout class="QVBoxLayout" name="verticalLayout_5" stretch="0,0,0,0,0,0,0,0,0,0,0">
+        <widget class="QWidget" name="page_3">
+         <layout class="QVBoxLayout" name="verticalLayout_3" stretch="0,0,0,0,0,0,0,0,0,0,0">
           <property name="spacing">
            <number>6</number>
           </property>
@@ -1220,7 +1220,7 @@
            </widget>
           </item>
           <item>
-           <spacer name="verticalSpacer_1_7">
+           <spacer name="verticalSpacer_ip">
             <property name="orientation">
              <enum>Qt::Vertical</enum>
             </property>
@@ -1302,7 +1302,422 @@
           </item>
          </layout>
         </widget>
+        <widget class="QWidget" name="page_4">
+         <layout class="QVBoxLayout" name="verticalLayout_4" stretch="0,0,0,0,0,0,0,0,0,0,0">
+          <property name="spacing">
+           <number>6</number>
+          </property>
+          <property name="leftMargin">
+           <number>90</number>
+          </property>
+          <property name="topMargin">
+           <number>12</number>
+          </property>
+          <property name="rightMargin">
+           <number>90</number>
+          </property>
+          <property name="bottomMargin">
+           <number>12</number>
+          </property>
+          <item alignment="Qt::AlignHCenter">
+           <widget class="QLabel" name="labelTitle5">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>50</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>50</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Set Masternode Owner Data</string>
+            </property>
+           </widget>
+          </item>
+          <item alignment="Qt::AlignHCenter">
+           <widget class="QLabel" name="labelSubtitleOwner">
+            <property name="text">
+             <string>Can leave the fields empty, new addresses will be created automatically</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+            <property name="wordWrap">
+             <bool>false</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_1_63">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelSubtitleOwnerAddress">
+            <property name="text">
+             <string>Enter main MN address (can only use addresses inside the wallet)</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_owner">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>14</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="lineEditOwnerAddress">
+            <property name="placeholderText">
+             <string notr="true">e.g. Dxxx</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_1_09">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>30</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelSubtitlePayoutAddress">
+            <property name="text">
+             <string>Enter Payout Address</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_payout">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>14</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="lineEditPayoutAddress">
+            <property name="placeholderText">
+             <string notr="true">e.g. Dxxx</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_bot">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
         <widget class="QWidget" name="page_5">
+         <layout class="QVBoxLayout" name="verticalLayout_585" stretch="0,0,0,0,0,0,0,0,0,0,0">
+          <property name="spacing">
+           <number>6</number>
+          </property>
+          <property name="leftMargin">
+           <number>85</number>
+          </property>
+          <property name="topMargin">
+           <number>12</number>
+          </property>
+          <property name="rightMargin">
+           <number>85</number>
+          </property>
+          <property name="bottomMargin">
+           <number>12</number>
+          </property>
+          <item alignment="Qt::AlignHCenter">
+           <widget class="QLabel" name="labelTitle6">
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>40</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>50</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Set Operator Data</string>
+            </property>
+           </widget>
+          </item>
+          <item alignment="Qt::AlignHCenter">
+           <widget class="QLabel" name="labelSubtitleOperator">
+            <property name="minimumSize">
+             <size>
+              <width>360</width>
+              <height>30</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Customize the operator key, the operator reward percentage and payout address</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_1_634">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelSubtitleOperatorKey">
+            <property name="text">
+             <string>Enter key (can leave it empty and the wallet will create one for you)</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_1_7">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>14</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="lineEditOperatorKey">
+            <property name="placeholderText">
+             <string notr="true">e.g. bls-pubewlknlkweqkwli1j3</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_1_049">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>30</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelSubtitleOperatorReward">
+            <property name="text">
+             <string>Optional: operator rewards percentage and payout address</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_1_890">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeType">
+             <enum>QSizePolicy::Fixed</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>14</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QWidget" name="layoutRewards" native="true">
+            <layout class="QHBoxLayout" name="horizontalLayout" stretch="5,0">
+             <property name="spacing">
+              <number>0</number>
+             </property>
+             <property name="leftMargin">
+              <number>0</number>
+             </property>
+             <property name="topMargin">
+              <number>0</number>
+             </property>
+             <property name="rightMargin">
+              <number>0</number>
+             </property>
+             <property name="bottomMargin">
+              <number>0</number>
+             </property>
+             <item>
+              <widget class="QLineEdit" name="lineEditOperatorPayoutAddress">
+               <property name="placeholderText">
+                <string notr="true">e.g. Dxxx</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QWidget" name="comboContainer" native="true">
+               <property name="minimumSize">
+                <size>
+                 <width>40</width>
+                 <height>0</height>
+                </size>
+               </property>
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>16777215</height>
+                </size>
+               </property>
+               <layout class="QHBoxLayout" name="horizontalLayout_31">
+                <property name="spacing">
+                 <number>0</number>
+                </property>
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <widget class="QLineEdit" name="lineEditPercentage">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>70</width>
+                    <height>16777215</height>
+                   </size>
+                  </property>
+                  <property name="inputMask">
+                   <string notr="true"/>
+                  </property>
+                  <property name="text">
+                   <string notr="true"/>
+                  </property>
+                  <property name="maxLength">
+                   <number>2</number>
+                  </property>
+                  <property name="alignment">
+                   <set>Qt::AlignCenter</set>
+                  </property>
+                  <property name="placeholderText">
+                   <string notr="true">10 %</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_1_510">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+        <widget class="QWidget" name="page_6">
          <layout class="QVBoxLayout" name="verticalLayout_575" stretch="0,0">
           <property name="spacing">
            <number>6</number>
@@ -1371,7 +1786,7 @@
                     <height>0</height>
                    </size>
                   </property>
-                  <layout class="QHBoxLayout" name="horizontalLayout">
+                  <layout class="QHBoxLayout" name="horizontalLayoutOwner">
                    <property name="spacing">
                     <number>0</number>
                    </property>
@@ -1565,7 +1980,7 @@
              </item>
              <item>
               <widget class="QWidget" name="containerOperator" native="true">
-               <layout class="QVBoxLayout" name="verticalLayout_6">
+               <layout class="QVBoxLayout" name="verticalLayout_operator">
                 <property name="spacing">
                  <number>8</number>
                 </property>
@@ -1608,7 +2023,7 @@
                    </property>
                    <item>
                     <widget class="QWidget" name="containerOperatorKey" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_7">
+                     <layout class="QVBoxLayout" name="verticalLayout_opkey">
                       <property name="spacing">
                        <number>4</number>
                       </property>
@@ -1646,7 +2061,7 @@
                      <property name="layoutDirection">
                       <enum>Qt::LeftToRight</enum>
                      </property>
-                     <layout class="QVBoxLayout" name="verticalLayout_8">
+                     <layout class="QVBoxLayout" name="verticalLayout_operator2">
                       <property name="spacing">
                        <number>4</number>
                       </property>
@@ -1683,14 +2098,14 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QWidget" name="containerOwnerKey_3" native="true">
+                 <widget class="QWidget" name="containerOperatorKey_3" native="true">
                   <property name="minimumSize">
                    <size>
                     <width>60</width>
                     <height>0</height>
                    </size>
                   </property>
-                  <layout class="QHBoxLayout" name="horizontalLayout_5">
+                  <layout class="QHBoxLayout" name="horizontalLayout_51">
                    <property name="spacing">
                     <number>0</number>
                    </property>
@@ -1707,8 +2122,8 @@
                     <number>0</number>
                    </property>
                    <item>
-                    <widget class="QWidget" name="widget_4" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_10">
+                    <widget class="QWidget" name="widget_oppayout" native="true">
+                     <layout class="QVBoxLayout" name="verticalLayout_oppayout">
                       <property name="spacing">
                        <number>4</number>
                       </property>
@@ -1742,8 +2157,8 @@
                     </widget>
                    </item>
                    <item alignment="Qt::AlignRight">
-                    <widget class="QWidget" name="widget_3" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_9">
+                    <widget class="QWidget" name="widget_35" native="true">
+                     <layout class="QVBoxLayout" name="verticalLayout_94">
                       <property name="spacing">
                        <number>4</number>
                       </property>

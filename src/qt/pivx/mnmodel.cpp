@@ -292,16 +292,16 @@ int MNModel::getMasternodeCollateralMinConf()
     return Params().GetConsensus().MasternodeCollateralMinConf();
 }
 
-static OperationResult createDMNInternal(const COutPoint& collateral,
-                                         const CKey& keyCollateral,
-                                         const CService& service,
-                                         const CKeyID& ownerAddr,
-                                         const CBLSPublicKey& operatorPubKey,
-                                         const Optional<CKeyID>& votingAddr,
-                                         const CKeyID& payoutAddr,
-                                         const Optional<CBLSSecretKey>& operatorSk,
-                                         const Optional<uint16_t>& operatorPercentage,
-                                         const Optional<CKeyID>& operatorPayoutAddr)
+static CallResult<uint256> createDMNInternal(const COutPoint& collateral,
+                                             const CKey& keyCollateral,
+                                             const CService& service,
+                                             const CKeyID& ownerAddr,
+                                             const CBLSPublicKey& operatorPubKey,
+                                             const Optional<CKeyID>& votingAddr,
+                                             const CKeyID& payoutAddr,
+                                             const Optional<CBLSSecretKey>& operatorSk,
+                                             const Optional<int>& operatorPercentage,
+                                             const Optional<CKeyID>& operatorPayoutAddr)
 {
     ProRegPL pl;
     pl.nVersion = ProRegPL::CURRENT_VERSION;
@@ -311,7 +311,7 @@ static OperationResult createDMNInternal(const COutPoint& collateral,
     pl.keyIDVoting = votingAddr ? *votingAddr : pl.keyIDOwner;
     pl.collateralOutpoint = collateral;
     pl.scriptPayout = GetScriptForDestination(payoutAddr);
-    if (operatorPercentage) {
+    if (operatorPayoutAddr) {
         pl.nOperatorReward = *operatorPercentage;
         pl.scriptOperatorPayout = GetScriptForDestination(*operatorPayoutAddr);
     }
@@ -324,30 +324,31 @@ static OperationResult createDMNInternal(const COutPoint& collateral,
 
     auto wallet = vpwallets[0]; // TODO: Move to walletModel
     auto res = FundSpecialTx(wallet, tx, pl);
-    if (!res) return res;
+    if (!res) return {res.getError()};
 
     res = SignSpecialTxPayloadByString(pl, keyCollateral);
-    if (!res) return res;
+    if (!res) return {res.getError()};
 
     std::map<std::string, std::string> extraValues;
     if (operatorSk) {
         // Only if the operator sk was provided
         extraValues.emplace("operatorSk", bls::EncodeSecret(Params(), *operatorSk));
     }
-    return SignAndSendSpecialTx(wallet, tx, pl, &extraValues);
+    res = SignAndSendSpecialTx(wallet, tx, pl, &extraValues);
+    return res ? CallResult<uint256>(tx.GetHash()) : CallResult<uint256>(res.getError());
 }
 
-bool MNModel::createDMN(const std::string& alias,
-                        const COutPoint& collateral,
-                        std::string& serviceAddr,
-                        const std::string& servicePort,
-                        const CKeyID* ownerAddr,
-                        const Optional<std::string>& operatorPubKey,
-                        const Optional<std::string>& votingAddr,
-                        const Optional<std::string>& payoutAddr,
-                        std::string& strError,
-                        const Optional<int>& operatorPercentage,
-                        const Optional<std::string>& operatorPayoutAddr)
+CallResult<uint256> MNModel::createDMN(const std::string& alias,
+                                       const COutPoint& collateral,
+                                       std::string& serviceAddr,
+                                       const std::string& servicePort,
+                                       const CKeyID& ownerAddr,
+                                       const Optional<std::string>& operatorPubKey,
+                                       const Optional<std::string>& votingAddr,
+                                       const CKeyID& payoutKeyId,
+                                       std::string& strError,
+                                       const Optional<int>& operatorPercentage,
+                                       const Optional<CKeyID>& operatorPayoutAddr)
 {
     // Parse and validate inputs
 
@@ -365,22 +366,14 @@ bool MNModel::createDMN(const std::string& alias,
     if (!serviceAddr.empty()) {
         if (!Lookup(serviceAddr+":"+servicePort, service, chainparams.GetDefaultPort(), false)) {
             strError = strprintf("invalid network address %s", serviceAddr);
-            return false;
+            return {strError};
         }
-    }
-
-    // Parse payout script
-    CKeyID payoutKeyId;
-    if (payoutAddr) {
-        auto opPayout = ParsePubKeyIDFromAddress(*payoutAddr, strError);
-        if (!opPayout) return false;
-        payoutKeyId = *opPayout;
     }
 
     CPubKey pubKeyCollateral;
     CKey keyCollateral;
     if (!p_wallet->GetMasternodeVinAndKeys(pubKeyCollateral, keyCollateral, collateral, false, strError)) {
-        return false;
+        return {strError};
     }
 
     // parse operator pubkey or create one
@@ -390,7 +383,7 @@ bool MNModel::createDMN(const std::string& alias,
         auto opPk = bls::DecodePublic(Params(), *operatorPubKey);
         if (!opPk || !opPk->IsValid()) {
             strError = "invalid operator pubkey";
-            return false;
+            return {strError};
         }
         operatorPk = *opPk;
     } else {
@@ -401,22 +394,22 @@ bool MNModel::createDMN(const std::string& alias,
     }
 
     auto res = createDMNInternal(collateral,
-                             keyCollateral,
-                             service,
-                             *ownerAddr,
-                             operatorPk,
-                             Optional<CKeyID>(*ownerAddr), // voting key
-                             payoutKeyId, // payout script
-                             operatorSk, // only if the operator was provided (or locally created)
-                             nullopt,   // operator percentage
-                             nullopt);  // operator percentage
+                                 keyCollateral,
+                                 service,
+                                 ownerAddr,
+                                 operatorPk,
+                                 Optional<CKeyID>(ownerAddr), // voting key
+                                 payoutKeyId, // payout script
+                                 operatorSk, // only if the operator was provided (or locally created)
+                                 operatorPercentage,   // operator percentage
+                                 operatorPayoutAddr);  // operator payout keyid
     if (!res) {
         strError = res.getError();
-        return false;
+        return {strError};
     }
 
     // All good
-    return true;
+    return res;
 }
 
 OperationResult MNModel::killDMN(const uint256& collateralHash, unsigned int outIndex)

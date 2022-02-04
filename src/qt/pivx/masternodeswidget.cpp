@@ -5,6 +5,7 @@
 #include "qt/pivx/masternodeswidget.h"
 #include "qt/pivx/forms/ui_masternodeswidget.h"
 
+#include "qt/pivx/defaultdialog.h"
 #include "qt/pivx/qtutils.h"
 #include "qt/pivx/mnrow.h"
 #include "qt/pivx/mninfodialog.h"
@@ -397,17 +398,32 @@ void MasterNodesWidget::onCreateMNClicked()
             .arg(GUIUtil::formatBalance(mnCollateralAmount, BitcoinUnits::PIV)));
         return;
     }
-    showHideOp(true);
-    MasterNodeWizardDialog *dialog = new MasterNodeWizardDialog(walletModel, mnModel, window);
-    if (openDialogWithOpaqueBackgroundY(dialog, window, 5, 7)) {
-        if (dialog->isOk) {
-            updateListState();
-            // add mn
-            inform(dialog->returnStr);
-        } else {
-            warn(tr("Error creating masternode"), dialog->returnStr);
+    MasterNodeWizardDialog* dialog = new MasterNodeWizardDialog(walletModel, mnModel, window);
+    connect(dialog, &MasterNodeWizardDialog::message, this, &PWidget::emitMessage);
+    do {
+        showHideOp(true);
+        dialog->isWaitingForAsk = false;
+        if (openDialogWithOpaqueBackgroundY(dialog, window, 5, 7)) {
+            if (dialog->isOk) {
+                updateListState();
+                inform(dialog->returnStr);
+            } else {
+                warn(tr("Error creating masternode"), dialog->returnStr);
+            }
+        } else if (dialog->isWaitingForAsk) {
+            auto* askDialog = new DefaultDialog(window);
+            showHide(true);
+            askDialog->setText(tr("Advanced Masternode Configurations"),
+                            tr("The wallet can complete the next steps,\ncreating the MN keys and addresses automatically\n\n"
+                               "Do you want to customize the owner, operator\nand voter or create them automatically?\n"
+                               "(recommended only for advanced users)"),
+                               tr("Automatic"), tr("Customize"));
+            askDialog->adjustSize();
+            openDialogWithOpaqueBackground(askDialog, window);
+            askDialog->isOk ? dialog->completeTask() : dialog->moveToAdvancedConf();
         }
-    }
+    } while (dialog->isWaitingForAsk);
+
     dialog->deleteLater();
 }
 

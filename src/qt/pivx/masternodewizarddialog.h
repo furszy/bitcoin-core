@@ -46,6 +46,15 @@ class MasterNodeWizardDialog : public FocusedDialog, public PWidget::Translator
 {
     Q_OBJECT
 
+enum Pages {
+   INTRO = 0,
+   ALIAS = 1,
+   SERVICE = 2,
+   OWNER = 3,
+   OPERATOR = 4,
+   SUMMARY = 5
+};
+
 public:
     explicit MasterNodeWizardDialog(WalletModel* walletMode,
                                     MNModel* mnModel,
@@ -54,9 +63,21 @@ public:
     void showEvent(QShowEvent *event) override;
     QString translate(const char *msg) override { return tr(msg); }
 
-    QString returnStr = "";
-    bool isOk = false;
-    CMasternodeConfig::CMasternodeEntry* mnEntry = nullptr;
+    void moveToAdvancedConf()
+    {
+        pos = Pages::OWNER;
+        moveToNextPage(Pages::SERVICE, pos);
+    };
+
+    void completeTask();
+
+    QString returnStr{""};
+    bool isOk{false};
+    bool isWaitingForAsk{false};
+    CMasternodeConfig::CMasternodeEntry* mnEntry{nullptr};
+
+Q_SIGNALS:
+    void message(const QString& title, const QString& body, unsigned int style, bool* ret = nullptr);
 
 private Q_SLOTS:
     void accept() override;
@@ -80,6 +101,12 @@ private:
 
     void moveToNextPage(int currentPos, int nextPos);
     void moveBack(int backPos);
+
+    bool validateOwner();
+    bool validateOperator();
+
+    CallResult<std::pair<std::string, CKeyID>> getOrCreateOwnerAddress(const std::string& alias);
+    CallResult<std::pair<std::string, CKeyID>> getOrCreatePayoutAddress(const std::string& alias);
 };
 
 #endif // MASTERNODEWIZARDDIALOG_H

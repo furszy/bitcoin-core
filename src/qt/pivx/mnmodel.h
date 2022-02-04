@@ -105,17 +105,18 @@ public:
     // Return the specific chain min conf for the collateral tx
     int getMasternodeCollateralMinConf();
 
-    bool createDMN(const std::string& alias,
-                   const COutPoint& collateral,
-                   std::string& serviceAddr,
-                   const std::string& servicePort,
-                   const CKeyID* ownerAddr,
-                   const Optional<std::string>& operatorPubKey,
-                   const Optional<std::string>& votingAddr,
-                   const Optional<std::string>& payoutAddr,
-                   std::string& strError,
-                   const Optional<int>& operatorPercentage = nullopt,
-                   const Optional<std::string>& operatorPayoutAddr = nullopt);
+    // Creates the DMN and return the hash of the proregtx
+    CallResult<uint256> createDMN(const std::string& alias,
+                                  const COutPoint& collateral,
+                                  std::string& serviceAddr,
+                                  const std::string& servicePort,
+                                  const CKeyID& ownerAddr,
+                                  const Optional<std::string>& operatorPubKey,
+                                  const Optional<std::string>& votingAddr,
+                                  const CKeyID& payoutAddr,
+                                  std::string& strError,
+                                  const Optional<int>& operatorPercentage = nullopt,
+                                  const Optional<CKeyID>& operatorPayoutAddr = nullopt);
 
     // Completely stops the Masternode spending the collateral
     OperationResult killDMN(const uint256& collateralHash, unsigned int outIndex);
