@@ -24,4 +24,7 @@ UniValue mnLocalBudgetVoteInner(bool fLegacyMN, const uint256& budgetHash, bool 
 UniValue mnBudgetVoteInner(CWallet* const pwallet, bool fLegacyMN, const uint256& budgetHash, bool fFinal,
                                   const CBudgetVote::VoteDirection& nVote, const Optional<std::string>& mnAliasFilter);
 
+// One every Consensus::Params:nBudgetCycleBlocks blocks
+bool IsSuperBlock(int height);
+
 #endif //PIVX_BUDGETUTIL_H

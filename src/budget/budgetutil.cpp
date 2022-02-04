@@ -4,6 +4,7 @@
 
 #include "budget/budgetutil.h"
 
+#include "chainparams.h"
 #include "budget/budgetmanager.h"
 #include "masternodeman.h"
 #include "masternodeconfig.h"
@@ -269,4 +270,9 @@ UniValue mnLocalBudgetVoteInner(bool fLegacyMN, const uint256& budgetHash, bool 
 
     return (fFinal ? voteFinalBudget(budgetHash, mnKeys, resultsObj, 0)
                    : voteProposal(budgetHash, nVote, mnKeys, resultsObj, 0));
+}
+
+bool IsSuperBlock(int height)
+{
+    return height % Params().GetConsensus().nBudgetCycleBlocks == 0;
 }

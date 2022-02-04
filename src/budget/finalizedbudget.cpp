@@ -5,6 +5,7 @@
 
 #include "budget/finalizedbudget.h"
 
+#include "budget/budgetutil.h"
 #include "masternodeman.h"
 #include "validation.h"
 
@@ -187,7 +188,7 @@ bool CFinalizedBudget::CheckStartEnd()
     }
 
     // Must be the correct block for payment to happen (once a month)
-    if (nBlockStart % Params().GetConsensus().nBudgetCycleBlocks != 0) {
+    if (!IsSuperBlock(nBlockStart)) {
         strInvalid = "Invalid BlockStart";
         return false;
     }
