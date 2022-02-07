@@ -15,7 +15,6 @@
 #include "coincontrol.h"
 #include "evo/providertx.h"
 #include "guiinterfaceutil.h"
-#include "masternode.h"
 #include "policy/policy.h"
 #include "sapling/key_io_sapling.h"
 #include "script/sign.h"
@@ -757,34 +756,6 @@ void CWallet::AddToSpends(const uint256& wtxid)
             GetSaplingScriptPubKeyMan()->AddToSaplingSpends(spend.nullifier, wtxid);
         }
     }
-}
-
-bool CWallet::GetVinAndKeysFromOutput(COutput out, CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, bool fColdStake)
-{
-    // wait for reindex and/or import to finish
-    if (fImporting || fReindex) return false;
-
-    CScript pubScript;
-
-    txinRet = CTxIn(out.tx->GetHash(), out.i);
-    pubScript = out.tx->tx->vout[out.i].scriptPubKey; // the inputs PubKey
-
-    CTxDestination address1;
-    ExtractDestination(pubScript, address1, fColdStake);
-
-    const CKeyID* keyID = boost::get<CKeyID>(&address1);
-    if (!keyID) {
-        LogPrintf("CWallet::GetVinAndKeysFromOutput -- Address does not refer to a key\n");
-        return false;
-    }
-
-    if (!GetKey(*keyID, keyRet)) {
-        LogPrintf("CWallet::GetVinAndKeysFromOutput -- Private key for address is not known\n");
-        return false;
-    }
-
-    pubKeyRet = keyRet.GetPubKey();
-    return true;
 }
 
 bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
@@ -2407,82 +2378,78 @@ static bool CheckTXAvailability(const CWalletTx* pcoin,
     return CheckTXAvailabilityInternal(pcoin, fOnlySafe, nDepth, safeTx);
 }
 
-bool CWallet::GetMasternodeVinAndKeys(CTxIn& txinRet, CPubKey& pubKeyRet, CKey& keyRet, std::string strTxHash, std::string strOutputIndex, std::string& strError)
+bool CWallet::GetMasternodeVinAndKeys(CPubKey& pubKeyRet,
+                                      CKey& keyRet,
+                                      const COutPoint& collateralOut,
+                                      bool fValidateCollateral,
+                                      std::string& strError)
 {
     // wait for reindex and/or import to finish
     if (fImporting || fReindex) return false;
 
-    if (strTxHash.empty() || strOutputIndex.empty()) {
-        strError = "Invalid masternode collateral hash or output index";
-        return error("%s: %s", __func__, strError);
-    }
-
-    int nOutputIndex;
-    try {
-        nOutputIndex = std::stoi(strOutputIndex.c_str());
-    } catch (const std::exception& e) {
-        strError = "Invalid masternode output index";
-        return error("%s: %s on strOutputIndex", __func__, e.what());
-    }
-
     // Find specific vin
-    const uint256 txHash = uint256S(strTxHash);
-    const CWalletTx* wtx = GetWalletTx(txHash);
+    const CWalletTx* wtx = GetWalletTx(collateralOut.hash);
     if (!wtx) {
         strError = "collateral tx not found in the wallet";
         return error("%s: %s", __func__, strError);
     }
 
     // Verify index limits
-    if (nOutputIndex < 0 || nOutputIndex >= (int) wtx->tx->vout.size()) {
+    if (collateralOut.n < 0 || collateralOut.n >= (uint32_t) wtx->tx->vout.size()) {
         strError = "Invalid masternode output index";
-        return error("%s: output index %d not found in %s", __func__, nOutputIndex, strTxHash);
+        return error("%s: output index %d not found in %s", __func__, collateralOut.n, collateralOut.hash.GetHex());
     }
 
-    CTxOut txOut = wtx->tx->vout[nOutputIndex];
+    CTxOut txOut = wtx->tx->vout[collateralOut.n];
 
     // Masternode collateral value
     const auto& consensus = Params().GetConsensus();
     if (txOut.nValue != consensus.nMNCollateralAmt) {
         strError = strprintf("Invalid collateral tx value, must be %s PIV", FormatMoney(Params().GetConsensus().nMNCollateralAmt));
-        return error("%s: tx %s, index %d not a masternode collateral", __func__, strTxHash, nOutputIndex);
+        return error("%s: tx %s, index %d not a masternode collateral", __func__, collateralOut.hash.GetHex(), collateralOut.n);
     }
 
-    int nDepth = 0;
-    bool safeTx = false;
-    {
-        LOCK(cs_wallet);
-        // Check availability
-        if (!CheckTXAvailability(wtx, true, nDepth, safeTx, m_last_block_processed_height)) {
-            strError = "Not available collateral transaction";
-            return error("%s: tx %s not available", __func__, strTxHash);
+    if (fValidateCollateral) {
+        int nDepth = 0;
+        {
+            LOCK(cs_wallet);
+            // Check availability
+            bool safeTx = false;
+            if (!CheckTXAvailability(wtx, true, nDepth, safeTx, m_last_block_processed_height)) {
+                strError = "Not available collateral transaction";
+                return error("%s: tx %s not available", __func__, collateralOut.hash.GetHex());
+            }
+
+            // Skip spent coins
+            if (IsSpent(collateralOut.hash, collateralOut.n)) {
+                strError = "Error: collateral already spent";
+                return error("%s: tx %s already spent", __func__, collateralOut.hash.GetHex());
+            }
         }
 
-        // Skip spent coins
-        if (IsSpent(txHash, nOutputIndex)) {
-            strError = "Error: collateral already spent";
-            return error("%s: tx %s already spent", __func__, strTxHash);
+        // Depth must be at least MASTERNODE_MIN_CONFIRMATIONS
+        if (nDepth < consensus.MasternodeCollateralMinConf()) {
+            strError = strprintf("Collateral tx must have at least %d confirmations, has %d",
+                                 consensus.MasternodeCollateralMinConf(), nDepth);
+            return error("%s: %s", __func__, strError);
         }
     }
 
-    // Depth must be at least MASTERNODE_MIN_CONFIRMATIONS
-    if (nDepth < consensus.MasternodeCollateralMinConf()) {
-        strError = strprintf("Collateral tx must have at least %d confirmations, has %d", consensus.MasternodeCollateralMinConf(), nDepth);
-        return error("%s: %s", __func__, strError);
+    CTxDestination destCollateral;
+    ExtractDestination(txOut.scriptPubKey, destCollateral, false);
+    const CKeyID* keyID = boost::get<CKeyID>(&destCollateral);
+    if (!keyID) {
+        LogPrintf("%s: Address does not refer to a key\n", __func__);
+        return false;
     }
 
-    // utxo need to be mine.
-    isminetype mine = IsMine(txOut);
-    if (mine != ISMINE_SPENDABLE) {
-        strError = "Invalid collateral transaction. Not from this wallet";
-        return error("%s: tx %s not mine", __func__, strTxHash);
+    if (!GetKey(*keyID, keyRet)) {
+        LogPrintf("%s: Private key for address is not known\n", __func__);
+        return false;
     }
 
-    return GetVinAndKeysFromOutput(
-            COutput(wtx, nOutputIndex, nDepth, true, true, true),
-            txinRet,
-            pubKeyRet,
-            keyRet);
+    pubKeyRet = keyRet.GetPubKey();
+    return true;
 }
 
 CWallet::OutputAvailabilityResult CWallet::CheckOutputAvailability(

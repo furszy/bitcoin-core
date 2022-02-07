@@ -21,14 +21,12 @@
 #include "checkpoints.h"
 #include "compat/sanity.h"
 #include "consensus/upgrades.h"
-#include "evo/evonotificationinterface.h"
 #include "fs.h"
 #include "httpserver.h"
 #include "httprpc.h"
 #include "invalid.h"
 #include "key.h"
 #include "mapport.h"
-#include "masternodeconfig.h"
 #include "miner.h"
 #include "netbase.h"
 #include "net_processing.h"
@@ -95,8 +93,6 @@ std::unique_ptr<PeerLogicValidation> peerLogic;
 #if ENABLE_ZMQ
 static CZMQNotificationInterface* pzmqNotificationInterface = NULL;
 #endif
-
-static EvoNotificationInterface* pEvoNotificationInterface = nullptr;
 
 #ifdef WIN32
 // Win32 LevelDB doesn't use filedescriptors, and the ones used for
@@ -298,17 +294,8 @@ void Shutdown()
     }
 #endif
 
-    if (pEvoNotificationInterface) {
-        UnregisterValidationInterface(pEvoNotificationInterface);
-        delete pEvoNotificationInterface;
-        pEvoNotificationInterface = nullptr;
-    }
-
-    if (activeMasternodeManager) {
-        UnregisterValidationInterface(activeMasternodeManager);
-        delete activeMasternodeManager;
-        activeMasternodeManager = nullptr;
-    }
+    // Tier two
+    ResetTierTwoInterfaces();
 
 #if ENABLE_ZMQ
     if (pzmqNotificationInterface) {
@@ -709,9 +696,8 @@ void ThreadImport(const std::vector<fs::path>& vImportFiles)
         StartShutdown();
     }
 
-    // force UpdatedBlockTip to initialize nCachedBlockHeight for DS, MN payments and budgets
-    // but don't call it directly to prevent triggering of other listeners like zmq etc.
-    pEvoNotificationInterface->InitializeCurrentBlockTip();
+    // tier two
+    InitTierTwoChainTip();
 
     if (gArgs.GetBoolArg("-persistmempool", DEFAULT_PERSIST_MEMPOOL)) {
         LoadMempool(::mempool);
@@ -1270,28 +1256,17 @@ bool AppInitMain()
         fs::path chainstateDir = GetDataDir() / "chainstate";
         fs::path sporksDir = GetDataDir() / "sporks";
         fs::path zerocoinDir = GetDataDir() / "zerocoin";
+        fs::path evoDir = GetDataDir() / "evodb";
 
-        LogPrintf("Deleting blockchain folders blocks, chainstate, sporks and zerocoin\n");
-        // We delete in 4 individual steps in case one of the folder is missing already
+        LogPrintf("Deleting blockchain folders blocks, chainstate, sporks, zerocoin and evodb\n");
+        std::vector<fs::path> removeDirs{blocksDir, chainstateDir, sporksDir, zerocoinDir, evoDir};
+        // We delete in 5 individual steps in case one of the folder is missing already
         try {
-            if (fs::exists(blocksDir)){
-                fs::remove_all(blocksDir);
-                LogPrintf("-resync: folder deleted: %s\n", blocksDir.string().c_str());
-            }
-
-            if (fs::exists(chainstateDir)){
-                fs::remove_all(chainstateDir);
-                LogPrintf("-resync: folder deleted: %s\n", chainstateDir.string().c_str());
-            }
-
-            if (fs::exists(sporksDir)){
-                fs::remove_all(sporksDir);
-                LogPrintf("-resync: folder deleted: %s\n", sporksDir.string().c_str());
-            }
-
-            if (fs::exists(zerocoinDir)){
-                fs::remove_all(zerocoinDir);
-                LogPrintf("-resync: folder deleted: %s\n", zerocoinDir.string().c_str());
+            for (const auto& dir : removeDirs) {
+                if (fs::exists(dir)) {
+                    fs::remove_all(dir);
+                    LogPrintf("-resync: folder deleted: %s\n", dir.string().c_str());
+                }
             }
         } catch (const fs::filesystem_error& error) {
             LogPrintf("Failed to delete blockchain folders %s\n", error.what());
@@ -1443,8 +1418,7 @@ bool AppInitMain()
     }
 #endif
 
-    pEvoNotificationInterface = new EvoNotificationInterface();
-    RegisterValidationInterface(pEvoNotificationInterface);
+    InitTierTwoInterfaces();
 
     // ********************************************************* Step 7: load block chain
 

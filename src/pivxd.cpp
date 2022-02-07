@@ -92,13 +92,6 @@ bool AppInit(int argc, char* argv[])
             return false;
         }
 
-        // parse masternode.conf
-        std::string strErr;
-        if (!masternodeConfig.read(strErr)) {
-            fprintf(stderr, "Error reading masternode configuration file: %s\n", strErr.c_str());
-            return false;
-        }
-
         // Error out when loose non-argument tokens are encountered on command line
         for (int i = 1; i < argc; i++) {
             if (!IsSwitchChar(argv[i][0])) {

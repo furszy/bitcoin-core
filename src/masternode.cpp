@@ -227,7 +227,6 @@ bool CMasternodeBroadcast::Create(const std::string& strService,
                                   bool fOffline,
                                   int chainHeight)
 {
-    CTxIn txin;
     CPubKey pubKeyCollateralAddressNew;
     CKey keyCollateralAddressNew;
     CPubKey pubKeyMasternodeNew;
@@ -240,15 +239,34 @@ bool CMasternodeBroadcast::Create(const std::string& strService,
         return false;
     }
 
+    std::string strError;
+    if (strTxHash.empty() || strOutputIndex.empty()) {
+        strError = "Invalid masternode collateral hash or output index";
+        return error("%s: %s", __func__, strError);
+    }
+
+    const uint256 collateralHash = uint256S(strTxHash);
+    int collateralOutputIndex;
+    try {
+        collateralOutputIndex = std::stoi(strOutputIndex.c_str());
+    } catch (const std::exception& e) {
+        strError = "Invalid masternode output index";
+        return error("%s: %s on strOutputIndex", __func__, e.what());
+    }
+
     if (!CMessageSigner::GetKeysFromSecret(strKeyMasternode, keyMasternodeNew, pubKeyMasternodeNew)) {
         strErrorRet = strprintf("Invalid masternode key %s", strKeyMasternode);
         LogPrint(BCLog::MASTERNODE,"CMasternodeBroadcast::Create -- %s\n", strErrorRet);
         return false;
     }
 
-    std::string strError;
     // Use wallet-0 here. Legacy mnb creation can be removed after transition to DMN
-    if (vpwallets.empty() || !vpwallets[0]->GetMasternodeVinAndKeys(txin, pubKeyCollateralAddressNew, keyCollateralAddressNew, strTxHash, strOutputIndex, strError)) {
+    COutPoint collateralOut(collateralHash, collateralOutputIndex);
+    if (vpwallets.empty() || !vpwallets[0]->GetMasternodeVinAndKeys(pubKeyCollateralAddressNew,
+                                                                    keyCollateralAddressNew,
+                                                                    collateralOut,
+                                                                    true, // fValidateCollateral
+                                                                    strError)) {
         strErrorRet = strError; // GetMasternodeVinAndKeys logs this error. Only returned for GUI error notification.
         LogPrint(BCLog::MASTERNODE,"CMasternodeBroadcast::Create -- %s\n", strprintf("Could not allocate txin %s:%s for masternode %s", strTxHash, strOutputIndex, strService));
         return false;
@@ -265,6 +283,7 @@ bool CMasternodeBroadcast::Create(const std::string& strService,
     if (!CheckDefaultPort(_service, strErrorRet, "CMasternodeBroadcast::Create"))
         return false;
 
+    CTxIn txin(collateralOut.hash, collateralOut.n);
     return Create(txin, _service, keyCollateralAddressNew, pubKeyCollateralAddressNew, keyMasternodeNew, pubKeyMasternodeNew, strErrorRet, mnbRet);
 }
 

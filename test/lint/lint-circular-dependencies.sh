@@ -19,7 +19,6 @@ EXPECTED_CIRCULAR_DEPENDENCIES=(
     "evo/specialtx_validation -> validation -> evo/specialtx_validation"
     "kernel -> validation -> kernel"
     "masternode -> masternodeman -> masternode"
-    "masternode -> wallet/wallet -> masternode"
     "masternode-payments -> masternodeman -> masternode-payments"
     "masternode-payments -> validation -> masternode-payments"
     "masternode-sync -> masternodeman -> masternode-sync"
