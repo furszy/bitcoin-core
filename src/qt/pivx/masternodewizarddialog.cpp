@@ -7,6 +7,7 @@
 
 #include "key_io.h"
 #include "interfaces/tiertwo.h"
+#include "qt/pivx/clickablelabel.h"
 #include "qt/pivx/mnmodel.h"
 #include "qt/pivx/qtutils.h"
 #include "qt/walletmodel.h"
@@ -136,16 +137,7 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     ui->lineEditPercentage->setValidator(new QIntValidator(1, 99));
 
     // Frame Summary
-    setCssProperty(ui->labelSummary, "text-title-dialog");
-    setCssProperty({ui->containerOwner, ui->containerOperator}, "card-governance");
-    setCssProperty({ui->labelOwnerSection, ui->labelOperatorSection}, "text-section-title");
-    setCssProperty({ui->labelTitleMainAddr, ui->labelTitlePayoutAddr, ui->labelTitleCollateral, ui->labelTitleCollateralIndex,
-                    ui->labelTitleOperatorKey, ui->labelTitleOperatorService, ui->labelTitleOperatorPayout, ui->labelTitleOperatorPercentage,
-                    ui->labelTitleOperatorService}, "text-title-right");
-    setCssProperty({ui->labelMainAddr, ui->labelPayoutAddr, ui->labelCollateralIndex, ui->labelCollateralHash,
-                    ui->labelOperatorKey, ui->labelOperatorPayout, ui->labelOperatorPercentage, ui->labelOperatorService}, "text-body2-dialog");
-    setCardShadow(ui->containerOwner);
-    setCardShadow(ui->containerOperator);
+    initSummaryPage();
 
     // Confirm icons
     ui->stackedIcon1->addWidget(list_icConfirm[0]);
@@ -164,6 +156,46 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     connect(ui->pushButtonSkip, &QPushButton::clicked, this, &MasterNodeWizardDialog::close);
     connect(ui->btnNext, &QPushButton::clicked, this, &MasterNodeWizardDialog::accept);
     connect(ui->btnBack, &QPushButton::clicked, this, &MasterNodeWizardDialog::onBackClicked);
+}
+
+void MasterNodeWizardDialog::initSummaryPage()
+{
+    setCssProperty(ui->labelSummary, "text-title-dialog");
+    setCssProperty({ui->containerOwner, ui->containerOperator}, "card-governance");
+    setCssProperty({ui->labelOwnerSection, ui->labelOperatorSection}, "text-section-title");
+    setCssProperty({ui->labelTitleMainAddr, ui->labelTitlePayoutAddr, ui->labelTitleCollateral, ui->labelTitleCollateralIndex,
+                    ui->labelTitleOperatorKey, ui->labelTitleOperatorService, ui->labelTitleOperatorPayout, ui->labelTitleOperatorPercentage,
+                    ui->labelTitleOperatorService}, "text-title-right");
+    setCssProperty({ui->labelMainAddr, ui->labelPayoutAddr, ui->labelCollateralIndex, ui->labelCollateralHash,
+                    ui->labelOperatorKey, ui->labelOperatorPayout, ui->labelOperatorPercentage, ui->labelOperatorService}, "text-body2-dialog");
+    setCardShadow(ui->containerOwner);
+    setCardShadow(ui->containerOperator);
+
+    connect(ui->labelMainAddr, &ClickableLabel::clicked, [this](){
+        GUIUtil::setClipboard(QString::fromStdString(mnSummary->ownerAddr));
+        inform(tr("Owner address copied to clipboard"));
+    });
+    connect(ui->labelPayoutAddr, &ClickableLabel::clicked, [this](){
+        GUIUtil::setClipboard(QString::fromStdString(mnSummary->ownerPayoutAddr));
+        inform(tr("Payout address copied to clipboard"));
+    });
+    connect(ui->labelCollateralHash, &ClickableLabel::clicked, [this](){
+        GUIUtil::setClipboard(QString::fromStdString(mnSummary->collateralOut.hash.GetHex()));
+        inform(tr("Collateral tx hash copied to clipboard"));
+    });
+    connect(ui->labelOperatorService, &ClickableLabel::clicked, [this](){
+        GUIUtil::setClipboard(QString::fromStdString(mnSummary->service));
+        inform(tr("Service copied to clipboard"));
+    });
+    connect(ui->labelOperatorKey, &ClickableLabel::clicked, [this](){
+        GUIUtil::setClipboard(QString::fromStdString(mnSummary->operatorKey));
+        inform(tr("Operator key copied to clipboard"));
+    });
+    connect(ui->labelOperatorPayout, &ClickableLabel::clicked, [this](){
+        if (!mnSummary->operatorPayoutAddr) return;
+        GUIUtil::setClipboard(QString::fromStdString(*mnSummary->operatorPayoutAddr));
+        inform(tr("Operator payout address copied to clipboard"));
+    });
 }
 
 void MasterNodeWizardDialog::showEvent(QShowEvent *event)

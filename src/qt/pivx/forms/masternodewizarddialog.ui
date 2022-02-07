@@ -1828,7 +1828,7 @@
                        </widget>
                       </item>
                       <item>
-                       <widget class="QLabel" name="labelMainAddr">
+                       <widget class="ClickableLabel" name="labelMainAddr">
                         <property name="text">
                          <string>N/A</string>
                         </property>
@@ -1866,7 +1866,7 @@
                        </widget>
                       </item>
                       <item alignment="Qt::AlignRight">
-                       <widget class="QLabel" name="labelPayoutAddr">
+                       <widget class="ClickableLabel" name="labelPayoutAddr">
                         <property name="text">
                          <string>N/A</string>
                         </property>
@@ -1928,7 +1928,7 @@
                        </widget>
                       </item>
                       <item>
-                       <widget class="QLabel" name="labelCollateralHash">
+                       <widget class="ClickableLabel" name="labelCollateralHash">
                         <property name="text">
                          <string>N/A</string>
                         </property>
@@ -1963,7 +1963,7 @@
                        </widget>
                       </item>
                       <item alignment="Qt::AlignRight">
-                       <widget class="QLabel" name="labelCollateralIndex">
+                       <widget class="ClickableLabel" name="labelCollateralIndex">
                         <property name="text">
                          <string>N/A</string>
                         </property>
@@ -2047,7 +2047,7 @@
                        </widget>
                       </item>
                       <item>
-                       <widget class="QLabel" name="labelOperatorKey">
+                       <widget class="ClickableLabel" name="labelOperatorKey">
                         <property name="text">
                          <string>N/A</string>
                         </property>
@@ -2085,7 +2085,7 @@
                        </widget>
                       </item>
                       <item alignment="Qt::AlignRight">
-                       <widget class="QLabel" name="labelOperatorService">
+                       <widget class="ClickableLabel" name="labelOperatorService">
                         <property name="text">
                          <string notr="true">N/A</string>
                         </property>
@@ -2147,7 +2147,7 @@
                        </widget>
                       </item>
                       <item>
-                       <widget class="QLabel" name="labelOperatorPayout">
+                       <widget class="ClickableLabel" name="labelOperatorPayout">
                         <property name="text">
                          <string notr="true">N/A</string>
                         </property>
@@ -2182,7 +2182,7 @@
                        </widget>
                       </item>
                       <item alignment="Qt::AlignRight">
-                       <widget class="QLabel" name="labelOperatorPercentage">
+                       <widget class="ClickableLabel" name="labelOperatorPercentage">
                         <property name="text">
                          <string notr="true">0.00</string>
                         </property>
@@ -2286,6 +2286,13 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ClickableLabel</class>
+   <extends>QLabel</extends>
+   <header>qt/pivx/clickablelabel.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

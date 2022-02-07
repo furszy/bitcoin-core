@@ -94,6 +94,9 @@ private:
 
     WalletModel* walletModel{nullptr};
     MNModel* mnModel{nullptr};
+
+    void initSummaryPage();
+
     bool createMN();
     void setSummary();
     void inform(const QString& text);
