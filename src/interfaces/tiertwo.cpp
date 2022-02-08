@@ -20,6 +20,26 @@ bool TierTwo::isBlsPubKeyValid(const std::string& blsKey)
     return opKey && opKey->IsValid();
 }
 
+Optional<DMNData> TierTwo::getDMNData(const uint256& pro_tx_hash, const CBlockIndex* tip)
+{
+    if (!tip) return nullopt;
+    const auto& params = Params();
+    CDeterministicMNCPtr ptr_mn = deterministicMNManager->GetListForBlock(tip).GetMN(pro_tx_hash);
+    if (!ptr_mn) return nullopt;
+    DMNData data;
+    data.ownerMainAddr = EncodeDestination(ptr_mn->pdmnState->keyIDOwner);
+    data.ownerPayoutAddr = EncodeDestination(ptr_mn->pdmnState->scriptPayout);
+    data.operatorPk = bls::EncodePublic(params, ptr_mn->pdmnState->pubKeyOperator.Get());
+    data.operatorPayoutAddr = EncodeDestination(ptr_mn->pdmnState->scriptOperatorPayout);
+    data.operatorPayoutPercentage = ptr_mn->nOperatorReward;
+    data.votingAddr = EncodeDestination(ptr_mn->pdmnState->keyIDVoting);
+    if (!vpwallets.empty()) {
+        CWallet* p_wallet = vpwallets[0];
+        data.operatorSk = p_wallet->GetStrFromTxExtraData(pro_tx_hash, "operatorSk");
+    }
+    return {data};
+}
+
 std::shared_ptr<DMNView> createDMNViewIfMine(CWallet* pwallet, const CDeterministicMNCPtr& dmn)
 {
     bool hasOwnerKey;

@@ -712,6 +712,9 @@ public:
 
     bool HasSaplingSPKM() const;
 
+    // Returns the extra value associated with the key.
+    std::string GetStrFromTxExtraData(const uint256& txHash, const std::string& key);
+
     /*
      * Main wallet lock.
      * This lock protects all the fields added by CWallet.

@@ -1073,10 +1073,7 @@ Optional<CKeyID> WalletModel::getKeyIDFromAddr(const std::string& addr)
 
 std::string WalletModel::getStrFromTxExtraData(const uint256& txHash, const std::string& key)
 {
-    auto tx = wallet->GetWalletTx(txHash);
-    if (!tx) return "";
-    auto it = tx->mapValue.find(key);
-    return it != tx->mapValue.end() ? it->second : "";
+    return wallet->GetStrFromTxExtraData(txHash, key);
 }
 
 void WalletModel::listCoins(std::map<ListCoinsKey, std::vector<ListCoinsValue>>& mapCoins, bool fTransparent) const

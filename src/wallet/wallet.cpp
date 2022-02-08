@@ -701,6 +701,14 @@ bool CWallet::HasSaplingSPKM() const
     return GetSaplingScriptPubKeyMan()->IsEnabled();
 }
 
+std::string CWallet::GetStrFromTxExtraData(const uint256& txHash, const std::string& key)
+{
+    auto tx = GetWalletTx(txHash);
+    if (!tx) return "";
+    auto it = tx->mapValue.find(key);
+    return it != tx->mapValue.end() ? it->second : "";
+}
+
 /**
  * Outpoint is spent if any non-conflicted transaction
  * spends it:

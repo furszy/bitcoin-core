@@ -29,6 +29,17 @@ public:
     COutPoint collateralOut;
 };
 
+struct DMNData
+{
+    std::string ownerMainAddr;
+    std::string ownerPayoutAddr;
+    std::string operatorPk;
+    std::string operatorSk;
+    Optional<std::string> operatorPayoutAddr;
+    int operatorPayoutPercentage{0};
+    std::string votingAddr;
+};
+
 namespace interfaces {
 
 class TierTwo : public CValidationInterface {
@@ -51,6 +62,9 @@ public:
     // Return the DMNs that this wallet "owns".
     // future: add filter to return by owner, operator, voter or a combination of them.
     std::vector<std::shared_ptr<DMNView>> getKnownDMNs() { return WITH_LOCK(cs_cache, return m_cached_dmns;); };
+
+    // Retrieve the DMNData if the DMN exists
+    Optional<DMNData> getDMNData(const uint256& proTxHash, const CBlockIndex* tip);
 
     void NotifyMasternodeListChanged(bool undo, const CDeterministicMNList& oldMNList, const CDeterministicMNListDiff& diff) override;
 };
