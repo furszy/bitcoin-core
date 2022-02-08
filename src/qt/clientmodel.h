@@ -69,6 +69,7 @@ public:
     uint256 getLastBlockProcessed() const;
     int getLastBlockProcessedHeight() const;
     int64_t getLastBlockProcessedTime() const;
+    const CBlockIndex* getLastBlockIndexProcessed() const { return cacheTip; }
     double getVerificationProgress() const;
     bool isTipCached() const;
 

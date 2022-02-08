@@ -77,4 +77,7 @@ void setCssProperty(QWidget* wid, const QString& value, bool forceUpdate = false
 void forceUpdateStyle(QWidget* widget, bool forceUpdate);
 void forceUpdateStyle(std::initializer_list<QWidget*> args);
 
+void setShortTextIfExceedSize(QLabel* label, const QString& str, int cut, int size);
+void setShortText(QLabel* label, const QString& str, int size);
+
 #endif // QTUTILS_H

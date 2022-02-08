@@ -193,6 +193,9 @@ QVariant MNModel::data(const QModelIndex &index, int role) const
             case IS_POSE_ENABLED:{
                 return mnWrapper.dmnView && !mnWrapper.dmnView->isPoSeBanned;
             }
+            case PRO_TX_HASH:{
+                if (mnWrapper.dmnView) return QString::fromStdString(mnWrapper.dmnView->proTxHash.GetHex());
+            }
         }
     }
     case Qt::ToolTipRole:

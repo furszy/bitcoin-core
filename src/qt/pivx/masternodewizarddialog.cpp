@@ -289,11 +289,6 @@ void MasterNodeWizardDialog::completeTask()
     else QDialog::accept();
 }
 
-static void setShortText(QLabel* label, const QString& str, int size)
-{
-    label->setText(str.left(size) + "..." + str.right(size));
-}
-
 void MasterNodeWizardDialog::setSummary()
 {
     assert(mnSummary);

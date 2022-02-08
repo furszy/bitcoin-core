@@ -362,3 +362,17 @@ void forceUpdateStyle(std::initializer_list<QWidget*> args)
         forceUpdateStyle(w, true);
     }
 }
+
+void setShortTextIfExceedSize(QLabel* label, const QString& str, int cut, int size)
+{
+    if (str.length() > size) {
+        setShortText(label, str, cut);
+    } else {
+        label->setText(str);
+    }
+}
+
+void setShortText(QLabel* label, const QString& str, int size)
+{
+    label->setText(str.left(size) + "..." + str.right(size));
+}

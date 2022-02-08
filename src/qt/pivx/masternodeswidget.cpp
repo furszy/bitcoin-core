@@ -13,6 +13,7 @@
 
 #include "clientmodel.h"
 #include "guiutil.h"
+#include "interfaces/tiertwo.h"
 #include "qt/pivx/mnmodel.h"
 #include "qt/pivx/optionbutton.h"
 #include "qt/walletmodel.h"
@@ -317,7 +318,14 @@ void MasterNodesWidget::onInfoMNClicked()
     QString txId = index.sibling(index.row(), MNModel::COLLATERAL_ID).data(Qt::DisplayRole).toString();
     QString outIndex = index.sibling(index.row(), MNModel::COLLATERAL_OUT_INDEX).data(Qt::DisplayRole).toString();
     QString pubKey = index.sibling(index.row(), MNModel::PUB_KEY).data(Qt::DisplayRole).toString();
-    dialog->setData(pubKey, label, address, txId, outIndex, status);
+    bool isLegacy = ((uint16_t) index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt()) == MNViewType::LEGACY;
+    Optional<DMNData> opDMN = nullopt;
+    if (!isLegacy) {
+        QString proTxHash = index.sibling(index.row(), MNModel::PRO_TX_HASH).data(Qt::DisplayRole).toString();
+        opDMN = interfaces::g_tiertwo->getDMNData(uint256S(proTxHash.toStdString()),
+                                                  clientModel->getLastBlockIndexProcessed());
+    }
+    dialog->setData(pubKey, label, address, txId, outIndex, status, opDMN);
     dialog->adjustSize();
     showDialog(dialog, 3, 17);
     if (dialog->exportMN) {
