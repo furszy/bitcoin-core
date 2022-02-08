@@ -929,7 +929,7 @@
         <property name="sizeHint" stdset="0">
          <size>
           <width>20</width>
-          <height>15</height>
+          <height>14</height>
          </size>
         </property>
        </spacer>
@@ -1718,9 +1718,9 @@
          </layout>
         </widget>
         <widget class="QWidget" name="page_6">
-         <layout class="QVBoxLayout" name="verticalLayout_575" stretch="0,0">
+         <layout class="QVBoxLayout" name="verticalLayout_575" stretch="0,0,0">
           <property name="spacing">
-           <number>6</number>
+           <number>0</number>
           </property>
           <property name="leftMargin">
            <number>0</number>
@@ -1739,7 +1739,7 @@
             <property name="minimumSize">
              <size>
               <width>0</width>
-              <height>50</height>
+              <height>25</height>
              </size>
             </property>
             <property name="maximumSize">
@@ -1750,6 +1750,25 @@
             </property>
             <property name="text">
              <string>Masternode Created!</string>
+            </property>
+           </widget>
+          </item>
+          <item alignment="Qt::AlignHCenter">
+           <widget class="QLabel" name="labelSubtitleSummary">
+            <property name="minimumSize">
+             <size>
+              <width>360</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>(Press on any label to copy the content)</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
             </property>
            </widget>
           </item>

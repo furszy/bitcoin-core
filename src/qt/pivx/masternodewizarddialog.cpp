@@ -161,6 +161,7 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
 void MasterNodeWizardDialog::initSummaryPage()
 {
     setCssProperty(ui->labelSummary, "text-title-dialog");
+    setCssSubtitleScreen(ui->labelSubtitleSummary);
     setCssProperty({ui->containerOwner, ui->containerOperator}, "card-governance");
     setCssProperty({ui->labelOwnerSection, ui->labelOperatorSection}, "text-section-title");
     setCssProperty({ui->labelTitleMainAddr, ui->labelTitlePayoutAddr, ui->labelTitleCollateral, ui->labelTitleCollateralIndex,
