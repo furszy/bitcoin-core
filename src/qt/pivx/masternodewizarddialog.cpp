@@ -126,6 +126,7 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     setCssProperty({ui->labelSubtitleOwnerAddress, ui->labelSubtitlePayoutAddress}, "text-title");
     initCssEditLine(ui->lineEditOwnerAddress);
     initCssEditLine(ui->lineEditPayoutAddress);
+    setDropdownList(ui->lineEditOwnerAddress, actOwnerAddrList, {AddressTableModel::Receive});
 
     // Frame Operator
     setCssProperty(ui->labelTitle6, "text-title-dialog");
@@ -527,6 +528,63 @@ void MasterNodeWizardDialog::onBackClicked()
             break;
         }
     }
+}
+
+void MasterNodeWizardDialog::setDropdownList(QLineEdit* edit, QAction* action, const QStringList& types)
+{
+    action = edit->addAction(QIcon("://ic-contact-arrow-down"), QLineEdit::TrailingPosition);
+    connect(action, &QAction::triggered, [this, types, edit](){ onAddrListClicked(types, edit); });
+}
+
+// TODO: Connect it to every address editable box
+void MasterNodeWizardDialog::onAddrListClicked(const QStringList& types, QLineEdit* edit)
+{
+    const auto& addrModel = walletModel->getAddressTableModel();
+    int addrSize = 0;
+    for (const auto& type : types) {
+        if (type == AddressTableModel::Send) {
+            addrSize += addrModel->sizeSend();
+        } else if (type == AddressTableModel::Receive) {
+            addrSize += addrModel->sizeRecv();
+        }
+    }
+    if (addrSize == 0) {
+        inform(tr("No addresses available"));
+        return;
+    }
+
+    int height = 70 * 2 + 1; // 2 rows (70 each row).
+    int width = edit->width();
+    if (!dropdownMenu) {
+        // TODO: add different row icon for contacts and own addresses.
+        // TODO: add filter/search option.
+        dropdownMenu = new ContactsDropdown(
+                width,
+                height,
+                dynamic_cast<PIVXGUI*>(parent()),
+                this
+        );
+        // TODO: Update connection every time that a new 'edit' is provided
+        connect(dropdownMenu, &ContactsDropdown::contactSelected, [edit](const QString& address, const QString& label) {
+            edit->setText(address);
+        });
+
+    }
+    if (dropdownMenu->isVisible()) {
+        dropdownMenu->hide();
+        return;
+    }
+
+    dropdownMenu->setWalletModel(walletModel, types);
+    dropdownMenu->resizeList(width, height);
+    dropdownMenu->setStyleSheet(styleSheet());
+    dropdownMenu->adjustSize();
+
+    QPoint position = edit->parentWidget()->mapToGlobal(edit->rect().bottomLeft());
+    position.setY(position.y() - 8); // Minus spacing
+    position.setX(position.x() - width / 2 - 8);
+    dropdownMenu->move(position);
+    dropdownMenu->show();
 }
 
 void MasterNodeWizardDialog::inform(const QString& text)

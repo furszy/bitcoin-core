@@ -10,7 +10,9 @@
 #include "masternodeconfig.h"
 #include "qt/pivx/pwidget.h"
 
+class ContactsDropdown;
 class MNModel;
+class QLineEdit;
 class WalletModel;
 
 namespace Ui {
@@ -84,6 +86,9 @@ private Q_SLOTS:
     void onBackClicked();
 private:
     Ui::MasterNodeWizardDialog *ui;
+    ContactsDropdown* dropdownMenu{nullptr};
+    QAction* actOwnerAddrList{nullptr};
+
     QList<QPushButton*> list_icConfirm{};
     QList<QPushButton*> list_pushNumber{};
     QList<QPushButton*> list_pushName{};
@@ -110,6 +115,9 @@ private:
 
     CallResult<std::pair<std::string, CKeyID>> getOrCreateOwnerAddress(const std::string& alias);
     CallResult<std::pair<std::string, CKeyID>> getOrCreatePayoutAddress(const std::string& alias);
+
+    void setDropdownList(QLineEdit* edit, QAction* action, const QStringList& types);
+    void onAddrListClicked(const QStringList& types, QLineEdit* edit);
 };
 
 #endif // MASTERNODEWIZARDDIALOG_H
