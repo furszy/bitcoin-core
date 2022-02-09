@@ -329,16 +329,22 @@ void MasterNodesWidget::onInfoMNClicked()
     dialog->adjustSize();
     showDialog(dialog, 3, 17);
     if (dialog->exportMN) {
+        QString legacyText = isLegacy ? tr(" Then start the Masternode using\nthis controller wallet (select the Masternode in the list and press \"start\").") : "";
         if (ask(tr("Remote Masternode Data"),
                 tr("You are just about to export the required data to run a Masternode\non a remote server to your clipboard.\n\n\n"
-                   "You will only have to paste the data in the pivx.conf file\nof your remote server and start it, "
-                   "then start the Masternode using\nthis controller wallet (select the Masternode in the list and press \"start\").\n"
-                ))) {
+                   "You will only have to paste the data in the pivx.conf file\nof your remote server and start it."
+                   "%1\n").arg(legacyText))) {
             // export data
             QString exportedMN = "masternode=1\n"
-                                 "externalip=" + address.left(address.lastIndexOf(":")) + "\n" +
-                                 "masternodeaddr=" + address + + "\n" +
-                                 "masternodeprivkey=" + index.sibling(index.row(), MNModel::PRIV_KEY).data(Qt::DisplayRole).toString() + "\n";
+                                 "externalip=" + address.left(address.lastIndexOf(":")) + "\n"
+                                 "listen=1\n";
+            if (isLegacy) {
+                exportedMN += "masternodeaddr=" + address + +"\n" +
+                             "masternodeprivkey=" +
+                             index.sibling(index.row(), MNModel::PRIV_KEY).data(Qt::DisplayRole).toString() + "\n";
+            } else {
+                exportedMN += "mnoperatorprivatekey=" + QString::fromStdString(opDMN->operatorSk.empty() ? "<insert operator private key here>" : opDMN->operatorSk) + "\n";
+            }
             GUIUtil::setClipboard(exportedMN);
             inform(tr("Masternode data copied to the clipboard."));
         }

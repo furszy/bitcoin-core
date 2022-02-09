@@ -111,13 +111,16 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     initCssEditLine(ui->lineEditIpAddress);
     initCssEditLine(ui->lineEditPort);
     ui->stackedWidget->setCurrentIndex(pos);
-    ui->lineEditPort->setEnabled(false);    // use default port number
     if (walletModel->isRegTestNetwork()) {
+        ui->lineEditPort->setEnabled(true);
         ui->lineEditPort->setText("51476");
-    } else if (walletModel->isTestNetwork()) {
-        ui->lineEditPort->setText("51474");
     } else {
-        ui->lineEditPort->setText("51472");
+        ui->lineEditPort->setEnabled(false); // fixed to default port number
+        if (walletModel->isTestNetwork()) {
+            ui->lineEditPort->setText("51474");
+        } else {
+            ui->lineEditPort->setText("51472");
+        }
     }
 
     // Frame Owner
