@@ -327,7 +327,7 @@ public:
     std::vector<CFinalCommitment> FinalizeCommitments();
 
     bool AreWeMember() const { return !myProTxHash.IsNull(); }
-    void MarkBadMember(size_t idx);
+    void MarkBadMember(CDKGMember* member);
 
     void RelayInvToParticipants(const CInv& inv) const;
 
