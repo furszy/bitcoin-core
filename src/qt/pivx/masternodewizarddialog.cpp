@@ -72,38 +72,72 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
 
     isDeterministic = walletModel->isV6Enforced();
 
-    for (int i = 0; i < 5; i++) list_icConfirm.push_back(new QPushButton(this));
-    list_pushNumber = {ui->pushNumber1, ui->pushNumber2, ui->pushNumber3, ui->pushNumber4, ui->pushNumber5};
-    list_pushName = {ui->pushName1, ui->pushName2, ui->pushName3, ui->pushName4, ui->pushName5};
-    setCssProperty({ui->labelLine1, ui->labelLine2, ui->labelLine3, ui->labelLine4}, "line-purple");
+    for (int i = 0; i < 6; i++) list_icConfirm.push_back(new QPushButton(this));
+    list_pushNumber = {ui->pushNumber1, ui->pushNumber2, ui->pushNumber3, ui->pushNumber4, ui->pushNumber5, ui->pushNumber6};
+    list_pushName = {ui->pushName1, ui->pushName2, ui->pushName3, ui->pushName4, ui->pushName5, ui->pushName6};
+    setCssProperty({ui->labelLine1, ui->labelLine2, ui->labelLine3, ui->labelLine4, ui->labelLine5}, "line-purple");
     setCssProperty({ui->groupBoxName, ui->groupContainer}, "container-border");
 
-    // Frame Intro
+    QString collateralAmountStr(GUIUtil::formatBalance(mnModel->getMNCollateralRequiredAmount()));
+    initIntroPage(collateralAmountStr);
+    initCollateralPage(collateralAmountStr);
+    initServicePage();
+    initOwnerPage();
+    initOperatorPage();
+    initVoterPage();
+    initSummaryPage();
+
+    // Confirm icons
+    ui->stackedIcon1->addWidget(list_icConfirm[0]);
+    ui->stackedIcon2->addWidget(list_icConfirm[1]);
+    ui->stackedIcon3->addWidget(list_icConfirm[2]);
+    ui->stackedIcon4->addWidget(list_icConfirm[3]);
+    ui->stackedIcon5->addWidget(list_icConfirm[4]);
+    ui->stackedIcon6->addWidget(list_icConfirm[5]);
+    initTopBtns(list_icConfirm, list_pushNumber, list_pushName);
+
+    // Connect btns
+    setCssBtnPrimary(ui->btnNext);
+    setCssProperty(ui->btnBack , "btn-dialog-cancel");
+    ui->btnBack->setVisible(false);
+    setCssProperty(ui->pushButtonSkip, "ic-close");
+
+    connect(ui->pushButtonSkip, &QPushButton::clicked, this, &MasterNodeWizardDialog::close);
+    connect(ui->btnNext, &QPushButton::clicked, this, &MasterNodeWizardDialog::accept);
+    connect(ui->btnBack, &QPushButton::clicked, this, &MasterNodeWizardDialog::onBackClicked);
+}
+
+void MasterNodeWizardDialog::initIntroPage(const QString& collateralAmountStr)
+{
     setCssProperty(ui->labelTitle1, "text-title-dialog");
     setCssProperty(ui->labelMessage1a, "text-main-grey");
     setCssProperty(ui->labelMessage1b, "text-main-purple");
 
-    QString collateralAmountStr = GUIUtil::formatBalance(mnModel->getMNCollateralRequiredAmount());
     ui->labelMessage1a->setText(formatHtmlContent(
-                formatParagraph(tr("To create a PIVX Masternode you must dedicate %1 (the unit of PIVX) "
-                        "to the network (however, these coins are still yours and will never leave your possession).").arg(collateralAmountStr)) +
-                formatParagraph(tr("You can deactivate the node and unlock the coins at any time."))));
+            formatParagraph(tr("To create a PIVX Masternode you must dedicate %1 (the unit of PIVX) "
+                               "to the network (however, these coins are still yours and will never leave your possession).").arg(collateralAmountStr)) +
+            formatParagraph(tr("You can deactivate the node and unlock the coins at any time."))));
+}
 
-    // Frame Collateral
+void MasterNodeWizardDialog::initCollateralPage(const QString& collateralAmountStr)
+{
     setCssProperty(ui->labelTitle3, "text-title-dialog");
     setCssProperty(ui->labelMessage3, "text-main-grey");
+    setCssSubtitleScreen(ui->labelSubtitleName);
 
     ui->labelMessage3->setText(formatHtmlContent(
-                formatParagraph(tr("A transaction of %1 will be made").arg(collateralAmountStr)) +
-                formatParagraph(tr("to a new empty address in your wallet.")) +
-                formatParagraph(tr("The Address is labeled under the master node's name."))));
+            formatParagraph(tr("A transaction of %1 will be made").arg(collateralAmountStr)) +
+            formatParagraph(tr("to a new empty address in your wallet.")) +
+            formatParagraph(tr("The Address is labeled under the master node's name."))));
 
     initCssEditLine(ui->lineEditName);
     // MN alias must not contain spaces or "#" character
     QRegularExpression rx("^(?:(?![\\#\\s]).)*");
     ui->lineEditName->setValidator(new QRegularExpressionValidator(rx, ui->lineEditName));
+}
 
-    // Frame Service
+void MasterNodeWizardDialog::initServicePage()
+{
     setCssProperty(ui->labelTitle4, "text-title-dialog");
     setCssProperty({ui->labelSubtitleIp, ui->labelSubtitlePort}, "text-title");
     setCssSubtitleScreen(ui->labelSubtitleAddressIp);
@@ -122,16 +156,20 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
             ui->lineEditPort->setText("51472");
         }
     }
+}
 
-    // Frame Owner
+void MasterNodeWizardDialog::initOwnerPage()
+{
     setCssProperty(ui->labelTitle5, "text-title-dialog");
     setCssSubtitleScreen(ui->labelSubtitleOwner);
     setCssProperty({ui->labelSubtitleOwnerAddress, ui->labelSubtitlePayoutAddress}, "text-title");
     initCssEditLine(ui->lineEditOwnerAddress);
     initCssEditLine(ui->lineEditPayoutAddress);
     setDropdownList(ui->lineEditOwnerAddress, actOwnerAddrList, {AddressTableModel::Receive});
+}
 
-    // Frame Operator
+void MasterNodeWizardDialog::initOperatorPage()
+{
     setCssProperty(ui->labelTitle6, "text-title-dialog");
     setCssSubtitleScreen(ui->labelSubtitleOperator);
     setCssProperty({ui->labelSubtitleOperatorKey, ui->labelSubtitleOperatorReward}, "text-title");
@@ -139,27 +177,14 @@ MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnM
     initCssEditLine(ui->lineEditOperatorPayoutAddress);
     initCssEditLine(ui->lineEditPercentage);
     ui->lineEditPercentage->setValidator(new QIntValidator(1, 99));
+}
 
-    // Frame Summary
-    initSummaryPage();
-
-    // Confirm icons
-    ui->stackedIcon1->addWidget(list_icConfirm[0]);
-    ui->stackedIcon2->addWidget(list_icConfirm[1]);
-    ui->stackedIcon3->addWidget(list_icConfirm[2]);
-    ui->stackedIcon4->addWidget(list_icConfirm[3]);
-    ui->stackedIcon5->addWidget(list_icConfirm[4]);
-    initTopBtns(list_icConfirm, list_pushNumber, list_pushName);
-
-    // Connect btns
-    setCssBtnPrimary(ui->btnNext);
-    setCssProperty(ui->btnBack , "btn-dialog-cancel");
-    ui->btnBack->setVisible(false);
-    setCssProperty(ui->pushButtonSkip, "ic-close");
-
-    connect(ui->pushButtonSkip, &QPushButton::clicked, this, &MasterNodeWizardDialog::close);
-    connect(ui->btnNext, &QPushButton::clicked, this, &MasterNodeWizardDialog::accept);
-    connect(ui->btnBack, &QPushButton::clicked, this, &MasterNodeWizardDialog::onBackClicked);
+void MasterNodeWizardDialog::initVoterPage()
+{
+    setCssProperty(ui->labelTitleVoter, "text-title-dialog");
+    setCssSubtitleScreen(ui->labelSubtitleVoter);
+    setCssProperty({ui->labelSubtitleVoterKey}, "text-title");
+    initCssEditLine(ui->lineEditVoterKey);
 }
 
 void MasterNodeWizardDialog::initSummaryPage()
@@ -267,6 +292,11 @@ void MasterNodeWizardDialog::accept()
         }
         case Pages::OPERATOR: {
             if (!validateOperator()) return; // invalid state informed internally
+            moveToNextPage(pos, nextPos);
+            break;
+        }
+        case Pages::VOTER: {
+            if (!validateVoter()) return; // invalid state informed internally
             completeTask();
             return;
         }
@@ -477,6 +507,18 @@ bool MasterNodeWizardDialog::validateOwner()
     if (!payoutAddress.isEmpty() && !walletModel->validateAddress(payoutAddress)) {
         setCssEditLine(ui->lineEditPayoutAddress, false, true);
         inform(tr("Invalid payout address"));
+        return false;
+    }
+
+    return true;
+}
+
+bool MasterNodeWizardDialog::validateVoter()
+{
+    QString voterAddress(ui->lineEditVoterKey->text());
+    if (!voterAddress.isEmpty() && !walletModel->validateAddress(voterAddress)) {
+        setCssEditLine(ui->lineEditVoterKey, false, true);
+        inform(tr("Invalid voting address"));
         return false;
     }
 

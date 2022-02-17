@@ -54,7 +54,8 @@ enum Pages {
    SERVICE = 2,
    OWNER = 3,
    OPERATOR = 4,
-   SUMMARY = 5
+   VOTER = 5,
+   SUMMARY = 6
 };
 
 public:
@@ -100,6 +101,12 @@ private:
     WalletModel* walletModel{nullptr};
     MNModel* mnModel{nullptr};
 
+    void initIntroPage(const QString& collateralAmountStr);
+    void initCollateralPage(const QString& collateralAmountStr);
+    void initServicePage();
+    void initOwnerPage();
+    void initOperatorPage();
+    void initVoterPage();
     void initSummaryPage();
 
     bool createMN();
@@ -110,6 +117,7 @@ private:
     void moveToNextPage(int currentPos, int nextPos);
     void moveBack(int backPos);
 
+    bool validateVoter();
     bool validateOwner();
     bool validateOperator();
 
