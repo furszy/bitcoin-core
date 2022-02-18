@@ -123,6 +123,7 @@ private:
 
     CallResult<std::pair<std::string, CKeyID>> getOrCreateOwnerAddress(const std::string& alias);
     CallResult<std::pair<std::string, CKeyID>> getOrCreatePayoutAddress(const std::string& alias);
+    CallResult<std::pair<std::string, CKeyID>> getOrCreateVotingAddress(const std::string& alias);
 
     void setDropdownList(QLineEdit* edit, QAction* action, const QStringList& types);
     void onAddrListClicked(const QStringList& types, QLineEdit* edit);

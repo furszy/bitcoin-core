@@ -339,42 +339,41 @@ void MasterNodeWizardDialog::setSummary()
     }
 }
 
-CallResult<std::pair<std::string, CKeyID>> MasterNodeWizardDialog::getOrCreateOwnerAddress(const std::string& alias)
+CallResult<std::pair<std::string, CKeyID>> getOrCreateAddress(const QString& input,
+                                                              const std::string& alias,
+                                                              const std::string& label_prefix,
+                                                              WalletModel* walletModel,
+                                                              bool checkIsMine)
 {
-    QString ownerAddrStr(ui->lineEditOwnerAddress->text());
-    if (ownerAddrStr.isEmpty()) {
-        // Create owner addr
-        const auto ownerAddr = walletModel->getNewAddress("dmn_owner_" + alias);
-        if (!ownerAddr) return {ownerAddr.getError()};
-        const CKeyID* ownerKeyId = ownerAddr.getObjResult()->getKeyID();
-        return {{ownerAddr.getObjResult()->ToString(), *ownerKeyId}};
+    if (input.isEmpty()) {
+        const auto addr = walletModel->getNewAddress("dmn_"+label_prefix+"_"+alias);
+        if (!addr) return {addr.getError()};
+        const CKeyID* ownerKeyId = addr.getObjResult()->getKeyID();
+        return {{addr.getObjResult()->ToString(), *ownerKeyId}};
     } else {
-        if (!walletModel->isMine(ownerAddrStr)) {
-            return {"Invalid owner address, must be owned by this wallet"}; // Shouldn't happen..
-        }
-        std::string addrStr = ownerAddrStr.toStdString();
+        std::string addrStr = input.toStdString();
         auto opKeyId = walletModel->getKeyIDFromAddr(addrStr);
-        if (!opKeyId) return {"Invalid owner address id"};
+        if (!opKeyId) return {"Invalid "+label_prefix+" address id"};
+        if (checkIsMine && !walletModel->isMine(*opKeyId)) {
+            return {"Invalid "+label_prefix+" address, must be owned by this wallet"};
+        }
         return {{addrStr, *opKeyId}};
     }
 }
 
-// Future: generalize with getOrCreateOwnerAddress.
+CallResult<std::pair<std::string, CKeyID>> MasterNodeWizardDialog::getOrCreateOwnerAddress(const std::string& alias)
+{
+    return getOrCreateAddress(ui->lineEditOwnerAddress->text(), alias, "owner", walletModel, true);
+}
+
 CallResult<std::pair<std::string, CKeyID>> MasterNodeWizardDialog::getOrCreatePayoutAddress(const std::string& alias)
 {
-    QString payoutAddrStr(ui->lineEditPayoutAddress->text());
-    if (payoutAddrStr.isEmpty()) {
-        // Create payout addr
-        const auto ownerAddr = walletModel->getNewAddress("dmn_payout_" + alias);
-        if (!ownerAddr) return {ownerAddr.getError()};
-        const CKeyID* ownerKeyId = ownerAddr.getObjResult()->getKeyID();
-        return {{ownerAddr.getObjResult()->ToString(), *ownerKeyId}};
-    } else {
-        std::string addrStr = payoutAddrStr.toStdString();
-        auto opKeyId = walletModel->getKeyIDFromAddr(addrStr);
-        if (!opKeyId) return {"Invalid payout address id"};
-        return {{addrStr, *opKeyId}};
-    }
+    return getOrCreateAddress(ui->lineEditPayoutAddress->text(), alias, "payout", walletModel, false);
+}
+
+CallResult<std::pair<std::string, CKeyID>> MasterNodeWizardDialog::getOrCreateVotingAddress(const std::string& alias)
+{
+    return getOrCreateAddress(ui->lineEditVoterKey->text(), alias, "voting", walletModel, false);
 }
 
 bool MasterNodeWizardDialog::createMN()
@@ -447,6 +446,20 @@ bool MasterNodeWizardDialog::createMN()
         Optional<CKeyID> operatorPayoutKeyId = walletModel->getKeyIDFromAddr(ui->lineEditOperatorPayoutAddress->text().toStdString());
         int operatorPercentage = ui->lineEditPercentage->text().isEmpty() ? 0 : (int) ui->lineEditPercentage->text().toUInt();
 
+        // 4) Get voter data
+        Optional<CKeyID> votingAddr;
+        if (!ui->lineEditVoterKey->text().isEmpty()) {
+            auto opVotingAddrAndKeyId = getOrCreateVotingAddress(alias);
+            if (!opVotingAddrAndKeyId.getRes()) {
+                return errorOut(tr(opVotingAddrAndKeyId.getError().c_str()));
+            }
+            auto votingAddrAndKeyId = opVotingAddrAndKeyId.getObjResult();
+            votingAddr = votingAddrAndKeyId->second;
+        } else {
+            // Empty voting address means "use the owner key for voting"
+            votingAddr = ownerKeyId;
+        }
+
         // For now, collateral key is always inside the wallet
         std::string error_str;
         auto res = mnModel->createDMN(alias,
@@ -455,8 +468,8 @@ bool MasterNodeWizardDialog::createMN()
                                       port,
                                       ownerKeyId,
                                       operatorKey.isEmpty() ? nullopt : Optional<std::string>(operatorKey.toStdString()),
-                                      nullopt, // use owner key as voting key
-                                      payoutKeyId, // use owner key as payout script
+                                      votingAddr,
+                                      payoutKeyId,
                                       error_str,
                                       operatorPercentage, // operator percentage
                                       operatorPayoutKeyId); // operator payout script

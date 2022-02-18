@@ -113,7 +113,7 @@ public:
                                   const std::string& servicePort,
                                   const CKeyID& ownerAddr,
                                   const Optional<std::string>& operatorPubKey,
-                                  const Optional<std::string>& votingAddr,
+                                  const Optional<CKeyID>& votingAddr,
                                   const CKeyID& payoutAddr,
                                   std::string& strError,
                                   const Optional<int>& operatorPercentage = nullopt,

@@ -347,7 +347,7 @@ CallResult<uint256> MNModel::createDMN(const std::string& alias,
                                        const std::string& servicePort,
                                        const CKeyID& ownerAddr,
                                        const Optional<std::string>& operatorPubKey,
-                                       const Optional<std::string>& votingAddr,
+                                       const Optional<CKeyID>& votingAddr,
                                        const CKeyID& payoutKeyId,
                                        std::string& strError,
                                        const Optional<int>& operatorPercentage,
@@ -401,7 +401,7 @@ CallResult<uint256> MNModel::createDMN(const std::string& alias,
                                  service,
                                  ownerAddr,
                                  operatorPk,
-                                 Optional<CKeyID>(ownerAddr), // voting key
+                                 votingAddr, // voting key
                                  payoutKeyId, // payout script
                                  operatorSk, // only if the operator was provided (or locally created)
                                  operatorPercentage,   // operator percentage
