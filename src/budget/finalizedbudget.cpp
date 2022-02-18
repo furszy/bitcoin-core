@@ -7,6 +7,7 @@
 
 #include "budget/budgetutil.h"
 #include "masternodeman.h"
+#include "utilmoneystr.h"
 #include "validation.h"
 
 CFinalizedBudget::CFinalizedBudget() :
@@ -387,6 +388,33 @@ bool CFinalizedBudget::GetPayeeAndAmount(int64_t nBlockHeight, CScript& payee, C
     if (i > (int)vecBudgetPayments.size() - 1) return false;
     payee = vecBudgetPayments[i].payee;
     nAmount = vecBudgetPayments[i].nAmount;
+    return true;
+}
+
+bool CFinalizedBudget::AllBudgetsPaid(const CTransaction& tx) const
+{
+    // make a map for faster lookup and deal with duplicate payees
+    auto cmp = [](CTxOut a, CTxOut b) {
+        return a.scriptPubKey < b.scriptPubKey ||
+               (a.scriptPubKey == b.scriptPubKey && a.nValue < b.nValue);
+    };
+    std::set<CTxOut, decltype(cmp)> outs(tx.vout.begin(), tx.vout.end(), cmp);
+
+    for (const CTxBudgetPayment& payment : vecBudgetPayments) {
+        const auto it = outs.find(CTxOut(payment.nAmount, payment.payee));
+        if (it == outs.end()) {
+            // Payment not found
+            CTxDestination addr;
+            const std::string& payee = ExtractDestination(payment.payee, addr) ? EncodeDestination(addr)
+                                                                               : HexStr(payment.payee);
+            LogPrint(BCLog::MNBUDGET, "Missing payment of %s for %s (proposal hash: %s)\n",
+                    FormatMoney(payment.nAmount), payee, payment.nProposalHash.ToString());
+            return false;
+        }
+        outs.erase(it);
+    }
+
+    // all budgets are paid by tx
     return true;
 }
 
