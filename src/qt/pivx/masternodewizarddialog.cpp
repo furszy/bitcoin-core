@@ -189,17 +189,20 @@ void MasterNodeWizardDialog::initVoterPage()
 
 void MasterNodeWizardDialog::initSummaryPage()
 {
+    setCssProperty({ui->scrollAreaSummary, ui->containerSummary}, "container");
     setCssProperty(ui->labelSummary, "text-title-dialog");
     setCssSubtitleScreen(ui->labelSubtitleSummary);
-    setCssProperty({ui->containerOwner, ui->containerOperator}, "card-governance");
-    setCssProperty({ui->labelOwnerSection, ui->labelOperatorSection}, "text-section-title");
+    setCssProperty({ui->containerOwner, ui->containerOperator, ui->containerVoter}, "card-governance");
+    setCssProperty({ui->labelOwnerSection, ui->labelOperatorSection, ui->labelVoterSection}, "text-section-title");
     setCssProperty({ui->labelTitleMainAddr, ui->labelTitlePayoutAddr, ui->labelTitleCollateral, ui->labelTitleCollateralIndex,
                     ui->labelTitleOperatorKey, ui->labelTitleOperatorService, ui->labelTitleOperatorPayout, ui->labelTitleOperatorPercentage,
-                    ui->labelTitleOperatorService}, "text-title-right");
+                    ui->labelTitleOperatorService, ui->labelTitleVoterAddress}, "text-title-right");
     setCssProperty({ui->labelMainAddr, ui->labelPayoutAddr, ui->labelCollateralIndex, ui->labelCollateralHash,
-                    ui->labelOperatorKey, ui->labelOperatorPayout, ui->labelOperatorPercentage, ui->labelOperatorService}, "text-body2-dialog");
+                    ui->labelOperatorKey, ui->labelOperatorPayout, ui->labelOperatorPercentage, ui->labelOperatorService,
+                    ui->labelVoterAddress}, "text-body2-dialog");
     setCardShadow(ui->containerOwner);
     setCardShadow(ui->containerOperator);
+    setCardShadow(ui->containerVoter);
 
     connect(ui->labelMainAddr, &ClickableLabel::clicked, [this](){
         GUIUtil::setClipboard(QString::fromStdString(mnSummary->ownerAddr));
@@ -225,6 +228,11 @@ void MasterNodeWizardDialog::initSummaryPage()
         if (!mnSummary->operatorPayoutAddr) return;
         GUIUtil::setClipboard(QString::fromStdString(*mnSummary->operatorPayoutAddr));
         inform(tr("Operator payout address copied to clipboard"));
+    });
+
+    connect(ui->labelVoterAddress, &ClickableLabel::clicked, [this](){
+        GUIUtil::setClipboard(QString::fromStdString(mnSummary->votingKey));
+        inform(tr("Voting address copied to clipboard"));
     });
 }
 
@@ -337,6 +345,7 @@ void MasterNodeWizardDialog::setSummary()
     } else {
         ui->labelOperatorPayout->setText(tr("No address"));
     }
+    setShortText(ui->labelVoterAddress, QString::fromStdString(mnSummary->votingKey), 14);
 }
 
 CallResult<std::pair<std::string, CKeyID>> getOrCreateAddress(const QString& input,

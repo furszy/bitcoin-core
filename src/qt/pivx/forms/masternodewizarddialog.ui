@@ -1935,7 +1935,7 @@
              </size>
             </property>
             <property name="text">
-             <string>Customize who will be able to submit proposal votes</string>
+             <string>Customize who will be able to vote for proposal</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignCenter</set>
@@ -1964,7 +1964,7 @@
           <item>
            <widget class="QLabel" name="labelSubtitleVoterKey">
             <property name="text">
-             <string>Enter key (can leave it empty and the wallet will create one for you)</string>
+             <string>Enter address (if empty, the wallet will create one for you)</string>
             </property>
             <property name="alignment">
              <set>Qt::AlignCenter</set>
@@ -2065,450 +2065,569 @@
            </widget>
           </item>
           <item>
-           <widget class="QWidget" name="containerSummary" native="true">
-            <layout class="QVBoxLayout" name="verticalLayout" stretch="1,1">
-             <item>
-              <widget class="QWidget" name="containerOwner" native="true">
-               <layout class="QVBoxLayout" name="verticalLayout_6">
-                <property name="spacing">
-                 <number>8</number>
-                </property>
-                <property name="leftMargin">
-                 <number>9</number>
-                </property>
-                <property name="topMargin">
-                 <number>9</number>
-                </property>
-                <property name="rightMargin">
-                 <number>12</number>
-                </property>
-                <item>
-                 <widget class="QLabel" name="labelOwnerSection">
-                  <property name="text">
-                   <string>Owner Section</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QWidget" name="widget" native="true">
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <layout class="QHBoxLayout" name="horizontalLayoutOwner">
-                   <property name="spacing">
-                    <number>0</number>
+           <widget class="QScrollArea" name="scrollAreaSummary">
+            <property name="focusPolicy">
+             <enum>Qt::NoFocus</enum>
+            </property>
+            <property name="autoFillBackground">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">#scrollAreaSummary{
+              border: 0;
+             }</string>
+            </property>
+            <property name="lineWidth">
+             <number>0</number>
+            </property>
+            <property name="widgetResizable">
+             <bool>true</bool>
+            </property>
+            <widget class="QWidget" name="containerSummary">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>0</y>
+               <width>681</width>
+               <height>352</height>
+              </rect>
+             </property>
+             <property name="focusPolicy">
+              <enum>Qt::NoFocus</enum>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">#containerSummary{
+               border: 0;
+              }</string>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout" stretch="1,1,0">
+              <item>
+               <widget class="QWidget" name="containerOwner" native="true">
+                <layout class="QVBoxLayout" name="verticalLayout_6">
+                 <property name="spacing">
+                  <number>8</number>
+                 </property>
+                 <property name="leftMargin">
+                  <number>9</number>
+                 </property>
+                 <property name="topMargin">
+                  <number>9</number>
+                 </property>
+                 <property name="rightMargin">
+                  <number>12</number>
+                 </property>
+                 <item>
+                  <widget class="QLabel" name="labelOwnerSection">
+                   <property name="text">
+                    <string>Owner Section</string>
                    </property>
-                   <property name="leftMargin">
-                    <number>3</number>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QWidget" name="widget" native="true">
+                   <property name="minimumSize">
+                    <size>
+                     <width>0</width>
+                     <height>0</height>
+                    </size>
                    </property>
-                   <property name="topMargin">
-                    <number>0</number>
+                   <layout class="QHBoxLayout" name="horizontalLayoutOwner">
+                    <property name="spacing">
+                     <number>0</number>
+                    </property>
+                    <property name="leftMargin">
+                     <number>3</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <widget class="QWidget" name="containerOwnerKey" native="true">
+                      <layout class="QVBoxLayout" name="verticalLayout_7">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelTitleMainAddr">
+                         <property name="text">
+                          <string>Main Address</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="ClickableLabel" name="labelMainAddr">
+                         <property name="text">
+                          <string>N/A</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                    <item alignment="Qt::AlignRight">
+                     <widget class="QWidget" name="containerOwnerKey_2" native="true">
+                      <property name="layoutDirection">
+                       <enum>Qt::LeftToRight</enum>
+                      </property>
+                      <layout class="QVBoxLayout" name="verticalLayout_8">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item alignment="Qt::AlignRight">
+                        <widget class="QLabel" name="labelTitlePayoutAddr">
+                         <property name="text">
+                          <string>Payout Address</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item alignment="Qt::AlignRight">
+                        <widget class="ClickableLabel" name="labelPayoutAddr">
+                         <property name="text">
+                          <string>N/A</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QWidget" name="containerOwnerKey_3" native="true">
+                   <property name="minimumSize">
+                    <size>
+                     <width>60</width>
+                     <height>0</height>
+                    </size>
                    </property>
-                   <property name="rightMargin">
-                    <number>0</number>
+                   <layout class="QHBoxLayout" name="horizontalLayout_5">
+                    <property name="spacing">
+                     <number>0</number>
+                    </property>
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <widget class="QWidget" name="widget_4" native="true">
+                      <layout class="QVBoxLayout" name="verticalLayout_10">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>3</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelTitleCollateral">
+                         <property name="text">
+                          <string>Collateral ID</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="ClickableLabel" name="labelCollateralHash">
+                         <property name="text">
+                          <string>N/A</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                    <item alignment="Qt::AlignRight">
+                     <widget class="QWidget" name="widget_3" native="true">
+                      <layout class="QVBoxLayout" name="verticalLayout_9">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelTitleCollateralIndex">
+                         <property name="text">
+                          <string>Collateral Index</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item alignment="Qt::AlignRight">
+                        <widget class="ClickableLabel" name="labelCollateralIndex">
+                         <property name="text">
+                          <string>N/A</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+              <item>
+               <widget class="QWidget" name="containerOperator" native="true">
+                <layout class="QVBoxLayout" name="verticalLayout_operator">
+                 <property name="spacing">
+                  <number>8</number>
+                 </property>
+                 <property name="leftMargin">
+                  <number>9</number>
+                 </property>
+                 <property name="rightMargin">
+                  <number>12</number>
+                 </property>
+                 <item>
+                  <widget class="QLabel" name="labelOperatorSection">
+                   <property name="text">
+                    <string>Operator Section</string>
                    </property>
-                   <property name="bottomMargin">
-                    <number>0</number>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QWidget" name="widget4343" native="true">
+                   <property name="minimumSize">
+                    <size>
+                     <width>0</width>
+                     <height>0</height>
+                    </size>
                    </property>
-                   <item>
-                    <widget class="QWidget" name="containerOwnerKey" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_7">
-                      <property name="spacing">
-                       <number>4</number>
+                   <layout class="QHBoxLayout" name="horizontalLayout4314">
+                    <property name="spacing">
+                     <number>0</number>
+                    </property>
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <widget class="QWidget" name="containerOperatorKey" native="true">
+                      <layout class="QVBoxLayout" name="verticalLayout_opkey">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>3</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelTitleOperatorKey">
+                         <property name="text">
+                          <string>Operator Key</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="ClickableLabel" name="labelOperatorKey">
+                         <property name="text">
+                          <string>N/A</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                    <item alignment="Qt::AlignRight">
+                     <widget class="QWidget" name="containerOperator2" native="true">
+                      <property name="layoutDirection">
+                       <enum>Qt::LeftToRight</enum>
                       </property>
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item>
-                       <widget class="QLabel" name="labelTitleMainAddr">
-                        <property name="text">
-                         <string>Main Address</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item>
-                       <widget class="ClickableLabel" name="labelMainAddr">
-                        <property name="text">
-                         <string>N/A</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                   <item alignment="Qt::AlignRight">
-                    <widget class="QWidget" name="containerOwnerKey_2" native="true">
-                     <property name="layoutDirection">
-                      <enum>Qt::LeftToRight</enum>
-                     </property>
-                     <layout class="QVBoxLayout" name="verticalLayout_8">
-                      <property name="spacing">
-                       <number>4</number>
-                      </property>
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item alignment="Qt::AlignRight">
-                       <widget class="QLabel" name="labelTitlePayoutAddr">
-                        <property name="text">
-                         <string>Payout Address</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item alignment="Qt::AlignRight">
-                       <widget class="ClickableLabel" name="labelPayoutAddr">
-                        <property name="text">
-                         <string>N/A</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QWidget" name="containerOwnerKey_3" native="true">
-                  <property name="minimumSize">
-                   <size>
-                    <width>60</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <layout class="QHBoxLayout" name="horizontalLayout_5">
-                   <property name="spacing">
-                    <number>0</number>
+                      <layout class="QVBoxLayout" name="verticalLayout_operator2">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item alignment="Qt::AlignRight">
+                        <widget class="QLabel" name="labelTitleOperatorService">
+                         <property name="text">
+                          <string>Service</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item alignment="Qt::AlignRight">
+                        <widget class="ClickableLabel" name="labelOperatorService">
+                         <property name="text">
+                          <string notr="true">N/A</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QWidget" name="containerOperatorKey_3" native="true">
+                   <property name="minimumSize">
+                    <size>
+                     <width>60</width>
+                     <height>0</height>
+                    </size>
                    </property>
-                   <property name="leftMargin">
-                    <number>0</number>
+                   <layout class="QHBoxLayout" name="horizontalLayout_51">
+                    <property name="spacing">
+                     <number>0</number>
+                    </property>
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <widget class="QWidget" name="widget_oppayout" native="true">
+                      <layout class="QVBoxLayout" name="verticalLayout_oppayout">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>3</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelTitleOperatorPayout">
+                         <property name="text">
+                          <string>Payout Address</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="ClickableLabel" name="labelOperatorPayout">
+                         <property name="text">
+                          <string notr="true">N/A</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                    <item alignment="Qt::AlignRight">
+                     <widget class="QWidget" name="widget_35" native="true">
+                      <layout class="QVBoxLayout" name="verticalLayout_94">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelTitleOperatorPercentage">
+                         <property name="text">
+                          <string>Payout Percentage</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item alignment="Qt::AlignRight">
+                        <widget class="ClickableLabel" name="labelOperatorPercentage">
+                         <property name="text">
+                          <string notr="true">0.00</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+              <item>
+               <widget class="QWidget" name="containerVoter" native="true">
+                <layout class="QVBoxLayout" name="verticalLayout_voter2">
+                 <property name="spacing">
+                  <number>8</number>
+                 </property>
+                 <property name="leftMargin">
+                  <number>9</number>
+                 </property>
+                 <property name="rightMargin">
+                  <number>12</number>
+                 </property>
+                 <item>
+                  <widget class="QLabel" name="labelVoterSection">
+                   <property name="text">
+                    <string>Voting Section</string>
                    </property>
-                   <property name="topMargin">
-                    <number>0</number>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QWidget" name="widget4149" native="true">
+                   <property name="minimumSize">
+                    <size>
+                     <width>0</width>
+                     <height>0</height>
+                    </size>
                    </property>
-                   <property name="rightMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="bottomMargin">
-                    <number>0</number>
-                   </property>
-                   <item>
-                    <widget class="QWidget" name="widget_4" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_10">
-                      <property name="spacing">
-                       <number>4</number>
-                      </property>
-                      <property name="leftMargin">
-                       <number>3</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item>
-                       <widget class="QLabel" name="labelTitleCollateral">
-                        <property name="text">
-                         <string>Collateral ID</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item>
-                       <widget class="ClickableLabel" name="labelCollateralHash">
-                        <property name="text">
-                         <string>N/A</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                   <item alignment="Qt::AlignRight">
-                    <widget class="QWidget" name="widget_3" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_9">
-                      <property name="spacing">
-                       <number>4</number>
-                      </property>
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item>
-                       <widget class="QLabel" name="labelTitleCollateralIndex">
-                        <property name="text">
-                         <string>Collateral Index</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item alignment="Qt::AlignRight">
-                       <widget class="ClickableLabel" name="labelCollateralIndex">
-                        <property name="text">
-                         <string>N/A</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QWidget" name="containerOperator" native="true">
-               <layout class="QVBoxLayout" name="verticalLayout_operator">
-                <property name="spacing">
-                 <number>8</number>
-                </property>
-                <property name="leftMargin">
-                 <number>9</number>
-                </property>
-                <property name="rightMargin">
-                 <number>12</number>
-                </property>
-                <item>
-                 <widget class="QLabel" name="labelOperatorSection">
-                  <property name="text">
-                   <string>Operator Section</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QWidget" name="widget4343" native="true">
-                  <property name="minimumSize">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <layout class="QHBoxLayout" name="horizontalLayout4314">
-                   <property name="spacing">
-                    <number>0</number>
-                   </property>
-                   <property name="leftMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="topMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="rightMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="bottomMargin">
-                    <number>0</number>
-                   </property>
-                   <item>
-                    <widget class="QWidget" name="containerOperatorKey" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_opkey">
-                      <property name="spacing">
-                       <number>4</number>
-                      </property>
-                      <property name="leftMargin">
-                       <number>3</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item>
-                       <widget class="QLabel" name="labelTitleOperatorKey">
-                        <property name="text">
-                         <string>Operator Key</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item>
-                       <widget class="ClickableLabel" name="labelOperatorKey">
-                        <property name="text">
-                         <string>N/A</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                   <item alignment="Qt::AlignRight">
-                    <widget class="QWidget" name="containerOperator2" native="true">
-                     <property name="layoutDirection">
-                      <enum>Qt::LeftToRight</enum>
-                     </property>
-                     <layout class="QVBoxLayout" name="verticalLayout_operator2">
-                      <property name="spacing">
-                       <number>4</number>
-                      </property>
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item alignment="Qt::AlignRight">
-                       <widget class="QLabel" name="labelTitleOperatorService">
-                        <property name="text">
-                         <string>Service</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item alignment="Qt::AlignRight">
-                       <widget class="ClickableLabel" name="labelOperatorService">
-                        <property name="text">
-                         <string notr="true">N/A</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QWidget" name="containerOperatorKey_3" native="true">
-                  <property name="minimumSize">
-                   <size>
-                    <width>60</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                  <layout class="QHBoxLayout" name="horizontalLayout_51">
-                   <property name="spacing">
-                    <number>0</number>
-                   </property>
-                   <property name="leftMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="topMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="rightMargin">
-                    <number>0</number>
-                   </property>
-                   <property name="bottomMargin">
-                    <number>0</number>
-                   </property>
-                   <item>
-                    <widget class="QWidget" name="widget_oppayout" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_oppayout">
-                      <property name="spacing">
-                       <number>4</number>
-                      </property>
-                      <property name="leftMargin">
-                       <number>3</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item>
-                       <widget class="QLabel" name="labelTitleOperatorPayout">
-                        <property name="text">
-                         <string>Payout Address</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item>
-                       <widget class="ClickableLabel" name="labelOperatorPayout">
-                        <property name="text">
-                         <string notr="true">N/A</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                   <item alignment="Qt::AlignRight">
-                    <widget class="QWidget" name="widget_35" native="true">
-                     <layout class="QVBoxLayout" name="verticalLayout_94">
-                      <property name="spacing">
-                       <number>4</number>
-                      </property>
-                      <property name="leftMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="topMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="rightMargin">
-                       <number>0</number>
-                      </property>
-                      <property name="bottomMargin">
-                       <number>0</number>
-                      </property>
-                      <item>
-                       <widget class="QLabel" name="labelTitleOperatorPercentage">
-                        <property name="text">
-                         <string>Payout Percentage</string>
-                        </property>
-                       </widget>
-                      </item>
-                      <item alignment="Qt::AlignRight">
-                       <widget class="ClickableLabel" name="labelOperatorPercentage">
-                        <property name="text">
-                         <string notr="true">0.00</string>
-                        </property>
-                       </widget>
-                      </item>
-                     </layout>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
-               </layout>
-              </widget>
-             </item>
-            </layout>
+                   <layout class="QHBoxLayout" name="horizontalLayout4124">
+                    <property name="spacing">
+                     <number>0</number>
+                    </property>
+                    <property name="leftMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="topMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="rightMargin">
+                     <number>0</number>
+                    </property>
+                    <property name="bottomMargin">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <widget class="QWidget" name="containerVoterAddr" native="true">
+                      <layout class="QVBoxLayout" name="verticalLayout_voterAddr">
+                       <property name="spacing">
+                        <number>4</number>
+                       </property>
+                       <property name="leftMargin">
+                        <number>3</number>
+                       </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="rightMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
+                       <item>
+                        <widget class="QLabel" name="labelTitleVoterAddress">
+                         <property name="text">
+                          <string>Voting Address</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="ClickableLabel" name="labelVoterAddress">
+                         <property name="text">
+                          <string>N/A</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
+                    </item>
+                   </layout>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+             </layout>
+            </widget>
            </widget>
           </item>
          </layout>
