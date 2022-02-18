@@ -510,17 +510,25 @@ bool CBudgetManager::GetExpectedPayeeAmount(int chainHeight, CAmount& nAmountRet
     return GetPayeeAndAmount(chainHeight, payeeRet, nAmountRet);
 }
 
-CAmount CBudgetManager::GetFinalizedBudgetTotalPayout(int chainHeight) const
+const CFinalizedBudget* CBudgetManager::GetBestFinalizedBudget(int chainHeight) const
 {
     if (!IsSuperBlock(chainHeight)) {
-        return 0;
+        return nullptr;
     }
     int nFivePercent = mnodeman.CountEnabled() / 20;
 
     const auto highest = GetBudgetWithHighestVoteCount(chainHeight);
-    const CFinalizedBudget* pfb = highest.m_budget_fin;
-    if (pfb == nullptr || highest.m_vote_count <= nFivePercent) {
+    if (highest.m_budget_fin == nullptr || highest.m_vote_count <= nFivePercent) {
         // No finalization or not enough votes.
+        return nullptr;
+    }
+    return highest.m_budget_fin;
+}
+
+CAmount CBudgetManager::GetFinalizedBudgetTotalPayout(int chainHeight) const
+{
+    const CFinalizedBudget* pfb = GetBestFinalizedBudget(chainHeight);
+    if (pfb == nullptr) {
         return 0;
     }
     return pfb->GetTotalPayout();
@@ -571,18 +579,10 @@ bool CBudgetManager::FillBlockPayee(CMutableTransaction& txCoinbase, CMutableTra
 
 void CBudgetManager::FillBlockPayees(CMutableTransaction& tx, int height) const
 {
-    if (!IsSuperBlock(height)) {
-        return;
+    const CFinalizedBudget* pfb = GetBestFinalizedBudget(height);
+    if (pfb != nullptr) {
+        pfb->PayAllBudgets(tx);
     }
-    int nFivePercent = mnodeman.CountEnabled() / 20;
-
-    const auto highest = GetBudgetWithHighestVoteCount(height);
-    const CFinalizedBudget* pfb = highest.m_budget_fin;
-    if (pfb == nullptr || highest.m_vote_count <= nFivePercent) {
-        // No finalization or not enough votes.
-        return;
-    }
-    pfb->PayAllBudgets(tx);
 }
 
 void CBudgetManager::VoteOnFinalizedBudgets()
@@ -778,11 +778,8 @@ bool CBudgetManager::IsValidSuperBlockTx(const CTransaction& txNew, int nBlockHe
 {
     assert(IsSuperBlock(nBlockHeight));
 
-    int nFivePercent = mnodeman.CountEnabled() / 20;
-
-    const auto highest = GetBudgetWithHighestVoteCount(nBlockHeight);
-    const CFinalizedBudget* pfb = highest.m_budget_fin;
-    if (pfb == nullptr || highest.m_vote_count <= nFivePercent) {
+    const CFinalizedBudget* pfb = GetBestFinalizedBudget(nBlockHeight);
+    if (pfb == nullptr) {
         // No finalization or not enough votes. Nothing to check.
         return true;
     }
