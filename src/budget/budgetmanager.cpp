@@ -5,6 +5,7 @@
 
 #include "budget/budgetmanager.h"
 
+#include "budget/budgetutil.h"
 #include "consensus/validation.h"
 #include "evo/deterministicmns.h"
 #include "masternodeman.h"
@@ -507,6 +508,22 @@ bool CBudgetManager::GetExpectedPayeeAmount(int chainHeight, CAmount& nAmountRet
 {
     CScript payeeRet;
     return GetPayeeAndAmount(chainHeight, payeeRet, nAmountRet);
+}
+
+CAmount CBudgetManager::GetFinalizedBudgetTotalPayout(int chainHeight) const
+{
+    if (!IsSuperBlock(chainHeight)) {
+        return 0;
+    }
+    int nFivePercent = mnodeman.CountEnabled() / 20;
+
+    const auto highest = GetBudgetWithHighestVoteCount(chainHeight);
+    const CFinalizedBudget* pfb = highest.m_budget_fin;
+    if (pfb == nullptr || highest.m_vote_count <= nFivePercent) {
+        // No finalization or not enough votes.
+        return 0;
+    }
+    return pfb->GetTotalPayout();
 }
 
 bool CBudgetManager::FillBlockPayee(CMutableTransaction& txCoinbase, CMutableTransaction& txCoinstake, const int nHeight, bool fProofOfStake) const
