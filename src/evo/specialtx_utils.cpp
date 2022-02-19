@@ -51,7 +51,9 @@ OperationResult SignAndSendSpecialTx(CWallet* pwallet, CMutableTransaction& tx, 
     CWallet::CommitResult res = pwallet->CommitTransaction(MakeTransactionRef(tx), nullptr, g_connman.get(), extras);
     CValidationState& state = res.state;
     if (state.IsInvalid()) {
-        return {false, strprintf("%s: %s", state.GetRejectReason(), state.GetDebugMessage())};
+        std::string debugMsg = state.GetDebugMessage();
+        return {false, debugMsg.empty() ? state.GetRejectReason() :
+                strprintf("%s: %s", state.GetRejectReason(), debugMsg)};
     }
 
     return {true};

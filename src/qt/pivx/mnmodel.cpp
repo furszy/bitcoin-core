@@ -295,6 +295,17 @@ int MNModel::getMasternodeCollateralMinConf()
     return Params().GetConsensus().MasternodeCollateralMinConf();
 }
 
+// Add here only the errors that the user could face
+std::string translateRejectionError(const std::string& rejection)
+{
+    if (rejection == "bad-protx-ipaddr-port") {
+        return _("Invalid service IP address");
+    } else if (rejection == "bad-protx-dup-IP-address") {
+        return _("The provided service IP address is already in use by another registered Masternode");
+    }
+    return rejection;
+}
+
 static CallResult<uint256> createDMNInternal(const COutPoint& collateral,
                                              const CKey& keyCollateral,
                                              const CService& service,
@@ -338,7 +349,8 @@ static CallResult<uint256> createDMNInternal(const COutPoint& collateral,
         extraValues.emplace("operatorSk", bls::EncodeSecret(Params(), *operatorSk));
     }
     res = SignAndSendSpecialTx(wallet, tx, pl, &extraValues);
-    return res ? CallResult<uint256>(tx.GetHash()) : CallResult<uint256>(res.getError());
+    return res ? CallResult<uint256>(tx.GetHash()) :
+            CallResult<uint256>(translateRejectionError(res.getError()));
 }
 
 CallResult<uint256> MNModel::createDMN(const std::string& alias,
