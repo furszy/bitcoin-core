@@ -20,6 +20,9 @@ class uint256;
 /** The maximum allowed size of the extraPayload (for any TxType) */
 static const unsigned int MAX_SPECIALTX_EXTRAPAYLOAD = 10000;
 
+/** Operator service validity checks */
+bool CheckService(const CService& addr, CValidationState& state);
+
 /** Payload validity checks (including duplicate unique properties against list at pindexPrev)*/
 // Note: for +v2, if the tx is not a special tx, this method returns true.
 // Note2: This function only performs extra payload related checks, it does NOT checks regular inputs and outputs.

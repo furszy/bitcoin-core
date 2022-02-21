@@ -5,6 +5,7 @@
 #ifndef PIVX_INTERFACES_TIERTWO_H
 #define PIVX_INTERFACES_TIERTWO_H
 
+#include "operationresult.h"
 #include "sync.h"
 #include "uint256.h"
 #include "validationinterface.h"
@@ -58,6 +59,9 @@ public:
 
     // Return true if the bls key is valid
     bool isBlsPubKeyValid(const std::string& blsKey);
+
+    // Verifies the operator service address validity
+    OperationResult isServiceValid(const std::string& serviceStr);
 
     // Return the DMNs that this wallet "owns".
     // future: add filter to return by owner, operator, voter or a combination of them.

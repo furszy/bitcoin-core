@@ -117,6 +117,7 @@ private:
     void moveToNextPage(int currentPos, int nextPos);
     void moveBack(int backPos);
 
+    bool validateService();
     bool validateVoter();
     bool validateOwner();
     bool validateOperator();

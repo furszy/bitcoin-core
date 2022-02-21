@@ -286,6 +286,7 @@ void MasterNodeWizardDialog::accept()
                 isOk = createMN();
                 QDialog::accept();
             } else {
+                if (!validateService()) return; // invalid state informed internally
                 // Ask if the user want to customize the owner, operator and voter addresses and keys
                 // if not, the process will generate all the values for them and present them in the summary page.
                 isWaitingForAsk = true;
@@ -514,6 +515,12 @@ bool MasterNodeWizardDialog::createMN()
         returnStr = tr("Masternode created! Wait %1 confirmations before starting it.").arg(mnModel->getMasternodeCollateralMinConf());
     }
     return true;
+}
+
+bool MasterNodeWizardDialog::validateService()
+{
+    auto opRes = interfaces::g_tiertwo->isServiceValid(ui->lineEditIpAddress->text().toStdString());
+    return opRes || errorOut(tr(opRes.getError().c_str()));
 }
 
 bool MasterNodeWizardDialog::validateOwner()

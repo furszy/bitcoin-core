@@ -7,6 +7,8 @@
 #include "bls/key_io.h"
 #include "evo/deterministicmns.h"
 #include "optional.h"
+#include "netbase.h"
+#include "evo/specialtx_validation.h" // For CheckService
 #include "validation.h"
 #include "wallet/wallet.h"
 
@@ -18,6 +20,23 @@ bool TierTwo::isBlsPubKeyValid(const std::string& blsKey)
 {
     auto opKey = bls::DecodePublic(Params(), blsKey);
     return opKey && opKey->IsValid();
+}
+
+OperationResult TierTwo::isServiceValid(const std::string& serviceStr)
+{
+    if (serviceStr.empty()) return false;
+    const auto& params = Params();
+    CService service;
+    if (!Lookup(serviceStr, service, params.GetDefaultPort(), false)) {
+        return {false, strprintf("invalid network address %s", serviceStr)};
+    }
+
+    CValidationState state;
+    if (!CheckService(service, state)) {
+        return {false, state.GetRejectReason()};
+    }
+    // All good
+    return {true};
 }
 
 Optional<DMNData> TierTwo::getDMNData(const uint256& pro_tx_hash, const CBlockIndex* tip)
