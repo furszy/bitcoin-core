@@ -22,7 +22,7 @@ void MNRow::updateView(QString address,
                        const QString& label,
                        QString status,
                        bool wasCollateralAccepted,
-                       uint16_t type)
+                       uint8_t type)
 {
     ui->labelName->setText(label);
     address = address.size() < 40 ? address : address.left(20) + "..." + address.right(20);

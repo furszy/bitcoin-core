@@ -57,6 +57,9 @@ public:
     // Initialize cache
     void init();
 
+    // Return true if spork21 is enabled
+    bool isLegacySystemObsolete();
+
     // Return true if the bls key is valid
     bool isBlsPubKeyValid(const std::string& blsKey);
 

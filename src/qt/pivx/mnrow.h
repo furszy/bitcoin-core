@@ -23,7 +23,7 @@ public:
                     const QString& label,
                     QString status,
                     bool wasCollateralAccepted,
-                    uint16_t type);
+                    uint8_t type);
 
 Q_SIGNALS:
     void onMenuClicked();

@@ -16,6 +16,11 @@ namespace interfaces {
 
 std::unique_ptr<TierTwo> g_tiertwo;
 
+bool TierTwo::isLegacySystemObsolete()
+{
+    return deterministicMNManager->LegacyMNObsolete();
+}
+
 bool TierTwo::isBlsPubKeyValid(const std::string& blsKey)
 {
     auto opKey = bls::DecodePublic(Params(), blsKey);

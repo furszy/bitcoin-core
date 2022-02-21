@@ -275,6 +275,11 @@ bool MNModel::isMNCollateralMature(const QString& mnAlias)
     return mn->collateralId && collateralTxAccepted.value(mn->collateralId->hash.GetHex());
 }
 
+bool MNModel::isLegacySystemObsolete()
+{
+    return interfaces::g_tiertwo->isLegacySystemObsolete();
+}
+
 bool MNModel::isMNsNetworkSynced()
 {
     return g_tiertwo_sync_state.IsSynced();

@@ -41,7 +41,7 @@ public:
         QString address = index.sibling(index.row(), MNModel::ADDRESS).data(Qt::DisplayRole).toString();
         QString status = index.sibling(index.row(), MNModel::STATUS).data(Qt::DisplayRole).toString();
         bool wasCollateralAccepted = index.sibling(index.row(), MNModel::WAS_COLLATERAL_ACCEPTED).data(Qt::DisplayRole).toBool();
-        uint16_t type = index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt();
+        uint8_t type = index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt();
         row->updateView("Address: " + address, label, status, wasCollateralAccepted, type);
     }
 
@@ -194,7 +194,7 @@ void MasterNodesWidget::onEditMNClicked()
 {
     if (walletModel) {
         if (!walletModel->isRegTestNetwork() && !checkMNsNetwork()) return;
-        uint16_t mnType = index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt();
+        uint8_t mnType = index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt();
         if (mnType == MNViewType::LEGACY) {
             if (index.sibling(index.row(), MNModel::WAS_COLLATERAL_ACCEPTED).data(Qt::DisplayRole).toBool()) {
                 // Start MN
@@ -318,7 +318,7 @@ void MasterNodesWidget::onInfoMNClicked()
     QString txId = index.sibling(index.row(), MNModel::COLLATERAL_ID).data(Qt::DisplayRole).toString();
     QString outIndex = index.sibling(index.row(), MNModel::COLLATERAL_OUT_INDEX).data(Qt::DisplayRole).toString();
     QString pubKey = index.sibling(index.row(), MNModel::PUB_KEY).data(Qt::DisplayRole).toString();
-    bool isLegacy = ((uint16_t) index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt()) == MNViewType::LEGACY;
+    bool isLegacy = ((uint8_t) index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt()) == MNViewType::LEGACY;
     Optional<DMNData> opDMN = nullopt;
     if (!isLegacy) {
         QString proTxHash = index.sibling(index.row(), MNModel::PRO_TX_HASH).data(Qt::DisplayRole).toString();
@@ -358,7 +358,7 @@ void MasterNodesWidget::onDeleteMNClicked()
     QString txId = index.sibling(index.row(), MNModel::COLLATERAL_ID).data(Qt::DisplayRole).toString();
     QString outIndex = index.sibling(index.row(), MNModel::COLLATERAL_OUT_INDEX).data(Qt::DisplayRole).toString();
     QString qAliasString = index.data(Qt::DisplayRole).toString();
-    bool isLegacy = ((uint16_t) index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt()) == MNViewType::LEGACY;
+    bool isLegacy = ((uint8_t) index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt()) == MNViewType::LEGACY;
 
     bool convertOK = false;
     unsigned int indexOut = outIndex.toUInt(&convertOK);

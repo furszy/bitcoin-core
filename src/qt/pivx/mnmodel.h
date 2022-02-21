@@ -15,7 +15,7 @@ class CMasternode;
 class DMNView;
 class WalletModel;
 
-enum MNViewType : uint16_t
+enum MNViewType : uint8_t
 {
     LEGACY = 0,
     DMN_OWNER = (1 << 0),
@@ -88,7 +88,9 @@ public:
     bool addMn(CMasternodeConfig::CMasternodeEntry* entry);
     void updateMNList();
 
-
+    // Whether the MN legacy system is active or not
+    bool isLegacySystemObsolete();
+    // Whether the tier two synchronization completed or not
     bool isMNsNetworkSynced();
     // Returns the MN activeState field.
     int getMNState(const QString& mnAlias);
