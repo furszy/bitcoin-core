@@ -116,7 +116,7 @@ public:
                                   const Optional<CKeyID>& votingAddr,
                                   const CKeyID& payoutAddr,
                                   std::string& strError,
-                                  const Optional<int>& operatorPercentage = nullopt,
+                                  const Optional<uint16_t>& operatorPercentage = nullopt,
                                   const Optional<CKeyID>& operatorPayoutAddr = nullopt);
 
     // Completely stops the Masternode spending the collateral

@@ -12,7 +12,7 @@
 #include "qt/pivx/qtutils.h"
 #include "qt/walletmodel.h"
 
-#include <QIntValidator>
+#include <QDoubleValidator>
 #include <QRegularExpression>
 #include <QGraphicsDropShadowEffect>
 
@@ -176,7 +176,7 @@ void MasterNodeWizardDialog::initOperatorPage()
     initCssEditLine(ui->lineEditOperatorKey);
     initCssEditLine(ui->lineEditOperatorPayoutAddress);
     initCssEditLine(ui->lineEditPercentage);
-    ui->lineEditPercentage->setValidator(new QIntValidator(1, 99));
+    ui->lineEditPercentage->setValidator(new QDoubleValidator(0.00, 100.00, 2, ui->lineEditPercentage));
 }
 
 void MasterNodeWizardDialog::initVoterPage()
@@ -454,7 +454,7 @@ bool MasterNodeWizardDialog::createMN()
         // 3) Get operator data
         QString operatorKey = ui->lineEditOperatorKey->text();
         Optional<CKeyID> operatorPayoutKeyId = walletModel->getKeyIDFromAddr(ui->lineEditOperatorPayoutAddress->text().toStdString());
-        int operatorPercentage = ui->lineEditPercentage->text().isEmpty() ? 0 : (int) ui->lineEditPercentage->text().toUInt();
+        double operatorPercentage = ui->lineEditPercentage->text().isEmpty() ? 0 : (double) ui->lineEditPercentage->text().toDouble();
 
         // 4) Get voter data
         Optional<CKeyID> votingAddr;
@@ -481,7 +481,7 @@ bool MasterNodeWizardDialog::createMN()
                                       votingAddr,
                                       payoutKeyId,
                                       error_str,
-                                      operatorPercentage, // operator percentage
+                                      (uint16_t) operatorPercentage * 100, // operator percentage
                                       operatorPayoutKeyId); // operator payout script
         if (!res) {
             return errorOut(tr(error_str.c_str()));

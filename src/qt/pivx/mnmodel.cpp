@@ -314,7 +314,7 @@ static CallResult<uint256> createDMNInternal(const COutPoint& collateral,
                                              const Optional<CKeyID>& votingAddr,
                                              const CKeyID& payoutAddr,
                                              const Optional<CBLSSecretKey>& operatorSk,
-                                             const Optional<int>& operatorPercentage,
+                                             const Optional<uint16_t>& operatorPercentage,
                                              const Optional<CKeyID>& operatorPayoutAddr)
 {
     ProRegPL pl;
@@ -362,7 +362,7 @@ CallResult<uint256> MNModel::createDMN(const std::string& alias,
                                        const Optional<CKeyID>& votingAddr,
                                        const CKeyID& payoutKeyId,
                                        std::string& strError,
-                                       const Optional<int>& operatorPercentage,
+                                       const Optional<uint16_t>& operatorPercentage,
                                        const Optional<CKeyID>& operatorPayoutAddr)
 {
     // Parse and validate inputs
