@@ -1625,11 +1625,11 @@ bool CheckCollateral(const uint256& nTxCollateralHash, const uint256& nExpectedH
         return false;
     }
 
-    if (txCollateral->vout.size() < 1) return false;
+    if (txCollateral->vout.empty()) return false;
     if (txCollateral->nLockTime != 0) return false;
 
-    CScript findScript;
-    findScript << OP_RETURN << ToByteVector(nExpectedHash);
+    CScript findScript = CScript() << OP_RETURN << ToByteVector(nExpectedHash);
+    CAmount expectedAmount = fBudgetFinalization ?  BUDGET_FEE_TX : PROPOSAL_FEE_TX;
 
     bool foundOpReturn = false;
     for (const CTxOut &o : txCollateral->vout) {
@@ -1637,28 +1637,9 @@ bool CheckCollateral(const uint256& nTxCollateralHash, const uint256& nExpectedH
             strError = strprintf("Invalid Script %s", txCollateral->ToString());
             return false;
         }
-        if (fBudgetFinalization) {
-            // Collateral for budget finalization
-            // Note: there are still old valid budgets out there, but the check for the new 5 PIV finalization collateral
-            //       will also cover the old 50 PIV finalization collateral.
-            LogPrint(BCLog::MNBUDGET, "Final Budget: o.scriptPubKey(%s) == findScript(%s) ?\n", HexStr(o.scriptPubKey), HexStr(findScript));
-            if (o.scriptPubKey == findScript) {
-                LogPrint(BCLog::MNBUDGET, "Final Budget: o.nValue(%ld) >= BUDGET_FEE_TX(%ld) ?\n", o.nValue, BUDGET_FEE_TX);
-                if(o.nValue >= BUDGET_FEE_TX) {
-                    foundOpReturn = true;
-                    break;
-                }
-            }
-        } else {
-            // Collateral for normal budget proposal
-            LogPrint(BCLog::MNBUDGET, "Normal Budget: o.scriptPubKey(%s) == findScript(%s) ?\n", HexStr(o.scriptPubKey), HexStr(findScript));
-            if (o.scriptPubKey == findScript) {
-                LogPrint(BCLog::MNBUDGET, "Normal Budget: o.nValue(%ld) >= PROPOSAL_FEE_TX(%ld) ?\n", o.nValue, PROPOSAL_FEE_TX);
-                if(o.nValue >= PROPOSAL_FEE_TX) {
-                    foundOpReturn = true;
-                    break;
-                }
-            }
+        if (o.scriptPubKey == findScript && o.nValue == expectedAmount) {
+            foundOpReturn = true;
+            break;
         }
     }
 
