@@ -638,15 +638,6 @@ bool CBudgetManager::GetProposal(const uint256& nHash, CBudgetProposal& bp) cons
     return true;
 }
 
-bool CBudgetManager::GetFinalizedBudget(const uint256& nHash, CFinalizedBudget& fb) const
-{
-    LOCK(cs_budgets);
-    auto it = mapFinalizedBudgets.find(nHash);
-    if (it == mapFinalizedBudgets.end()) return false;
-    fb = it->second;
-    return true;
-}
-
 bool CBudgetManager::IsBudgetPaymentBlock(int nBlockHeight, int& nCountThreshold) const
 {
     int nHighestCount = GetHighestVoteCount(nBlockHeight);

@@ -124,7 +124,6 @@ public:
     CFinalizedBudget* FindFinalizedBudget(const uint256& nHash);
     // const functions, copying the budget object to a reference and returning true if found
     bool GetProposal(const uint256& nHash, CBudgetProposal& bp) const;
-    bool GetFinalizedBudget(const uint256& nHash, CFinalizedBudget& fb) const;
     // finds the proposal with the given name, with highest net yes count.
     const CBudgetProposal* FindProposalByName(const std::string& strProposalName) const;
 
