@@ -205,43 +205,6 @@ void CBudgetManager::SetBudgetProposalsStr(CFinalizedBudget& finalizedBudget) co
     finalizedBudget.SetProposalsStr(strProposals);
 }
 
-std::string CBudgetManager::GetFinalizedBudgetStatus(const uint256& nHash) const
-{
-    CFinalizedBudget fb;
-    if (!GetFinalizedBudget(nHash, fb))
-        return strprintf("ERROR: cannot find finalized budget %s\n", nHash.ToString());
-
-    std::string retBadHashes = "";
-    std::string retBadPayeeOrAmount = "";
-    int nBlockStart = fb.GetBlockStart();
-    int nBlockEnd = fb.GetBlockEnd();
-
-    for (int nBlockHeight = nBlockStart; nBlockHeight <= nBlockEnd; nBlockHeight++) {
-        CTxBudgetPayment budgetPayment;
-        if (!fb.GetBudgetPaymentByBlock(nBlockHeight, budgetPayment)) {
-            LogPrint(BCLog::MNBUDGET,"%s: Couldn't find budget payment for block %lld\n", __func__, nBlockHeight);
-            continue;
-        }
-
-        CBudgetProposal bp;
-        if (!GetProposal(budgetPayment.nProposalHash, bp)) {
-            retBadHashes += (retBadHashes == "" ? "" : ", ") + budgetPayment.nProposalHash.ToString();
-            continue;
-        }
-
-        if (bp.GetPayee() != budgetPayment.payee || bp.GetAmount() != budgetPayment.nAmount) {
-            retBadPayeeOrAmount += (retBadPayeeOrAmount == "" ? "" : ", ") + budgetPayment.nProposalHash.ToString();
-        }
-    }
-
-    if (retBadHashes == "" && retBadPayeeOrAmount == "") return "OK";
-
-    if (retBadHashes != "") retBadHashes = "Unknown proposal(s) hash! Check this proposal(s) before voting: " + retBadHashes;
-    if (retBadPayeeOrAmount != "") retBadPayeeOrAmount = "Budget payee/nAmount doesn't match our proposal(s)! "+ retBadPayeeOrAmount;
-
-    return retBadHashes + " -- " + retBadPayeeOrAmount;
-}
-
 bool CBudgetManager::AddFinalizedBudget(CFinalizedBudget& finalizedBudget, CNode* pfrom)
 {
     AssertLockNotHeld(cs_budgets);    // need to lock cs_main here (CheckCollateral)

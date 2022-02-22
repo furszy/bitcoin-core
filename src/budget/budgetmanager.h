@@ -98,10 +98,6 @@ public:
     // sets strProposal of a CFinalizedBudget reference
     void SetBudgetProposalsStr(CFinalizedBudget& finalizedBudget) const;
 
-    // checks finalized budget proposals (existence, payee, amount) for the finalized budget
-    // in the map, with given nHash. Returns error string if any, or "OK" otherwise
-    std::string GetFinalizedBudgetStatus(const uint256& nHash) const;
-
     void ResetSync() { SetSynced(false); }
     void MarkSynced() { SetSynced(true); }
     // Respond to full budget sync requests and internally triggered partial budget items relay
