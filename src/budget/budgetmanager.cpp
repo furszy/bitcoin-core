@@ -1627,6 +1627,10 @@ bool CheckCollateral(const uint256& nTxCollateralHash, const uint256& nExpectedH
 
     if (txCollateral->vout.empty()) return false;
     if (txCollateral->nLockTime != 0) return false;
+    if (nBlockHash.IsNull()) {
+        strError = strprintf("Collateral transaction %s is unconfirmed", nTxCollateralHash.ToString());
+        return false;
+    }
 
     CScript findScript = CScript() << OP_RETURN << ToByteVector(nExpectedHash);
     CAmount expectedAmount = fBudgetFinalization ?  BUDGET_FEE_TX : PROPOSAL_FEE_TX;
@@ -1650,10 +1654,6 @@ bool CheckCollateral(const uint256& nTxCollateralHash, const uint256& nExpectedH
 
     // Retrieve block height (checking that it's in the active chain) and time
     // both get set in CBudgetProposal/CFinalizedBudget by the caller (AddProposal/AddFinalizedBudget)
-    if (nBlockHash.IsNull()) {
-        strError = strprintf("Collateral transaction %s is unconfirmed", nTxCollateralHash.ToString());
-        return false;
-    }
     nTime = 0;
     int nProposalHeight = 0;
     {
