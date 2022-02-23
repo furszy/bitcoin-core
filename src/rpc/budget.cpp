@@ -527,11 +527,11 @@ UniValue mnbudgetrawvote(const JSONRPCRequest& request)
         return "Failure to verify signature.";
     }
 
-    std::string strError;
-    if (g_budgetman.AddAndRelayProposalVote(vote, strError)) {
+    CValidationState state;
+    if (g_budgetman.ProcessProposalVote(vote, nullptr, state)) {
         return "Voted successfully";
     } else {
-        return "Error voting : " + strError;
+        return "Error voting : " + state.GetRejectReason() + ". " + state.GetDebugMessage();
     }
 }
 

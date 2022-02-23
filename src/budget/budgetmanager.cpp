@@ -901,16 +901,6 @@ CDataStream CBudgetManager::GetFinalizedBudgetSerialized(const uint256& budgetHa
     return mapFinalizedBudgets.at(budgetHash).GetBroadcast();
 }
 
-bool CBudgetManager::AddAndRelayProposalVote(const CBudgetVote& vote, std::string& strError)
-{
-    if (UpdateProposal(vote, nullptr, strError)) {
-        AddSeenProposalVote(vote);
-        vote.Relay();
-        return true;
-    }
-    return false;
-}
-
 void CBudgetManager::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload)
 {
     NewBlock();

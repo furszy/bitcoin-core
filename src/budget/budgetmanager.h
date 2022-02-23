@@ -93,8 +93,6 @@ public:
     CDataStream GetFinalizedBudgetVoteSerialized(const uint256& voteHash) const;
     CDataStream GetFinalizedBudgetSerialized(const uint256& budgetHash) const;
 
-    bool AddAndRelayProposalVote(const CBudgetVote& vote, std::string& strError);
-
     // sets strProposal of a CFinalizedBudget reference
     void SetBudgetProposalsStr(CFinalizedBudget& finalizedBudget) const;
 
