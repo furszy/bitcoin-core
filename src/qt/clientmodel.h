@@ -62,6 +62,8 @@ public:
     int getNumConnections(unsigned int flags = CONNECTIONS_ALL) const;
     int getNumBlocksAtStartup();
 
+    unsigned int getNetworkPort();
+
     // from cached block index
     int getNumBlocks();
     QDateTime getLastBlockDate() const;

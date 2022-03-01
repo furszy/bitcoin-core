@@ -412,7 +412,7 @@ void MasterNodesWidget::onCreateMNClicked()
             .arg(GUIUtil::formatBalance(mnCollateralAmount, BitcoinUnits::PIV)));
         return;
     }
-    MasterNodeWizardDialog* dialog = new MasterNodeWizardDialog(walletModel, mnModel, window);
+    MasterNodeWizardDialog* dialog = new MasterNodeWizardDialog(walletModel, mnModel, clientModel, window);
     connect(dialog, &MasterNodeWizardDialog::message, this, &PWidget::emitMessage);
     do {
         showHideOp(true);

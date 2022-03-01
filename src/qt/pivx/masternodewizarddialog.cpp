@@ -59,11 +59,12 @@ static void setCardShadow(QWidget* edit)
     edit->setGraphicsEffect(shadowEffect);
 }
 
-MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnModel, QWidget *parent) :
+MasterNodeWizardDialog::MasterNodeWizardDialog(WalletModel* model, MNModel* _mnModel, ClientModel* _clientModel, QWidget *parent) :
     FocusedDialog(parent),
     ui(new Ui::MasterNodeWizardDialog),
     walletModel(model),
-    mnModel(_mnModel)
+    mnModel(_mnModel),
+    clientModel(_clientModel)
 {
     ui->setupUi(this);
     setStyleSheet(parent->styleSheet());
@@ -145,17 +146,9 @@ void MasterNodeWizardDialog::initServicePage()
     initCssEditLine(ui->lineEditIpAddress);
     initCssEditLine(ui->lineEditPort);
     ui->stackedWidget->setCurrentIndex(pos);
-    if (walletModel->isRegTestNetwork()) {
-        ui->lineEditPort->setEnabled(true);
-        ui->lineEditPort->setText("51476");
-    } else {
-        ui->lineEditPort->setEnabled(false); // fixed to default port number
-        if (walletModel->isTestNetwork()) {
-            ui->lineEditPort->setText("51474");
-        } else {
-            ui->lineEditPort->setText("51472");
-        }
-    }
+    // Fixed to default port number for mainnet and testnet.
+    ui->lineEditPort->setEnabled(walletModel->isRegTestNetwork());
+    ui->lineEditPort->setText(QString::number(clientModel->getNetworkPort()));
 }
 
 void MasterNodeWizardDialog::initOwnerPage()

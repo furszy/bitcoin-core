@@ -10,6 +10,7 @@
 #include "masternodeconfig.h"
 #include "qt/pivx/pwidget.h"
 
+class ClientModel;
 class ContactsDropdown;
 class MNModel;
 class QLineEdit;
@@ -61,6 +62,7 @@ enum Pages {
 public:
     explicit MasterNodeWizardDialog(WalletModel* walletMode,
                                     MNModel* mnModel,
+                                    ClientModel* clientModel,
                                     QWidget *parent = nullptr);
     ~MasterNodeWizardDialog() override;
     void showEvent(QShowEvent *event) override;
@@ -100,6 +102,7 @@ private:
 
     WalletModel* walletModel{nullptr};
     MNModel* mnModel{nullptr};
+    ClientModel* clientModel{nullptr};
 
     void initIntroPage(const QString& collateralAmountStr);
     void initCollateralPage(const QString& collateralAmountStr);
