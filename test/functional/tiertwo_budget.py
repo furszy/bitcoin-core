@@ -145,7 +145,7 @@ class BudgetTest(PivxTier2TestFramework):
         for i in range(16):
             props.append(Proposal("prop_"+str(i),
                          "https://link_"+str(i)+".com",
-                         3,
+                         4,
                          self.nodes[self.ownerOnePos].getnewaddress(),
                          11 * (i + 1)))
         self.submit_proposals(props)
