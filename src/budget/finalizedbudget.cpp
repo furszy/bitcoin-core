@@ -394,15 +394,20 @@ bool CFinalizedBudget::GetPayeeAndAmount(int64_t nBlockHeight, CScript& payee, C
 bool CFinalizedBudget::AllBudgetsPaid(const CTransaction& tx) const
 {
     // make a map for faster lookup and deal with duplicate payees
-    auto cmp = [](CTxOut a, CTxOut b) {
-        return a.scriptPubKey < b.scriptPubKey ||
-               (a.scriptPubKey == b.scriptPubKey && a.nValue < b.nValue);
+    struct cmp {
+        bool operator()(const CTxOut& a, const CTxOut& b) const {
+            return a.scriptPubKey < b.scriptPubKey ||
+                   (a.scriptPubKey == b.scriptPubKey && a.nValue < b.nValue);
+        }
     };
-    std::set<CTxOut, decltype(cmp)> outs(tx.vout.begin(), tx.vout.end(), cmp);
+    std::map<CTxOut, int, cmp> txouts;
+    for (const CTxOut& o: tx.vout) {
+        txouts[o]++;
+    }
 
     for (const CTxBudgetPayment& payment : vecBudgetPayments) {
-        const auto it = outs.find(CTxOut(payment.nAmount, payment.payee));
-        if (it == outs.end()) {
+        const auto it = txouts.find(CTxOut(payment.nAmount, payment.payee));
+        if (it == txouts.end() || it->second == 0) {
             // Payment not found
             CTxDestination addr;
             const std::string& payee = ExtractDestination(payment.payee, addr) ? EncodeDestination(addr)
@@ -411,7 +416,7 @@ bool CFinalizedBudget::AllBudgetsPaid(const CTransaction& tx) const
                     FormatMoney(payment.nAmount), payee, payment.nProposalHash.ToString());
             return false;
         }
-        outs.erase(it);
+        it->second--;
     }
 
     // all budgets are paid by tx
