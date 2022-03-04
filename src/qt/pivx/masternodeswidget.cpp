@@ -173,7 +173,11 @@ void MasterNodesWidget::onMNClicked(const QModelIndex& _index)
     } else {
         menu->hide();
     }
+
     index = _index;
+    uint8_t mnType = index.sibling(index.row(), MNModel::TYPE).data(Qt::DisplayRole).toUInt();
+    menu->showHideBtn(0, mnType == MNViewType::LEGACY);
+
     menu->move(pos);
     menu->show();
 
