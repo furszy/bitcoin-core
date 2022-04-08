@@ -99,6 +99,7 @@ CoinsResult AvailableCoins(const CWallet& wallet,
     const bool only_safe = {coinControl ? !coinControl->m_include_unsafe_inputs : true};
 
     // If the mempool filter was set, skip out-of-bounds unconf txs.
+    // Plus, 'has_long_chain_of_unconf' will be set to true if any coin exceed the max ancestors/descendants count.
     const bool with_mempool_restriction = coinControl && coinControl->m_mempool_filter;
 
     std::set<uint256> trusted_parents;
@@ -170,6 +171,7 @@ CoinsResult AvailableCoins(const CWallet& wallet,
                 // Skip unconfirmed coins by the mempool restrictions
                 if (with_mempool_restriction && (ancestor_count >= coinControl->m_mempool_filter->max_ancestors_count ||
                      descendant_count >= coinControl->m_mempool_filter->max_descendants_count)) {
+                    if (result.has_long_chain_of_unconf) result.has_long_chain_of_unconf = true; // alert user about a long chain of unconf txs.
                     continue;
                 }
                 mempool_info = std::optional<MempoolInfo>(MempoolInfo{ancestor_count, descendant_count});
@@ -808,7 +810,13 @@ static BResult<CreatedTransactionResult> CreateTransactionInternal(
     // Choose coins to use
     std::optional<SelectionResult> result = SelectCoins(wallet, res_available_coins.coins, /*nTargetValue=*/selection_target, coin_control, coin_selection_params);
     if (!result) {
-        return _("Insufficient funds");
+        bilingual_str extra_info;
+        if (res_available_coins.has_long_chain_of_unconf) {
+            extra_info = Untranslated(": ") +
+                         _("Unconfirmed UTXOs are available, but spending them creates a chain of transactions that will be rejected by the mempool."
+                           " These funds will become available when the transaction/s confirms");
+        }
+        return _("Insufficient funds") + extra_info;
     }
     TRACE5(coin_selection, selected_coins, wallet.GetName().c_str(), GetAlgorithmName(result->m_algo).c_str(), result->m_target, result->GetWaste(), result->GetSelectedValue());
 

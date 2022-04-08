@@ -260,6 +260,18 @@ class MempoolPackagesTest(BitcoinTestFramework):
         utxo = transaction_package.pop(0)
         assert_raises_rpc_error(-26, "too-long-mempool-chain", chain_transaction, self.nodes[0], [utxo['txid']], [utxo['vout']], utxo['amount'], fee, 10)
 
+        # 'send' command will fail as well
+        options = {}
+        options["inputs"] = [{"txid":utxo['txid'], "vout":utxo['vout']}]
+        assert_raises_rpc_error(-4, "Transaction has too long of a mempool chain", self.nodes[0].send, outputs={self.nodes[0].getnewaddress():0.45}, options=options)
+
+        # And.. 'sendtoaddress' command will fail too (need to lock all the other utxo first so the wallet can only select the mempool ones)
+        utxo_list = self.nodes[0].listunspent(0)
+        utxo_to_lock = [item for item in utxo_list if (item['txid'] != utxo['txid'] and item['vout'] != utxo['vout'])]
+        assert self.nodes[0].lockunspent(False, utxo_to_lock)
+        assert_raises_rpc_error(-6, "Insufficient funds: Unconfirmed UTXOs are available, but spending them creates a chain of transactions that will be rejected by the mempool.", self.nodes[0].sendtoaddress, self.nodes[0].getnewaddress(), 0.45)
+        assert self.nodes[0].lockunspent(True, utxo_to_lock)
+
         # Check that node1's mempool is as expected, containing:
         # - txs from previous ancestor test (-> custom ancestor limit)
         # - parent tx for descendant test

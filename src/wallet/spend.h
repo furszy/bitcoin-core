@@ -33,6 +33,10 @@ struct CoinsResult {
     std::vector<COutput> coins;
     // Sum of all the coins amounts
     CAmount total_amount{0};
+
+    // If the mempool filter inside CoinControl is set, 'has_long_chain_of_unconf' will be set to true
+    // if there is at least one coin that is available and exceeds the max ancestors/descendants limit.
+    bool has_long_chain_of_unconf{false};
 };
 /**
  * Return vector of available COutputs.
