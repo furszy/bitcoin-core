@@ -305,6 +305,8 @@ RPCHelpMan sendtoaddress()
     std::vector<CRecipient> recipients;
     ParseRecipients(address_amounts, subtractFeeFromAmount, recipients);
     const bool verbose{request.params[10].isNull() ? false : request.params[10].get_bool()};
+    // Filter unconf coins that exceed the mempool policies. This could be customizable in the future.
+    coin_control.m_mempool_filter = pwallet->GetMempoolPolicy();
 
     return SendMoney(*pwallet, coin_control, recipients, mapValue, verbose);
 },
@@ -399,6 +401,8 @@ RPCHelpMan sendmany()
     ParseRecipients(sendTo, subtractFeeFromAmount, recipients);
     const bool verbose{request.params[9].isNull() ? false : request.params[9].get_bool()};
 
+    // Filter unconf coins that exceed the mempool policies. This could be customizable in the future.
+    coin_control.m_mempool_filter = pwallet->GetMempoolPolicy();
     return SendMoney(*pwallet, coin_control, recipients, std::move(mapValue), verbose);
 },
     };

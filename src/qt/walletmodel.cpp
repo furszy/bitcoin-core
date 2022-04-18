@@ -194,10 +194,16 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         return DuplicateAddress;
     }
 
-    CAmount nBalance = m_wallet->getAvailableBalance(coinControl);
+    // If no UTXO was selected manually, use a different coin control to filter unconf UTXO that will be rejected by the mempool policies.
+    // This could be customizable in the future.
+    CCoinControl updated_coin_control = coinControl;
+    if (!updated_coin_control.HasSelected()) updated_coin_control.m_mempool_filter = m_wallet->getMempoolPolicy();
 
-    if(total > nBalance)
-    {
+    CAmount nBalance = m_wallet->getAvailableBalance(updated_coin_control);
+
+    if (total > nBalance) {
+        // TODO: Might be good to notify the user with a different error code if we have a long chain of unconf coins
+        //  (which are not part of the available balance because the mempool will reject any tx that uses them).
         return AmountExceedsBalance;
     }
 
@@ -206,7 +212,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         int nChangePosRet = -1;
 
         auto& newTx = transaction.getWtx();
-        const auto& res = m_wallet->createTransaction(vecSend, coinControl, !wallet().privateKeysDisabled() /* sign */, nChangePosRet, nFeeRequired);
+        const auto& res = m_wallet->createTransaction(vecSend, updated_coin_control, !wallet().privateKeysDisabled() /* sign */, nChangePosRet, nFeeRequired);
         newTx = res ? res.GetObj() : nullptr;
         transaction.setTransactionFee(nFeeRequired);
         if (fSubtractFeeFromAmount && newTx)

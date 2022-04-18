@@ -98,6 +98,9 @@ CoinsResult AvailableCoins(const CWallet& wallet,
     const int max_depth = {coinControl ? coinControl->m_max_depth : DEFAULT_MAX_DEPTH};
     const bool only_safe = {coinControl ? !coinControl->m_include_unsafe_inputs : true};
 
+    // If the mempool filter was set, skip out-of-bounds unconf txs.
+    const bool with_mempool_restriction = coinControl && coinControl->m_mempool_filter;
+
     std::set<uint256> trusted_parents;
     for (const auto& entry : wallet.mapWallet)
     {
@@ -157,6 +160,22 @@ CoinsResult AvailableCoins(const CWallet& wallet,
             continue;
         }
 
+        // Now that the basic checks were performed, get the mempool info
+        size_t ancestor_count = 0;
+        size_t descendant_count = 0;
+        std::optional<MempoolInfo> mempool_info = std::nullopt;
+        if (nDepth == 0) {
+            wallet.chain().getTransactionAncestry(wtxid, ancestor_count, descendant_count);
+            if (ancestor_count > 0 || descendant_count > 0) {
+                // Skip unconfirmed coins by the mempool restrictions
+                if (with_mempool_restriction && (ancestor_count >= coinControl->m_mempool_filter->max_ancestors_count ||
+                     descendant_count >= coinControl->m_mempool_filter->max_descendants_count)) {
+                    continue;
+                }
+                mempool_info = std::optional<MempoolInfo>(MempoolInfo{ancestor_count, descendant_count});
+            }
+        }
+
         bool tx_from_me = CachedTxIsFromMe(wallet, wtx, ISMINE_ALL);
 
         for (unsigned int i = 0; i < wtx.tx->vout.size(); i++) {
@@ -194,7 +213,7 @@ CoinsResult AvailableCoins(const CWallet& wallet,
             if (!spendable && only_spendable) continue;
 
             int input_bytes = CalculateMaximumSignedInputSize(output, COutPoint(), provider.get(), coinControl);
-            result.coins.emplace_back(outpoint, output, nDepth, input_bytes, spendable, solvable, safeTx, wtx.GetTxTime(), tx_from_me, feerate);
+            result.coins.emplace_back(outpoint, output, nDepth, input_bytes, spendable, solvable, safeTx, wtx.GetTxTime(), tx_from_me, feerate, mempool_info);
             result.total_amount += output.nValue;
 
             // Checks the sum amount of all UTXO's.

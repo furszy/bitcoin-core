@@ -25,6 +25,12 @@ const int DEFAULT_MAX_DEPTH = 9999999;
 //! Default for -avoidpartialspends
 static constexpr bool DEFAULT_AVOIDPARTIALSPENDS = false;
 
+//! Grouped mempool filtering conditions
+struct MempoolPolicy {
+    size_t max_ancestors_count;
+    size_t max_descendants_count;
+};
+
 /** Coin Control Features. */
 class CCoinControl
 {
@@ -60,6 +66,8 @@ public:
     int m_max_depth = DEFAULT_MAX_DEPTH;
     //! SigningProvider that has pubkeys and scripts to do spend size estimation for external inputs
     FlatSigningProvider m_external_provider;
+    //! Grouped mempool filtering conditions. If nullopt, selects all unconf UTXO.
+    std::optional<MempoolPolicy> m_mempool_filter = std::nullopt;
 
     CCoinControl();
 

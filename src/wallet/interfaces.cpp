@@ -18,6 +18,7 @@
 #include <util/system.h>
 #include <util/translation.h>
 #include <util/ui_change_type.h>
+#include <wallet/coincontrol.h>
 #include <wallet/context.h>
 #include <wallet/feebumper.h>
 #include <wallet/fees.h>
@@ -162,6 +163,9 @@ public:
     SigningResult signMessage(const std::string& message, const PKHash& pkhash, std::string& str_sig) override
     {
         return m_wallet->SignMessage(message, pkhash, str_sig);
+    }
+    std::optional<wallet::MempoolPolicy> getMempoolPolicy() override {
+        return m_wallet->GetMempoolPolicy();
     }
     bool isSpendable(const CTxDestination& dest) override
     {

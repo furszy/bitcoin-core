@@ -2073,6 +2073,18 @@ SigningResult CWallet::SignMessage(const std::string& message, const PKHash& pkh
     return SigningResult::PRIVATE_KEY_NOT_AVAILABLE;
 }
 
+std::optional<MempoolPolicy> CWallet::GetMempoolPolicy()
+{
+    const bool fRejectLongChains = gArgs.GetBoolArg("-walletrejectlongchains", DEFAULT_WALLET_REJECT_LONG_CHAINS);
+    if (!fRejectLongChains) return std::nullopt;
+    unsigned int limit_ancestor_count = 0;
+    unsigned int limit_descendant_count = 0;
+    chain().getPackageLimits(limit_ancestor_count, limit_descendant_count);
+    const size_t max_ancestors = (size_t)std::max<int64_t>(1, limit_ancestor_count);
+    const size_t max_descendants = (size_t)std::max<int64_t>(1, limit_descendant_count);
+    return MempoolPolicy{max_ancestors, max_descendants};
+}
+
 OutputType CWallet::TransactionChangeType(const std::optional<OutputType>& change_type, const std::vector<CRecipient>& vecSend) const
 {
     // If -changetype is specified, always use that change type.

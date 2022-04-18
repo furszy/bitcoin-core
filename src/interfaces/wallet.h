@@ -34,6 +34,7 @@ struct PartiallySignedTransaction;
 struct bilingual_str;
 namespace wallet {
 class CCoinControl;
+struct MempoolPolicy;
 class CWallet;
 enum isminetype : unsigned int;
 struct CRecipient;
@@ -95,6 +96,9 @@ public:
 
     //! Sign message
     virtual SigningResult signMessage(const std::string& message, const PKHash& pkhash, std::string& str_sig) = 0;
+
+    //! Return the wallet's mempool policy (if it's nullopt, then the wallet is accepting long mempool chains)
+    virtual std::optional<wallet::MempoolPolicy> getMempoolPolicy() = 0;
 
     //! Return whether wallet has private key.
     virtual bool isSpendable(const CTxDestination& dest) = 0;
