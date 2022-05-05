@@ -2043,8 +2043,7 @@ OutputType CWallet::TransactionChangeType(const std::optional<OutputType>& chang
     bool any_pkh{false};
 
     for (const auto& recipient : vecSend) {
-        std::vector<std::vector<uint8_t>> dummy;
-        const TxoutType type{Solver(recipient.scriptPubKey, dummy)};
+        const TxoutType type = Solver(recipient.scriptPubKey).m_out_type;
         if (type == TxoutType::WITNESS_V1_TAPROOT) {
             any_tr = true;
         } else if (type == TxoutType::WITNESS_V0_KEYHASH) {

@@ -166,19 +166,17 @@ FUZZ_TARGET_INIT(key, initialize_key)
         assert(is_standard_tx_multisig);
         assert(which_type_tx_multisig == TxoutType::MULTISIG);
 
-        std::vector<std::vector<unsigned char>> v_solutions_ret_tx_pubkey;
-        const TxoutType outtype_tx_pubkey = Solver(tx_pubkey_script, v_solutions_ret_tx_pubkey);
-        assert(outtype_tx_pubkey == TxoutType::PUBKEY);
-        assert(v_solutions_ret_tx_pubkey.size() == 1);
-        assert(v_solutions_ret_tx_pubkey[0].size() == 33);
+        auto solution_tx_pubkey = Solver(tx_pubkey_script);
+        assert(solution_tx_pubkey.m_out_type == TxoutType::PUBKEY);
+        assert(solution_tx_pubkey.m_vec_solutions.size() == 1);
+        assert(solution_tx_pubkey.m_vec_solutions[0].size() == 33);
 
-        std::vector<std::vector<unsigned char>> v_solutions_ret_tx_multisig;
-        const TxoutType outtype_tx_multisig = Solver(tx_multisig_script, v_solutions_ret_tx_multisig);
-        assert(outtype_tx_multisig == TxoutType::MULTISIG);
-        assert(v_solutions_ret_tx_multisig.size() == 3);
-        assert(v_solutions_ret_tx_multisig[0].size() == 1);
-        assert(v_solutions_ret_tx_multisig[1].size() == 33);
-        assert(v_solutions_ret_tx_multisig[2].size() == 1);
+        auto solution_tx_multisig = Solver(tx_multisig_script);
+        assert(solution_tx_multisig.m_out_type == TxoutType::MULTISIG);
+        assert(solution_tx_multisig.m_vec_solutions.size() == 3);
+        assert(solution_tx_multisig.m_vec_solutions[0].size() == 1);
+        assert(solution_tx_multisig.m_vec_solutions[1].size() == 33);
+        assert(solution_tx_multisig.m_vec_solutions[2].size() == 1);
 
         OutputType output_type{};
         const CTxDestination tx_destination = GetDestinationForKey(pubkey, output_type);

@@ -173,40 +173,47 @@ std::optional<std::pair<int, std::vector<Span<const unsigned char>>>> MatchMulti
     return std::pair{*threshold, std::move(keyspans)};
 }
 
-TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned char>>& vSolutionsRet)
+SolverSolution Solver(const CScript& scriptPubKey)
 {
-    vSolutionsRet.clear();
+    SolverSolution ret;
 
     // Shortcut for pay-to-script-hash, which are more constrained than the other types:
     // it is always OP_HASH160 20 [20 byte hash] OP_EQUAL
-    if (scriptPubKey.IsPayToScriptHash())
-    {
+    if (scriptPubKey.IsPayToScriptHash()) {
         std::vector<unsigned char> hashBytes(scriptPubKey.begin()+2, scriptPubKey.begin()+22);
-        vSolutionsRet.push_back(hashBytes);
-        return TxoutType::SCRIPTHASH;
+        ret.m_vec_solutions.push_back(hashBytes);
+        ret.m_out_type = TxoutType::SCRIPTHASH;
+        return ret;
     }
 
     int witnessversion;
     std::vector<unsigned char> witnessprogram;
     if (scriptPubKey.IsWitnessProgram(witnessversion, witnessprogram)) {
         if (witnessversion == 0 && witnessprogram.size() == WITNESS_V0_KEYHASH_SIZE) {
-            vSolutionsRet.push_back(std::move(witnessprogram));
-            return TxoutType::WITNESS_V0_KEYHASH;
+            ret.m_vec_solutions.push_back(std::move(witnessprogram));
+            ret.m_out_type = TxoutType::WITNESS_V0_KEYHASH;
+            return ret;
         }
         if (witnessversion == 0 && witnessprogram.size() == WITNESS_V0_SCRIPTHASH_SIZE) {
-            vSolutionsRet.push_back(std::move(witnessprogram));
-            return TxoutType::WITNESS_V0_SCRIPTHASH;
+            ret.m_vec_solutions.push_back(std::move(witnessprogram));
+            ret.m_out_type = TxoutType::WITNESS_V0_SCRIPTHASH;
+            return ret;
         }
         if (witnessversion == 1 && witnessprogram.size() == WITNESS_V1_TAPROOT_SIZE) {
-            vSolutionsRet.push_back(std::move(witnessprogram));
-            return TxoutType::WITNESS_V1_TAPROOT;
+            ret.m_vec_solutions.push_back(std::move(witnessprogram));
+            ret.m_out_type = TxoutType::WITNESS_V1_TAPROOT;
+            return ret;
         }
         if (witnessversion != 0) {
-            vSolutionsRet.push_back(std::vector<unsigned char>{(unsigned char)witnessversion});
-            vSolutionsRet.push_back(std::move(witnessprogram));
-            return TxoutType::WITNESS_UNKNOWN;
+            ret.m_vec_solutions.push_back(std::vector<unsigned char>{(unsigned char)witnessversion});
+            ret.m_vec_solutions.push_back(std::move(witnessprogram));
+            ret.m_out_type = TxoutType::WITNESS_UNKNOWN;
+            return ret;
         }
-        return TxoutType::NONSTANDARD;
+
+        // Unknown type
+        ret.m_out_type = TxoutType::NONSTANDARD;
+        return ret;
     }
 
     // Provably prunable, data-carrying output
@@ -215,39 +222,45 @@ TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned c
     // byte passes the IsPushOnly() test we don't care what exactly is in the
     // script.
     if (scriptPubKey.size() >= 1 && scriptPubKey[0] == OP_RETURN && scriptPubKey.IsPushOnly(scriptPubKey.begin()+1)) {
-        return TxoutType::NULL_DATA;
+        ret.m_out_type = TxoutType::NULL_DATA;
+        return ret;
     }
 
     std::vector<unsigned char> data;
     if (MatchPayToPubkey(scriptPubKey, data)) {
-        vSolutionsRet.push_back(std::move(data));
-        return TxoutType::PUBKEY;
+        ret.m_vec_solutions.push_back(std::move(data));
+        ret.m_out_type = TxoutType::PUBKEY;
+        return ret;
     }
 
     if (MatchPayToPubkeyHash(scriptPubKey, data)) {
-        vSolutionsRet.push_back(std::move(data));
-        return TxoutType::PUBKEYHASH;
+        ret.m_vec_solutions.push_back(std::move(data));
+        ret.m_out_type = TxoutType::PUBKEYHASH;
+        return ret;
     }
 
     int required;
     std::vector<std::vector<unsigned char>> keys;
     if (MatchMultisig(scriptPubKey, required, keys)) {
-        vSolutionsRet.push_back({static_cast<unsigned char>(required)}); // safe as required is in range 1..20
-        vSolutionsRet.insert(vSolutionsRet.end(), keys.begin(), keys.end());
-        vSolutionsRet.push_back({static_cast<unsigned char>(keys.size())}); // safe as size is in range 1..20
-        return TxoutType::MULTISIG;
+        ret.m_vec_solutions.push_back({static_cast<unsigned char>(required)}); // safe as required is in range 1..20
+        ret.m_vec_solutions.insert(ret.m_vec_solutions.end(), keys.begin(), keys.end());
+        ret.m_vec_solutions.push_back({static_cast<unsigned char>(keys.size())}); // safe as size is in range 1..20
+        ret.m_out_type = TxoutType::MULTISIG;
+        return ret;
     }
 
-    vSolutionsRet.clear();
-    return TxoutType::NONSTANDARD;
+    // Unknown type
+    ret.m_vec_solutions.clear();
+    ret.m_out_type = TxoutType::NONSTANDARD;
+    return ret;
 }
 
 bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
 {
-    std::vector<valtype> vSolutions;
-    TxoutType whichType = Solver(scriptPubKey, vSolutions);
+    SolverSolution solution = Solver(scriptPubKey);
+    const std::vector<valtype>& vSolutions = solution.m_vec_solutions;
 
-    switch (whichType) {
+    switch (solution.m_out_type) {
     case TxoutType::PUBKEY: {
         CPubKey pubKey(vSolutions[0]);
         if (!pubKey.IsValid())

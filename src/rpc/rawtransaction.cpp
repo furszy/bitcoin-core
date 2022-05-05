@@ -437,8 +437,9 @@ static RPCHelpMan decodescript()
     }
     ScriptPubKeyToUniv(script, r, /* include_hex */ false);
 
-    std::vector<std::vector<unsigned char>> solutions_data;
-    const TxoutType which_type{Solver(script, solutions_data)};
+    auto script_solution = Solver(script);
+    std::vector<std::vector<unsigned char>> solutions_data = script_solution.m_vec_solutions;
+    const TxoutType which_type = script_solution.m_out_type;
 
     const bool can_wrap{[&] {
         switch (which_type) {

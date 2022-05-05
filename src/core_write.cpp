@@ -158,13 +158,11 @@ void ScriptPubKeyToUniv(const CScript& scriptPubKey, UniValue& out, bool include
     }
     if (include_hex) out.pushKV("hex", HexStr(scriptPubKey));
 
-    std::vector<std::vector<unsigned char>> solns;
-    const TxoutType type{Solver(scriptPubKey, solns)};
-
-    if (include_address && ExtractDestination(scriptPubKey, address) && type != TxoutType::PUBKEY) {
+    SolverSolution solver_solution = Solver(scriptPubKey);
+    if (include_address && ExtractDestination(scriptPubKey, address) && solver_solution.m_out_type != TxoutType::PUBKEY) {
         out.pushKV("address", EncodeDestination(address));
     }
-    out.pushKV("type", GetTxnOutputType(type));
+    out.pushKV("type", GetTxnOutputType(solver_solution.m_out_type));
 }
 
 void TxToUniv(const CTransaction& tx, const uint256& hashBlock, UniValue& entry, bool include_hex, int serialize_flags, const CTxUndo* txundo, TxVerbosity verbosity)

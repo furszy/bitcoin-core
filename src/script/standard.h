@@ -163,6 +163,17 @@ bool IsValidDestination(const CTxDestination& dest);
 std::string GetTxnOutputType(TxoutType t);
 
 /**
+ * Return struct for the Solver() function
+ */
+struct SolverSolution
+{
+    // Unknown type by default
+    TxoutType m_out_type{TxoutType::NONSTANDARD};
+    // Vector of parsed pubkeys and hashes
+    std::vector<std::vector<unsigned char>> m_vec_solutions;
+};
+
+/**
  * Parse a scriptPubKey and identify script type for standard scripts. If
  * successful, returns script type and parsed pubkeys or hashes, depending on
  * the type. For example, for a P2SH script, vSolutionsRet will contain the
@@ -172,7 +183,7 @@ std::string GetTxnOutputType(TxoutType t);
  * @param[out]  vSolutionsRet  Vector of parsed pubkeys and hashes
  * @return                     The script type. TxoutType::NONSTANDARD represents a failed solve.
  */
-TxoutType Solver(const CScript& scriptPubKey, std::vector<std::vector<unsigned char>>& vSolutionsRet);
+SolverSolution Solver(const CScript& scriptPubKey);
 
 /**
  * Parse a standard scriptPubKey for the destination address. Assigns result to

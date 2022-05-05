@@ -261,8 +261,9 @@ static bool SignStep(const SigningProvider& provider, const BaseSignatureCreator
     ret.clear();
     std::vector<unsigned char> sig;
 
-    std::vector<valtype> vSolutions;
-    whichTypeRet = Solver(scriptPubKey, vSolutions);
+    SolverSolution script_solution = Solver(scriptPubKey);
+    const std::vector<valtype>& vSolutions = script_solution.m_vec_solutions;
+    whichTypeRet = script_solution.m_out_type;
 
     switch (whichTypeRet) {
     case TxoutType::NONSTANDARD:
@@ -466,8 +467,8 @@ SignatureData DataFromTransaction(const CMutableTransaction& tx, unsigned int nI
     }
 
     // Get scripts
-    std::vector<std::vector<unsigned char>> solutions;
-    TxoutType script_type = Solver(txout.scriptPubKey, solutions);
+    SolverSolution solver_solution = Solver(txout.scriptPubKey);
+    TxoutType script_type = solver_solution.m_out_type;
     SigVersion sigversion = SigVersion::BASE;
     CScript next_script = txout.scriptPubKey;
 
@@ -478,7 +479,8 @@ SignatureData DataFromTransaction(const CMutableTransaction& tx, unsigned int nI
         next_script = std::move(redeem_script);
 
         // Get redeemScript type
-        script_type = Solver(next_script, solutions);
+        solver_solution = Solver(next_script);
+        script_type = solver_solution.m_out_type;
         stack.script.pop_back();
     }
     if (script_type == TxoutType::WITNESS_V0_SCRIPTHASH && !stack.witness.empty() && !stack.witness.back().empty()) {
@@ -488,7 +490,8 @@ SignatureData DataFromTransaction(const CMutableTransaction& tx, unsigned int nI
         next_script = std::move(witness_script);
 
         // Get witnessScript type
-        script_type = Solver(next_script, solutions);
+        solver_solution = Solver(next_script);
+        script_type = solver_solution.m_out_type;
         stack.witness.pop_back();
         stack.script = std::move(stack.witness);
         stack.witness.clear();
@@ -496,12 +499,12 @@ SignatureData DataFromTransaction(const CMutableTransaction& tx, unsigned int nI
     }
     if (script_type == TxoutType::MULTISIG && !stack.script.empty()) {
         // Build a map of pubkey -> signature by matching sigs to pubkeys:
-        assert(solutions.size() > 1);
-        unsigned int num_pubkeys = solutions.size()-2;
+        assert(solver_solution.m_vec_solutions.size() > 1);
+        unsigned int num_pubkeys = solver_solution.m_vec_solutions.size()-2;
         unsigned int last_success_key = 0;
         for (const valtype& sig : stack.script) {
             for (unsigned int i = last_success_key; i < num_pubkeys; ++i) {
-                const valtype& pubkey = solutions[i+1];
+                const valtype& pubkey = solver_solution.m_vec_solutions[i+1];
                 // We either have a signature for this pubkey, or we have found a signature and it is valid
                 if (data.signatures.count(CPubKey(pubkey).GetID()) || extractor_checker.CheckECDSASignature(sig, pubkey, next_script, sigversion)) {
                     last_success_key = i + 1;
@@ -628,10 +631,9 @@ bool IsSegWitOutput(const SigningProvider& provider, const CScript& script)
     valtype program;
     if (script.IsWitnessProgram(version, program)) return true;
     if (script.IsPayToScriptHash()) {
-        std::vector<valtype> solutions;
-        auto whichtype = Solver(script, solutions);
-        if (whichtype == TxoutType::SCRIPTHASH) {
-            auto h160 = uint160(solutions[0]);
+        SolverSolution solver_solution = Solver(script);
+        if (solver_solution.m_out_type == TxoutType::SCRIPTHASH) {
+            auto h160 = uint160(solver_solution.m_vec_solutions[0]);
             CScript subscript;
             if (provider.GetCScript(CScriptID{h160}, subscript)) {
                 if (subscript.IsWitnessProgram(version, program)) return true;

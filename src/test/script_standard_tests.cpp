@@ -35,29 +35,31 @@ BOOST_AUTO_TEST_CASE(script_standard_Solver_success)
     }
 
     CScript s;
-    std::vector<std::vector<unsigned char> > solutions;
 
     // TxoutType::PUBKEY
     s.clear();
     s << ToByteVector(pubkeys[0]) << OP_CHECKSIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::PUBKEY);
-    BOOST_CHECK_EQUAL(solutions.size(), 1U);
-    BOOST_CHECK(solutions[0] == ToByteVector(pubkeys[0]));
+    auto script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::PUBKEY);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 1U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == ToByteVector(pubkeys[0]));
 
     // TxoutType::PUBKEYHASH
     s.clear();
     s << OP_DUP << OP_HASH160 << ToByteVector(pubkeys[0].GetID()) << OP_EQUALVERIFY << OP_CHECKSIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::PUBKEYHASH);
-    BOOST_CHECK_EQUAL(solutions.size(), 1U);
-    BOOST_CHECK(solutions[0] == ToByteVector(pubkeys[0].GetID()));
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::PUBKEYHASH);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 1U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == ToByteVector(pubkeys[0].GetID()));
 
     // TxoutType::SCRIPTHASH
     CScript redeemScript(s); // initialize with leftover P2PKH script
     s.clear();
     s << OP_HASH160 << ToByteVector(CScriptID(redeemScript)) << OP_EQUAL;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::SCRIPTHASH);
-    BOOST_CHECK_EQUAL(solutions.size(), 1U);
-    BOOST_CHECK(solutions[0] == ToByteVector(CScriptID(redeemScript)));
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::SCRIPTHASH);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 1U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == ToByteVector(CScriptID(redeemScript)));
 
     // TxoutType::MULTISIG
     s.clear();
@@ -65,12 +67,13 @@ BOOST_AUTO_TEST_CASE(script_standard_Solver_success)
         ToByteVector(pubkeys[0]) <<
         ToByteVector(pubkeys[1]) <<
         OP_2 << OP_CHECKMULTISIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::MULTISIG);
-    BOOST_CHECK_EQUAL(solutions.size(), 4U);
-    BOOST_CHECK(solutions[0] == std::vector<unsigned char>({1}));
-    BOOST_CHECK(solutions[1] == ToByteVector(pubkeys[0]));
-    BOOST_CHECK(solutions[2] == ToByteVector(pubkeys[1]));
-    BOOST_CHECK(solutions[3] == std::vector<unsigned char>({2}));
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::MULTISIG);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 4U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == std::vector<unsigned char>({1}));
+    BOOST_CHECK(script_solution.m_vec_solutions[1] == ToByteVector(pubkeys[0]));
+    BOOST_CHECK(script_solution.m_vec_solutions[2] == ToByteVector(pubkeys[1]));
+    BOOST_CHECK(script_solution.m_vec_solutions[3] == std::vector<unsigned char>({2}));
 
     s.clear();
     s << OP_2 <<
@@ -78,13 +81,14 @@ BOOST_AUTO_TEST_CASE(script_standard_Solver_success)
         ToByteVector(pubkeys[1]) <<
         ToByteVector(pubkeys[2]) <<
         OP_3 << OP_CHECKMULTISIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::MULTISIG);
-    BOOST_CHECK_EQUAL(solutions.size(), 5U);
-    BOOST_CHECK(solutions[0] == std::vector<unsigned char>({2}));
-    BOOST_CHECK(solutions[1] == ToByteVector(pubkeys[0]));
-    BOOST_CHECK(solutions[2] == ToByteVector(pubkeys[1]));
-    BOOST_CHECK(solutions[3] == ToByteVector(pubkeys[2]));
-    BOOST_CHECK(solutions[4] == std::vector<unsigned char>({3}));
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::MULTISIG);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 5U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == std::vector<unsigned char>({2}));
+    BOOST_CHECK(script_solution.m_vec_solutions[1] == ToByteVector(pubkeys[0]));
+    BOOST_CHECK(script_solution.m_vec_solutions[2] == ToByteVector(pubkeys[1]));
+    BOOST_CHECK(script_solution.m_vec_solutions[3] == ToByteVector(pubkeys[2]));
+    BOOST_CHECK(script_solution.m_vec_solutions[4] == std::vector<unsigned char>({3}));
 
     // TxoutType::NULL_DATA
     s.clear();
@@ -92,15 +96,17 @@ BOOST_AUTO_TEST_CASE(script_standard_Solver_success)
         std::vector<unsigned char>({0}) <<
         std::vector<unsigned char>({75}) <<
         std::vector<unsigned char>({255});
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NULL_DATA);
-    BOOST_CHECK_EQUAL(solutions.size(), 0U);
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::NULL_DATA);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 0U);
 
     // TxoutType::WITNESS_V0_KEYHASH
     s.clear();
     s << OP_0 << ToByteVector(pubkeys[0].GetID());
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::WITNESS_V0_KEYHASH);
-    BOOST_CHECK_EQUAL(solutions.size(), 1U);
-    BOOST_CHECK(solutions[0] == ToByteVector(pubkeys[0].GetID()));
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::WITNESS_V0_KEYHASH);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 1U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == ToByteVector(pubkeys[0].GetID()));
 
     // TxoutType::WITNESS_V0_SCRIPTHASH
     uint256 scriptHash;
@@ -109,29 +115,33 @@ BOOST_AUTO_TEST_CASE(script_standard_Solver_success)
 
     s.clear();
     s << OP_0 << ToByteVector(scriptHash);
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::WITNESS_V0_SCRIPTHASH);
-    BOOST_CHECK_EQUAL(solutions.size(), 1U);
-    BOOST_CHECK(solutions[0] == ToByteVector(scriptHash));
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::WITNESS_V0_SCRIPTHASH);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 1U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == ToByteVector(scriptHash));
 
     // TxoutType::WITNESS_V1_TAPROOT
     s.clear();
     s << OP_1 << ToByteVector(uint256::ZERO);
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::WITNESS_V1_TAPROOT);
-    BOOST_CHECK_EQUAL(solutions.size(), 1U);
-    BOOST_CHECK(solutions[0] == ToByteVector(uint256::ZERO));
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::WITNESS_V1_TAPROOT);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 1U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == ToByteVector(uint256::ZERO));
 
     // TxoutType::WITNESS_UNKNOWN
     s.clear();
     s << OP_16 << ToByteVector(uint256::ONE);
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::WITNESS_UNKNOWN);
-    BOOST_CHECK_EQUAL(solutions.size(), 2U);
-    BOOST_CHECK(solutions[0] == std::vector<unsigned char>{16});
-    BOOST_CHECK(solutions[1] == ToByteVector(uint256::ONE));
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::WITNESS_UNKNOWN);
+    BOOST_CHECK_EQUAL(script_solution.m_vec_solutions.size(), 2U);
+    BOOST_CHECK(script_solution.m_vec_solutions[0] == std::vector<unsigned char>{16});
+    BOOST_CHECK(script_solution.m_vec_solutions[1] == ToByteVector(uint256::ONE));
 
     // TxoutType::NONSTANDARD
     s.clear();
     s << OP_9 << OP_ADD << OP_11 << OP_EQUAL;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    script_solution = Solver(s);
+    BOOST_CHECK_EQUAL(script_solution.m_out_type, TxoutType::NONSTANDARD);
 }
 
 BOOST_AUTO_TEST_CASE(script_standard_Solver_failure)
@@ -142,52 +152,51 @@ BOOST_AUTO_TEST_CASE(script_standard_Solver_failure)
     pubkey = key.GetPubKey();
 
     CScript s;
-    std::vector<std::vector<unsigned char> > solutions;
 
     // TxoutType::PUBKEY with incorrectly sized pubkey
     s.clear();
     s << std::vector<unsigned char>(30, 0x01) << OP_CHECKSIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 
     // TxoutType::PUBKEYHASH with incorrectly sized key hash
     s.clear();
     s << OP_DUP << OP_HASH160 << ToByteVector(pubkey) << OP_EQUALVERIFY << OP_CHECKSIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 
     // TxoutType::SCRIPTHASH with incorrectly sized script hash
     s.clear();
     s << OP_HASH160 << std::vector<unsigned char>(21, 0x01) << OP_EQUAL;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 
     // TxoutType::MULTISIG 0/2
     s.clear();
     s << OP_0 << ToByteVector(pubkey) << OP_1 << OP_CHECKMULTISIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 
     // TxoutType::MULTISIG 2/1
     s.clear();
     s << OP_2 << ToByteVector(pubkey) << OP_1 << OP_CHECKMULTISIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 
     // TxoutType::MULTISIG n = 2 with 1 pubkey
     s.clear();
     s << OP_1 << ToByteVector(pubkey) << OP_2 << OP_CHECKMULTISIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 
     // TxoutType::MULTISIG n = 1 with 0 pubkeys
     s.clear();
     s << OP_1 << OP_1 << OP_CHECKMULTISIG;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 
     // TxoutType::NULL_DATA with other opcodes
     s.clear();
     s << OP_RETURN << std::vector<unsigned char>({75}) << OP_ADD;
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 
     // TxoutType::WITNESS_UNKNOWN with incorrect program size
     s.clear();
     s << OP_0 << std::vector<unsigned char>(19, 0x01);
-    BOOST_CHECK_EQUAL(Solver(s, solutions), TxoutType::NONSTANDARD);
+    BOOST_CHECK_EQUAL(Solver(s).m_out_type, TxoutType::NONSTANDARD);
 }
 
 BOOST_AUTO_TEST_CASE(script_standard_ExtractDestination)

@@ -397,9 +397,9 @@ public:
     void ProcessSubScript(const CScript& subscript, UniValue& obj) const
     {
         // Always present: script type and redeemscript
-        std::vector<std::vector<unsigned char>> solutions_data;
-        TxoutType which_type = Solver(subscript, solutions_data);
-        obj.pushKV("script", GetTxnOutputType(which_type));
+        auto script_solution = Solver(subscript);
+        const std::vector<std::vector<unsigned char>>& solutions_data = script_solution.m_vec_solutions;
+        obj.pushKV("script", GetTxnOutputType(script_solution.m_out_type));
         obj.pushKV("hex", HexStr(subscript));
 
         CTxDestination embedded;
@@ -415,7 +415,7 @@ public:
             // Always report the pubkey at the top level, so that `getnewaddress()['pubkey']` always works.
             if (subobj.exists("pubkey")) obj.pushKV("pubkey", subobj["pubkey"]);
             obj.pushKV("embedded", std::move(subobj));
-        } else if (which_type == TxoutType::MULTISIG) {
+        } else if (script_solution.m_out_type == TxoutType::MULTISIG) {
             // Also report some information on multisig scripts (which do not have a corresponding address).
             obj.pushKV("sigsrequired", solutions_data[0][0]);
             UniValue pubkeys(UniValue::VARR);

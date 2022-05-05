@@ -57,8 +57,9 @@ bool IsDust(const CTxOut& txout, const CFeeRate& dustRelayFeeIn)
 
 bool IsStandard(const CScript& scriptPubKey, TxoutType& whichType)
 {
-    std::vector<std::vector<unsigned char> > vSolutions;
-    whichType = Solver(scriptPubKey, vSolutions);
+    SolverSolution solver_solution = Solver(scriptPubKey);
+    const std::vector<std::vector<unsigned char>>& vSolutions = solver_solution.m_vec_solutions;
+    whichType = solver_solution.m_out_type;
 
     if (whichType == TxoutType::NONSTANDARD) {
         return false;
@@ -170,8 +171,7 @@ bool AreInputsStandard(const CTransaction& tx, const CCoinsViewCache& mapInputs)
     for (unsigned int i = 0; i < tx.vin.size(); i++) {
         const CTxOut& prev = mapInputs.AccessCoin(tx.vin[i].prevout).out;
 
-        std::vector<std::vector<unsigned char> > vSolutions;
-        TxoutType whichType = Solver(prev.scriptPubKey, vSolutions);
+        TxoutType whichType = Solver(prev.scriptPubKey).m_out_type;
         if (whichType == TxoutType::NONSTANDARD || whichType == TxoutType::WITNESS_UNKNOWN) {
             // WITNESS_UNKNOWN failures are typically also caught with a policy
             // flag in the script interpreter, but it can be helpful to catch

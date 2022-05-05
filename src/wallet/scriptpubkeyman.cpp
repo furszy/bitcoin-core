@@ -99,11 +99,11 @@ IsMineResult IsMineInner(const LegacyScriptPubKeyMan& keystore, const CScript& s
 {
     IsMineResult ret = IsMineResult::NO;
 
-    std::vector<valtype> vSolutions;
-    TxoutType whichType = Solver(scriptPubKey, vSolutions);
+    SolverSolution solver_solution = Solver(scriptPubKey);
+    std::vector<valtype> vSolutions = solver_solution.m_vec_solutions;
 
     CKeyID keyID;
-    switch (whichType) {
+    switch (solver_solution.m_out_type) {
     case TxoutType::NONSTANDARD:
     case TxoutType::NULL_DATA:
     case TxoutType::WITNESS_UNKNOWN:
@@ -872,9 +872,9 @@ bool LegacyScriptPubKeyMan::HaveWatchOnly() const
 
 static bool ExtractPubKey(const CScript &dest, CPubKey& pubKeyOut)
 {
-    std::vector<std::vector<unsigned char>> solutions;
-    return Solver(dest, solutions) == TxoutType::PUBKEY &&
-        (pubKeyOut = CPubKey(solutions[0])).IsFullyValid();
+    SolverSolution solver_solution = Solver(dest);
+    return solver_solution.m_out_type == TxoutType::PUBKEY &&
+        (pubKeyOut = CPubKey(solver_solution.m_vec_solutions[0])).IsFullyValid();
 }
 
 bool LegacyScriptPubKeyMan::RemoveWatchOnly(const CScript &dest)
