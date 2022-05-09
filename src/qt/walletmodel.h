@@ -157,6 +157,9 @@ public:
 
     uint256 getLastBlockProcessed() const;
 
+    // Retrieve the cached wallet balance
+    interfaces::WalletBalances getCachedBalance() const;
+
 private:
     std::unique_ptr<interfaces::Wallet> m_wallet;
     std::unique_ptr<interfaces::Handler> m_handler_unload;
@@ -181,6 +184,7 @@ private:
     RecentRequestsTableModel *recentRequestsTableModel;
 
     // Cache some values to be able to detect changes
+    mutable QMutex m_cache_mutex;
     interfaces::WalletBalances m_cached_balances;
     EncryptionStatus cachedEncryptionStatus;
     QTimer* timer;
