@@ -96,6 +96,7 @@ void AvailableCoins(const CWallet& wallet, std::vector<COutput>& vCoins, const C
     const int min_depth = {coinControl ? coinControl->m_min_depth : DEFAULT_MIN_DEPTH};
     const int max_depth = {coinControl ? coinControl->m_max_depth : DEFAULT_MAX_DEPTH};
     const bool only_safe = {coinControl ? !coinControl->m_include_unsafe_inputs : true};
+    const bool has_selected = coinControl && coinControl->HasSelected();
 
     std::set<uint256> trusted_parents;
     for (const auto& entry : wallet.mapWallet)
@@ -163,10 +164,12 @@ void AvailableCoins(const CWallet& wallet, std::vector<COutput>& vCoins, const C
             if (wtx.tx->vout[i].nValue < nMinimumAmount || wtx.tx->vout[i].nValue > nMaximumAmount)
                 continue;
 
-            if (coinControl && coinControl->HasSelected() && !coinControl->fAllowOtherInputs && !coinControl->IsSelected(COutPoint(entry.first, i)))
+            bool is_selected = has_selected && coinControl->IsSelected(COutPoint(entry.first, i));
+            if (coinControl && has_selected && !coinControl->fAllowOtherInputs && !is_selected)
                 continue;
 
-            if (wallet.IsLockedCoin(entry.first, i))
+            // Skip locked coins unless they were manually selected.
+            if (wallet.IsLockedCoin(entry.first, i) && !is_selected)
                 continue;
 
             if (wallet.IsSpent(wtxid, i))
