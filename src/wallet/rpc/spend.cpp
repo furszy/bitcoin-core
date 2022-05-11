@@ -536,9 +536,11 @@ void FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& fee_out,
             },
             true, true);
 
-        if (options.exists("add_inputs") ) {
-            coinControl.m_add_inputs = options["add_inputs"].get_bool();
-        }
+        // By default, add other inputs
+        coinControl.fAllowOtherInputs = options.exists("add_inputs") ? options["add_inputs"].get_bool() : true;
+        // For now, 'm_use_manual_selection' is always equal to 'add_inputs'.
+        // Could be customized in the future so the wallet can select the best matching UTXOs from a user provided UTXO set.
+        coinControl.m_use_manual_selection = coinControl.fAllowOtherInputs;
 
         if (options.exists("changeAddress") || options.exists("change_address")) {
             const std::string change_address_str = (options.exists("change_address") ? options["change_address"] : options["changeAddress"]).get_str();
@@ -837,7 +839,7 @@ RPCHelpMan fundrawtransaction()
     int change_position;
     CCoinControl coin_control;
     // Automatically select (additional) coins. Can be overridden by options.add_inputs.
-    coin_control.m_add_inputs = true;
+    coin_control.fAllowOtherInputs = true;
     FundTransaction(*pwallet, tx, fee, change_position, request.params[1], coin_control, /*override_min_fee=*/true);
 
     UniValue result(UniValue::VOBJ);
@@ -1239,7 +1241,7 @@ RPCHelpMan send()
             CCoinControl coin_control;
             // Automatically select coins, unless at least one is manually selected. Can
             // be overridden by options.add_inputs.
-            coin_control.m_add_inputs = rawTx.vin.size() == 0;
+            coin_control.fAllowOtherInputs = rawTx.vin.size() == 0;
             SetOptionsInputWeights(options["inputs"], options);
             FundTransaction(*pwallet, rawTx, fee, change_position, options, coin_control, /*override_min_fee=*/false);
 
@@ -1665,7 +1667,7 @@ RPCHelpMan walletcreatefundedpsbt()
     CCoinControl coin_control;
     // Automatically select coins, unless at least one is manually selected. Can
     // be overridden by options.add_inputs.
-    coin_control.m_add_inputs = rawTx.vin.size() == 0;
+    coin_control.fAllowOtherInputs = rawTx.vin.size() == 0;
     SetOptionsInputWeights(request.params[0], options);
     FundTransaction(wallet, rawTx, fee, change_position, options, coin_control, /*override_min_fee=*/true);
 
