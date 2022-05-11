@@ -159,10 +159,6 @@ void AvailableCoins(const CWallet& wallet, std::vector<COutput>& vCoins, const C
         bool tx_from_me = CachedTxIsFromMe(wallet, wtx, ISMINE_ALL);
 
         for (unsigned int i = 0; i < wtx.tx->vout.size(); i++) {
-            // Only consider selected coins if add_inputs is false
-            if (coinControl && !coinControl->m_add_inputs && !coinControl->IsSelected(COutPoint(entry.first, i))) {
-                continue;
-            }
 
             if (wtx.tx->vout[i].nValue < nMinimumAmount || wtx.tx->vout[i].nValue > nMaximumAmount)
                 continue;
@@ -427,7 +423,7 @@ std::optional<SelectionResult> SelectCoins(const CWallet& wallet, const std::vec
     OutputGroup preset_inputs(coin_selection_params);
 
     // coin control -> return all selected outputs (we want all selected to go into the transaction for sure)
-    if (coin_control.HasSelected() && !coin_control.fAllowOtherInputs)
+    if (coin_control.HasSelected() && !coin_control.fAllowOtherInputs && coin_control.m_use_manual_selection)
     {
         for (const COutput& out : vCoins) {
             if (!out.spendable) continue;
@@ -1019,8 +1015,6 @@ bool FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& nFeeRet,
         CRecipient recipient = {txOut.scriptPubKey, txOut.nValue, setSubtractFeeFromOutputs.count(idx) == 1};
         vecSend.push_back(recipient);
     }
-
-    coinControl.fAllowOtherInputs = true;
 
     for (const CTxIn& txin : tx.vin) {
         coinControl.Select(txin.prevout);
