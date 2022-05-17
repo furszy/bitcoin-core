@@ -172,8 +172,10 @@ void AvailableCoins(const CWallet& wallet, std::vector<COutput>& vCoins, const C
             if (wallet.IsLockedCoin(entry.first, i) && !is_selected)
                 continue;
 
-            if (wallet.IsSpent(wtxid, i))
+            // Skip spent coins unless they were manually selected
+            if (wallet.IsSpent(wtxid, i) && !is_selected) {
                 continue;
+            }
 
             isminetype mine = wallet.IsMine(wtx.tx->vout[i]);
 
