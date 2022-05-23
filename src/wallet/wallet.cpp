@@ -28,14 +28,11 @@
 #include <util/bip32.h>
 #include <util/check.h>
 #include <util/error.h>
-#include <util/fees.h>
 #include <util/moneystr.h>
-#include <util/rbf.h>
 #include <util/string.h>
 #include <util/translation.h>
 #include <wallet/coincontrol.h>
 #include <wallet/context.h>
-#include <wallet/fees.h>
 #include <wallet/external_signer_scriptpubkeyman.h>
 
 #include <univalue.h>
@@ -1833,13 +1830,11 @@ void CWallet::ReacceptWalletTransactions()
 
     // Try to add wallet transactions to memory pool
     for (const std::pair<const int64_t, CWalletTx*>& item : mapSorted) {
-        CWalletTx& wtx = *(item.second);
-        std::string unused_err_string;
-        SubmitTxMemoryPoolAndRelay(wtx, unused_err_string, false);
+        SubmitTxMemoryPoolAndRelay(*(item.second), false);
     }
 }
 
-bool CWallet::SubmitTxMemoryPoolAndRelay(CWalletTx& wtx, std::string& err_string, bool relay) const
+OperationResult CWallet::SubmitTxMemoryPoolAndRelay(CWalletTx& wtx, bool relay) const
 {
     AssertLockHeld(cs_wallet);
 
@@ -1864,7 +1859,7 @@ bool CWallet::SubmitTxMemoryPoolAndRelay(CWalletTx& wtx, std::string& err_string
     // If broadcast fails for any reason, trying to set wtx.m_state here would be incorrect.
     // If transaction was previously in the mempool, it should be updated when
     // TransactionRemovedFromMempool fires.
-    bool ret = chain().broadcastTransaction(wtx.tx, m_default_max_tx_fee, relay, err_string);
+    auto ret = chain().broadcastTransaction(wtx.tx, m_default_max_tx_fee, relay);
     if (ret) wtx.m_state = TxStateInMempool{};
     return ret;
 }
@@ -1914,8 +1909,7 @@ void CWallet::ResendWalletTransactions()
             // the last block. SubmitTxMemoryPoolAndRelay() will not rebroadcast
             // any confirmed or conflicting txs.
             if (wtx.nTimeReceived > m_best_block_time - 5 * 60) continue;
-            std::string unused_err_string;
-            if (SubmitTxMemoryPoolAndRelay(wtx, unused_err_string, true)) ++submitted_tx_count;
+            if (SubmitTxMemoryPoolAndRelay(wtx, true)) ++submitted_tx_count;
         }
     } // cs_wallet
 
@@ -2132,9 +2126,9 @@ void CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
         return;
     }
 
-    std::string err_string;
-    if (!SubmitTxMemoryPoolAndRelay(wtx, err_string, true)) {
-        WalletLogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", err_string);
+    auto ret = SubmitTxMemoryPoolAndRelay(wtx, true);
+    if (!ret) {
+        WalletLogPrintf("CommitTransaction(): Transaction cannot be broadcast immediately, %s\n", ret.GetError().original);
         // TODO: if we expect the failure to be long term or permanent, instead delete wtx from the wallet and return failure.
     }
 }

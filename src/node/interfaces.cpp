@@ -586,16 +586,16 @@ public:
         auto it = m_node.mempool->GetIter(txid);
         return it && (*it)->GetCountWithDescendants() > 1;
     }
-    bool broadcastTransaction(const CTransactionRef& tx,
+    OperationResult broadcastTransaction(const CTransactionRef& tx,
         const CAmount& max_tx_fee,
-        bool relay,
-        std::string& err_string) override
+        bool relay) override
     {
-        const TransactionError err = BroadcastTransaction(m_node, tx, err_string, max_tx_fee, relay, /*wait_callback=*/false);
+        bilingual_str err_string;
+        const TransactionError err = BroadcastTransaction(m_node, tx, err_string.original, max_tx_fee, relay, /*wait_callback=*/false);
         // Chain clients only care about failures to accept the tx to the mempool. Disregard non-mempool related failures.
         // Note: this will need to be updated if BroadcastTransactions() is updated to return other non-mempool failures
         // that Chain clients do not need to know about.
-        return TransactionError::OK == err;
+        return TransactionError::OK == err ? OperationResult{true} : ErrorOut(err_string);
     }
     void getTransactionAncestry(const uint256& txid, size_t& ancestors, size_t& descendants, size_t* ancestorsize, CAmount* ancestorfees) override
     {

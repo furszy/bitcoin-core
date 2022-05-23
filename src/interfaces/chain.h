@@ -11,6 +11,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <operationresult.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string>
@@ -170,10 +171,9 @@ public:
     //! Transaction is added to memory pool, if the transaction fee is below the
     //! amount specified by max_tx_fee, and broadcast to all peers if relay is set to true.
     //! Return false if the transaction could not be added due to the fee or for another reason.
-    virtual bool broadcastTransaction(const CTransactionRef& tx,
+    virtual OperationResult broadcastTransaction(const CTransactionRef& tx,
         const CAmount& max_tx_fee,
-        bool relay,
-        std::string& err_string) = 0;
+        bool relay) = 0;
 
     //! Calculate mempool ancestor and descendant counts for the given transaction.
     virtual void getTransactionAncestry(const uint256& txid, size_t& ancestors, size_t& descendants, size_t* ancestorsize = nullptr, CAmount* ancestorfees = nullptr) = 0;
