@@ -5,6 +5,7 @@
 #ifndef BITCOIN_OPERATIONRESULT_H
 #define BITCOIN_OPERATIONRESULT_H
 
+#include <optional>
 #include <util/translation.h>
 
 class OperationResult
