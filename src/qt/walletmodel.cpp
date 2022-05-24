@@ -212,12 +212,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
         if (fSubtractFeeFromAmount && newTx)
             transaction.reassignAmounts(nChangePosRet);
 
-        if(!newTx)
-        {
-            if(!fSubtractFeeFromAmount && (total + nFeeRequired) > nBalance)
-            {
-                return SendCoinsReturn(AmountWithFeeExceedsBalance);
-            }
+        if (!newTx) {
             Q_EMIT message(tr("Send Coins"), QString::fromStdString(res.GetError().translated),
                 CClientUIInterface::MSG_ERROR);
             return TransactionCreationFailed;
