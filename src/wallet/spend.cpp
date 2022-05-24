@@ -666,7 +666,6 @@ static std::optional<CreatedTransactionResult> CreateTransactionInternal(
         int change_pos,
         bilingual_str& error,
         const CCoinControl& coin_control,
-        FeeCalculation& fee_calc_out,
         bool sign) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet)
 {
     AssertLockHeld(wallet.cs_wallet);
@@ -952,7 +951,6 @@ static std::optional<CreatedTransactionResult> CreateTransactionInternal(
     // Before we return success, we assume any change key will be used to prevent
     // accidental re-use.
     reservedest.KeepDestination();
-    fee_calc_out = feeCalc;
 
     wallet.WalletLogPrintf("Fee Calculation: Fee:%d Bytes:%u Tgt:%d (requested %d) Reason:\"%s\" Decay %.5f: Estimation: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out) Fail: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out)\n",
               nFeeRet, nBytes, feeCalc.returnedTarget, feeCalc.desiredTarget, StringForFeeReason(feeCalc.reason), feeCalc.est.decay,
@@ -962,7 +960,7 @@ static std::optional<CreatedTransactionResult> CreateTransactionInternal(
               feeCalc.est.fail.start, feeCalc.est.fail.end,
               (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool) > 0.0 ? 100 * feeCalc.est.fail.withinTarget / (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool) : 0.0,
               feeCalc.est.fail.withinTarget, feeCalc.est.fail.totalConfirmed, feeCalc.est.fail.inMempool, feeCalc.est.fail.leftMempool);
-    return CreatedTransactionResult(tx, nFeeRet, nChangePosInOut);
+    return CreatedTransactionResult(tx, nFeeRet, nChangePosInOut, feeCalc);
 }
 
 std::optional<CreatedTransactionResult> CreateTransaction(
@@ -971,7 +969,6 @@ std::optional<CreatedTransactionResult> CreateTransaction(
         int change_pos,
         bilingual_str& error,
         const CCoinControl& coin_control,
-        FeeCalculation& fee_calc_out,
         bool sign)
 {
     if (vecSend.empty()) {
@@ -986,7 +983,7 @@ std::optional<CreatedTransactionResult> CreateTransaction(
 
     LOCK(wallet.cs_wallet);
 
-    std::optional<CreatedTransactionResult> txr_ungrouped = CreateTransactionInternal(wallet, vecSend, change_pos, error, coin_control, fee_calc_out, sign);
+    std::optional<CreatedTransactionResult> txr_ungrouped = CreateTransactionInternal(wallet, vecSend, change_pos, error, coin_control, sign);
     TRACE4(coin_selection, normal_create_tx_internal, wallet.GetName().c_str(), txr_ungrouped.has_value(),
            txr_ungrouped.has_value() ? txr_ungrouped->fee : 0, txr_ungrouped.has_value() ? txr_ungrouped->change_pos : 0);
     if (!txr_ungrouped) return std::nullopt;
@@ -996,7 +993,7 @@ std::optional<CreatedTransactionResult> CreateTransaction(
         CCoinControl tmp_cc = coin_control;
         tmp_cc.m_avoid_partial_spends = true;
         bilingual_str error2; // fired and forgotten; if an error occurs, we discard the results
-        std::optional<CreatedTransactionResult> txr_grouped = CreateTransactionInternal(wallet, vecSend, change_pos, error2, tmp_cc, fee_calc_out, sign);
+        std::optional<CreatedTransactionResult> txr_grouped = CreateTransactionInternal(wallet, vecSend, change_pos, error2, tmp_cc, sign);
         if (txr_grouped) {
             // if fee of this alternative one is within the range of the max fee, we use this one
             const bool use_aps = txr_grouped->fee <= txr_ungrouped->fee + wallet.m_max_aps_fee;
@@ -1030,8 +1027,7 @@ bool FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& nFeeRet,
     // CreateTransaction call and LockCoin calls (when lockUnspents is true).
     LOCK(wallet.cs_wallet);
 
-    FeeCalculation fee_calc_out;
-    std::optional<CreatedTransactionResult> txr = CreateTransaction(wallet, vecSend, nChangePosInOut, error, coinControl, fee_calc_out, false);
+    std::optional<CreatedTransactionResult> txr = CreateTransaction(wallet, vecSend, nChangePosInOut, error, coinControl, false);
     if (!txr) return false;
     CTransactionRef tx_new = txr->tx;
     nFeeRet = txr->fee;
