@@ -8,6 +8,7 @@
 
 #include <clientversion.h>
 #include <fs.h>
+#include <operationresult.h>
 #include <serialize.h>
 #include <streams.h>
 #include <util/system.h>
@@ -65,7 +66,7 @@ public:
     bool IsInitialized() const { return fDbEnvInit; }
     fs::path Directory() const { return fs::PathFromString(strPath); }
 
-    bool Open(bilingual_str& error);
+    OperationResult Open();
     void Close();
     void Flush(bool fShutdown);
     void CheckpointLSN(const std::string& strFile);
@@ -138,7 +139,7 @@ public:
     void ReloadDbEnv() override;
 
     /** Verifies the environment and database file */
-    bool Verify(bilingual_str& error);
+    OperationResult Verify();
 
     /** Return path to main database filename */
     std::string Filename() override { return fs::PathToString(env->Directory() / m_filename); }

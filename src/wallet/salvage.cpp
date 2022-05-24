@@ -38,7 +38,9 @@ bool RecoverDatabaseFile(const ArgsManager& args, const fs::path& file_path, bil
     std::string filename = berkeley_database.Filename();
     std::shared_ptr<BerkeleyEnvironment> env = berkeley_database.env;
 
-    if (!env->Open(error)) {
+    auto op_open = env->Open();
+    if (!op_open) {
+        error = op_open.GetError();
         return false;
     }
 

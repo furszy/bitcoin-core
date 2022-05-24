@@ -125,7 +125,7 @@ BerkeleyEnvironment::~BerkeleyEnvironment()
     Close();
 }
 
-bool BerkeleyEnvironment::Open(bilingual_str& err)
+OperationResult BerkeleyEnvironment::Open()
 {
     if (fDbEnvInit) {
         return true;
@@ -135,8 +135,7 @@ bool BerkeleyEnvironment::Open(bilingual_str& err)
     TryCreateDirectories(pathIn);
     if (!LockDirectory(pathIn, ".walletlock")) {
         LogPrintf("Cannot obtain a lock on wallet directory %s. Another instance may be using it.\n", strPath);
-        err = strprintf(_("Error initializing wallet database environment %s!"), fs::quoted(fs::PathToString(Directory())));
-        return false;
+        return ErrorOut(strprintf(_("Error initializing wallet database environment %s!"), fs::quoted(fs::PathToString(Directory()))));
     }
 
     fs::path pathLogDir = pathIn / "database";
@@ -176,11 +175,11 @@ bool BerkeleyEnvironment::Open(bilingual_str& err)
             LogPrintf("BerkeleyEnvironment::Open: Error %d closing failed database environment: %s\n", ret2, DbEnv::strerror(ret2));
         }
         Reset();
-        err = strprintf(_("Error initializing wallet database environment %s!"), fs::quoted(fs::PathToString(Directory())));
+        bilingual_str err = strprintf(_("Error initializing wallet database environment %s!"), fs::quoted(fs::PathToString(Directory())));
         if (ret == DB_RUNRECOVERY) {
             err += Untranslated(" ") + _("This error could occur if this wallet was not shutdown cleanly and was last loaded using a build with a newer version of Berkeley DB. If so, please use the software that last loaded this wallet");
         }
-        return false;
+        return ErrorOut(err);
     }
 
     fDbEnvInit = true;
@@ -258,7 +257,7 @@ BerkeleyBatch::SafeDbt::operator Dbt*()
     return &m_dbt;
 }
 
-bool BerkeleyDatabase::Verify(bilingual_str& errorStr)
+OperationResult BerkeleyDatabase::Verify()
 {
     fs::path walletDir = env->Directory();
     fs::path file_path = walletDir / m_filename;
@@ -266,9 +265,8 @@ bool BerkeleyDatabase::Verify(bilingual_str& errorStr)
     LogPrintf("Using BerkeleyDB version %s\n", BerkeleyDatabaseVersion());
     LogPrintf("Using wallet %s\n", fs::PathToString(file_path));
 
-    if (!env->Open(errorStr)) {
-        return false;
-    }
+    auto ret = env->Open();
+    if (!ret) return ret; // failed to open.
 
     if (fs::exists(file_path))
     {
@@ -278,8 +276,7 @@ bool BerkeleyDatabase::Verify(bilingual_str& errorStr)
         const std::string strFile = fs::PathToString(m_filename);
         int result = db.verify(strFile.c_str(), nullptr, nullptr, 0);
         if (result != 0) {
-            errorStr = strprintf(_("%s corrupt. Try using the wallet tool bitcoin-wallet to salvage or restoring a backup."), fs::quoted(fs::PathToString(file_path)));
-            return false;
+            return ErrorOut(strprintf(_("%s corrupt. Try using the wallet tool bitcoin-wallet to salvage or restoring a backup."), fs::quoted(fs::PathToString(file_path))));
         }
     }
     // also return true if files does not exists
@@ -329,8 +326,7 @@ void BerkeleyDatabase::Open()
 
     {
         LOCK(cs_db);
-        bilingual_str open_err;
-        if (!env->Open(open_err))
+        if (!env->Open()) // for now, swallow the str error
             throw std::runtime_error("BerkeleyDatabase: Failed to open database environment.");
 
         if (m_db == nullptr) {
@@ -447,8 +443,7 @@ void BerkeleyEnvironment::ReloadDbEnv()
     // Reset the environment
     Flush(true); // This will flush and close the environment
     Reset();
-    bilingual_str open_err;
-    Open(open_err);
+    Open();
 }
 
 bool BerkeleyDatabase::Rewrite(const char* pszSkip)
@@ -847,8 +842,10 @@ std::unique_ptr<BerkeleyDatabase> MakeBerkeleyDatabase(const fs::path& path, con
         db = std::make_unique<BerkeleyDatabase>(std::move(env), std::move(data_filename), options);
     }
 
-    if (options.verify && !db->Verify(error)) {
+    auto op_verify = options.verify ? db->Verify() : OperationResult(true);
+    if (!op_verify) {
         status = DatabaseStatus::FAILED_VERIFY;
+        error = op_verify.GetError();
         return nullptr;
     }
 
