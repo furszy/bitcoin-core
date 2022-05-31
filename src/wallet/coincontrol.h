@@ -25,6 +25,32 @@ const int DEFAULT_MAX_DEPTH = 9999999;
 //! Default for -avoidpartialspends
 static constexpr bool DEFAULT_AVOIDPARTIALSPENDS = false;
 
+class PreselectedInput
+{
+private:
+    //! The previous output being spent by this input
+    std::optional<CTxOut> m_txout;
+    //! The input weight for spending this input
+    std::optional<int64_t> m_weight;
+
+public:
+    void SetTxOut(const CTxOut& txout) { m_txout = txout; }
+    CTxOut GetTxOut() const
+    {
+        assert(m_txout.has_value());
+        return m_txout.value();
+    }
+    bool HasTxOut() const { return m_txout.has_value(); }
+
+    void SetInputWeight(int64_t weight) { m_weight = weight; }
+    int64_t GetInputWeight() const
+    {
+        assert(m_weight.has_value());
+        return m_weight.value();
+    }
+    bool HasInputWeight() const { return m_weight.has_value(); }
+};
+
 /** Coin Control Features. */
 class CCoinControl
 {
@@ -65,77 +91,82 @@ public:
 
     bool HasSelected() const
     {
-        return (setSelected.size() > 0);
+        return (m_selected.size() > 0);
     }
 
     bool IsSelected(const COutPoint& output) const
     {
-        return (setSelected.count(output) > 0);
+        return (m_selected.count(output) > 0);
     }
 
     bool IsExternalSelected(const COutPoint& output) const
     {
-        return (m_external_txouts.count(output) > 0);
+        const auto it = m_selected.find(output);
+        if (it == m_selected.end()) {
+            return false;
+        }
+        return it->second.HasTxOut();
     }
 
     bool GetExternalOutput(const COutPoint& outpoint, CTxOut& txout) const
     {
-        const auto ext_it = m_external_txouts.find(outpoint);
-        if (ext_it == m_external_txouts.end()) {
+        const auto it = m_selected.find(outpoint);
+        if (it == m_selected.end() || !it->second.HasTxOut()) {
             return false;
         }
-        txout = ext_it->second;
+        txout = it->second.GetTxOut();
         return true;
     }
 
-    void Select(const COutPoint& output)
+    PreselectedInput& Select(const COutPoint& output)
     {
-        setSelected.insert(output);
+        return m_selected[output];
     }
 
     void SelectExternal(const COutPoint& outpoint, const CTxOut& txout)
     {
-        setSelected.insert(outpoint);
-        m_external_txouts.emplace(outpoint, txout);
+        m_selected[outpoint].SetTxOut(txout);
     }
 
     void UnSelect(const COutPoint& output)
     {
-        setSelected.erase(output);
+        m_selected.erase(output);
     }
 
     void UnSelectAll()
     {
-        setSelected.clear();
+        m_selected.clear();
     }
 
     void ListSelected(std::vector<COutPoint>& vOutpoints) const
     {
-        vOutpoints.assign(setSelected.begin(), setSelected.end());
+        std::transform(m_selected.begin(), m_selected.end(), std::back_inserter(vOutpoints),
+                [](const std::map<COutPoint, PreselectedInput>::value_type& pair) {
+                    return pair.first;
+                });
     }
 
     void SetInputWeight(const COutPoint& outpoint, int64_t weight)
     {
-        m_input_weights[outpoint] = weight;
+        m_selected[outpoint].SetInputWeight(weight);
     }
 
     bool HasInputWeight(const COutPoint& outpoint) const
     {
-        return m_input_weights.count(outpoint) > 0;
+        const auto it = m_selected.find(outpoint);
+        if (it == m_selected.end()) {
+            return false;
+        }
+        return it->second.HasInputWeight();
     }
 
     int64_t GetInputWeight(const COutPoint& outpoint) const
     {
-        auto it = m_input_weights.find(outpoint);
-        assert(it != m_input_weights.end());
-        return it->second;
+        return m_selected.at(outpoint).GetInputWeight();
     }
 
 private:
-    std::set<COutPoint> setSelected;
-    std::map<COutPoint, CTxOut> m_external_txouts;
-    //! Map of COutPoints to the maximum weight for that input
-    std::map<COutPoint, int64_t> m_input_weights;
+    std::map<COutPoint, PreselectedInput> m_selected;
 };
 } // namespace wallet
 
