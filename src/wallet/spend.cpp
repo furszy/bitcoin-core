@@ -982,7 +982,15 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
             // If an input as a preset sequence, we can't do anti-fee-sniping
             use_anti_fee_sniping = false;
         }
-        txNew.vin.push_back(CTxIn(coin->outpoint, CScript(), sequence.value_or(default_sequence)));
+        CScript script_sig;
+        CScriptWitness script_witness;
+        if (coin_control.HasScripts(coin->outpoint)) {
+            auto [ss, sw] = coin_control.GetScripts(coin->outpoint);
+            script_sig = ss;
+            script_witness = sw;
+        }
+        txNew.vin.push_back(CTxIn(coin->outpoint, script_sig, sequence.value_or(default_sequence)));
+        txNew.vin.back().scriptWitness = script_witness;
     }
     if (coin_control.m_locktime) {
         txNew.nLockTime = coin_control.m_locktime.value();
@@ -1199,6 +1207,8 @@ bool FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& nFeeRet,
             preset_txin.SetTxOut(coins[outPoint].out);
         }
         preset_txin.SetSequence(txin.nSequence);
+        preset_txin.SetScriptSig(txin.scriptSig);
+        preset_txin.SetScriptWitness(txin.scriptWitness);
     }
 
     auto res = CreateTransaction(wallet, vecSend, nChangePosInOut, coinControl, false);

@@ -34,6 +34,10 @@ private:
     std::optional<int64_t> m_weight;
     //! The sequence number for this input
     std::optional<uint32_t> m_sequence;
+    //! The scriptSig for this input
+    std::optional<CScript> m_script_sig;
+    //! The scriptWitness for this input
+    std::optional<CScriptWitness> m_script_witness;
 
 public:
     void SetTxOut(const CTxOut& txout) { m_txout = txout; }
@@ -54,6 +58,22 @@ public:
     std::optional<uint32_t> GetSequence() const
     {
         return m_sequence;
+    }
+
+    void SetScriptSig(const CScript& script) { m_script_sig = script; }
+    void SetScriptWitness(const CScriptWitness& script_wit) { m_script_witness = script_wit; }
+    bool HasScripts() const { return m_script_sig.has_value() || m_script_witness.has_value(); }
+    std::pair<CScript, CScriptWitness> GetScripts() const
+    {
+        CScript script_sig;
+        if (m_script_sig.has_value()) {
+            script_sig = m_script_sig.value();
+        }
+        CScriptWitness script_witness;
+        if (m_script_witness.has_value()) {
+            script_witness = m_script_witness.value();
+        }
+        return {script_sig, script_witness};
     }
 };
 
@@ -172,6 +192,20 @@ public:
             return std::nullopt;
         }
         return it->second.GetSequence();
+    }
+
+    bool HasScripts(const COutPoint& outpoint) const
+    {
+        const auto it = m_selected.find(outpoint);
+        if (it == m_selected.end()) {
+            return false;
+        }
+        return it->second.HasScripts();
+    }
+
+    std::pair<CScript, CScriptWitness> GetScripts(const COutPoint& outpoint) const
+    {
+        return m_selected.at(outpoint).GetScripts();
     }
 
 private:
