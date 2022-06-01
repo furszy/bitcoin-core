@@ -32,6 +32,8 @@ private:
     std::optional<CTxOut> m_txout;
     //! The input weight for spending this input
     std::optional<int64_t> m_weight;
+    //! The sequence number for this input
+    std::optional<uint32_t> m_sequence;
 
 public:
     void SetTxOut(const CTxOut& txout) { m_txout = txout; }
@@ -46,6 +48,12 @@ public:
     std::optional<int64_t> GetInputWeight() const
     {
         return m_weight;
+    }
+
+    void SetSequence(uint32_t sequence) { m_sequence = sequence; }
+    std::optional<uint32_t> GetSequence() const
+    {
+        return m_sequence;
     }
 };
 
@@ -151,6 +159,15 @@ public:
             return std::nullopt;
         }
         return it->second.GetInputWeight();
+    }
+
+    std::optional<uint32_t> GetSequence(const COutPoint& outpoint) const
+    {
+        const auto it = m_selected.find(outpoint);
+        if (it == m_selected.end()) {
+            return std::nullopt;
+        }
+        return it->second.GetSequence();
     }
 
 private:
