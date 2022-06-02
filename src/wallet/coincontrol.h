@@ -38,6 +38,8 @@ private:
     std::optional<CScript> m_script_sig;
     //! The scriptWitness for this input
     std::optional<CScriptWitness> m_script_witness;
+    //! The position in the inputs vector for this input
+    std::optional<unsigned int> m_pos;
 
 public:
     void SetTxOut(const CTxOut& txout) { m_txout = txout; }
@@ -75,6 +77,13 @@ public:
         }
         return {script_sig, script_witness};
     }
+
+    void SetPosition(unsigned int pos) { m_pos = pos; }
+    std::optional<unsigned int> GetPosition() const
+    {
+        return m_pos;
+    }
+
 };
 
 /** Coin Control Features. */
@@ -150,7 +159,9 @@ public:
 
     PreselectedInput& Select(const COutPoint& output)
     {
-        return m_selected[output];
+        auto& input = m_selected[output];
+        input.SetPosition(m_selection_pos++);
+        return input;
     }
 
     void UnSelect(const COutPoint& output)
@@ -208,8 +219,23 @@ public:
         return m_selected.at(outpoint).GetScripts();
     }
 
+    bool HasSelectedOrder() const
+    {
+        return m_selection_pos > 0;
+    }
+
+    std::optional<unsigned int> GetSelectionPos(const COutPoint& outpoint) const
+    {
+        const auto it = m_selected.find(outpoint);
+        if (it == m_selected.end()) {
+            return std::nullopt;
+        }
+        return it->second.GetPosition();
+    }
+
 private:
     std::map<COutPoint, PreselectedInput> m_selected;
+    unsigned int m_selection_pos{0};
 };
 } // namespace wallet
 
