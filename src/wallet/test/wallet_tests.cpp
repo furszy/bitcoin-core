@@ -952,29 +952,14 @@ BOOST_FIXTURE_TEST_CASE(wallet_sync_tx_invalid_state_test, TestingSetup)
 
     // Now the bad case:
     // 1) Make db always fail
-    // 2) Add transaction that spends the previously created transaction
-    // 3) Check what happen now that the db failed to write the tx. Verifying
-    //    the available balance of this new tx and the old one (which, as the
-    //    output is spent, should at least, be marked dirty)
-
+    // 2) Try to add a transaction that spends the previously created transaction and
+    //    verify that we are not moving forward if the wallet cannot store it
     static_cast<FailDatabase&>(wallet.GetDatabase()).m_pass = false;
     mtx.vin.clear();
     mtx.vin.push_back(CTxIn(good_tx_id, 0));
-    wallet.transactionAddedToMempool(MakeTransactionRef(mtx), 0);
-    const uint256& bad_tx_id = mtx.GetHash();
-
-    {
-        // Verify balance update for the new tx and the old one
-        LOCK(wallet.cs_wallet);
-        const CWalletTx* new_wtx = wallet.GetWalletTx(bad_tx_id);
-        BOOST_CHECK_EQUAL(CachedTxGetAvailableCredit(wallet, *new_wtx), 1 * COIN);
-
-        // Now the old wtx
-        // BUG -> the arriving tx is on the in-memory wallet map, not stored on db and the previous transaction is not marked dirty.
-        const CWalletTx* wtx_good = wallet.GetWalletTx(good_tx_id);
-        BOOST_CHECK_EQUAL(CachedTxGetAvailableCredit(wallet, *wtx_good), 0 * COIN);
-    }
-
+    BOOST_CHECK_EXCEPTION(wallet.transactionAddedToMempool(MakeTransactionRef(mtx), 0),
+                          std::runtime_error,
+                          HasReason("DB error adding transaction to wallet, write failed"));
 }
 
 BOOST_AUTO_TEST_SUITE_END()
