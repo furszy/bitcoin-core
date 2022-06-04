@@ -1083,7 +1083,9 @@ bool CWallet::LoadToWallet(const uint256& hash, const UpdateWalletTxFn& fill_wtx
         if (it != mapWallet.end()) {
             CWalletTx& prevtx = it->second;
             if (auto* prev = prevtx.state<TxStateConflicted>()) {
-                MarkConflicted(prev->conflicting_block_hash, prev->conflicting_block_height, wtx.GetHash());
+                // Do not flush the wallet here for performance reasons
+                WalletBatch batch(GetDatabase(), false);
+                MarkConflicted(batch, prev->conflicting_block_hash, prev->conflicting_block_height, wtx.GetHash());
             }
         }
     }
@@ -1095,6 +1097,8 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const SyncTxS
     const CTransaction& tx = *ptx;
     {
         AssertLockHeld(cs_wallet);
+        // Do not flush the wallet here for performance reasons
+        WalletBatch batch(GetDatabase(), false /*fFlushOnClose*/);
 
         if (auto* conf = std::get_if<TxStateConfirmed>(&state)) {
             for (const CTxIn& txin : tx.vin) {
@@ -1102,7 +1106,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const SyncTxS
                 while (range.first != range.second) {
                     if (range.first->second != tx.GetHash()) {
                         WalletLogPrintf("Transaction %s (in block %s) conflicts with wallet transaction %s (both spend %s:%i)\n", tx.GetHash().ToString(), conf->confirmed_block_hash.ToString(), range.first->second.ToString(), range.first->first.hash.ToString(), range.first->first.n);
-                        MarkConflicted(conf->confirmed_block_hash, conf->confirmed_block_height, range.first->second);
+                        MarkConflicted(batch, conf->confirmed_block_hash, conf->confirmed_block_height, range.first->second);
                     }
                     range.first++;
                 }
@@ -1135,7 +1139,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const SyncTxS
                         // (e.g. it wasn't generated on this node or we're restoring from backup)
                         // add it to the address book for proper transaction accounting
                         if (!*dest.internal && !FindAddressBookEntry(dest.dest, /* allow_change= */ false)) {
-                            SetAddressBook(dest.dest, "", "receive");
+                            SetAddressBookWithDB(batch, dest.dest, "", "receive");
                         }
                     }
                 }
@@ -1144,7 +1148,6 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransactionRef& ptx, const SyncTxS
             // Block disconnection override an abandoned tx as unconfirmed
             // which means user may have to call abandontransaction again
             TxState tx_state = std::visit([](auto&& s) -> TxState { return s; }, state);
-            WalletBatch batch(GetDatabase(), false /*fFlushOnClose*/);
             return AddToWallet(batch, MakeTransactionRef(tx), tx_state, /*update_wtx=*/nullptr, rescanning_old_block);
         }
     }
@@ -1222,7 +1225,7 @@ bool CWallet::AbandonTransaction(const uint256& hashTx)
     return true;
 }
 
-void CWallet::MarkConflicted(const uint256& hashBlock, int conflicting_height, const uint256& hashTx)
+void CWallet::MarkConflicted(WalletBatch& batch, const uint256& hashBlock, int conflicting_height, const uint256& hashTx)
 {
     LOCK(cs_wallet);
 
@@ -1233,9 +1236,6 @@ void CWallet::MarkConflicted(const uint256& hashBlock, int conflicting_height, c
     // case.
     if (conflictconfirms >= 0)
         return;
-
-    // Do not flush the wallet here for performance reasons
-    WalletBatch batch(GetDatabase(), false);
 
     std::set<uint256> todo;
     std::set<uint256> done;
