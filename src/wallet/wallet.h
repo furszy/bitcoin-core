@@ -658,7 +658,7 @@ public:
      * Stops when the provided 'ListAddrBookFunc' returns false.
      */
     using ListAddrBookFunc = std::function<void(const CTxDestination& dest, const std::string& label, const std::string& purpose, bool is_change)>;
-    void ForEachAddrBookEntry(const ListAddrBookFunc& func = [](const CTxDestination&, const std::string&, const std::string&, bool is_change){ return; }) const;
+    void ForEachAddrBookEntry(const ListAddrBookFunc& func = [](const CTxDestination&, const std::string&, const std::string&, bool is_change){ return; }) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
     /**
      * Marks all outputs in each one of the destinations dirty, so their cache is
