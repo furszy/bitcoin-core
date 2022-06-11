@@ -2362,7 +2362,7 @@ std::vector<CTxDestination> CWallet::ListAddrBookAddresses(const std::optional<A
     AssertLockHeld(cs_wallet);
     std::vector<CTxDestination> result;
     AddrBookFilter filter = _filter ? *_filter : AddrBookFilter();
-    ForEachAddrBookEntry([&result, &filter](const CTxDestination& dest, const std::string& label, const std::string& purpose, bool is_change){
+    ForEachAddrBookEntry([&result, &filter](const CTxDestination& dest, const std::string& label, const std::string& purpose, bool is_change) {
         // Filter by change
         if (filter.filter_change && is_change) return;
         // Filter by label
@@ -2371,6 +2371,20 @@ std::vector<CTxDestination> CWallet::ListAddrBookAddresses(const std::optional<A
         result.emplace_back(dest);
     });
     return result;
+}
+
+std::set<std::string> CWallet::ListAddrBookLabels(const std::string& purpose) const
+{
+    AssertLockHeld(cs_wallet);
+    std::set<std::string> label_set;
+    ForEachAddrBookEntry([&](const CTxDestination& _dest, const std::string& _label,
+                             const std::string& _purpose, bool _is_change) {
+        if (_is_change) return;
+        if (purpose.empty() || _purpose == purpose) {
+            label_set.insert(_label);
+        }
+    });
+   return label_set;
 }
 
 bool ReserveDestination::GetReservedDestination(CTxDestination& dest, bool internal, bilingual_str& error)
