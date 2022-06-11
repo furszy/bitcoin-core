@@ -657,7 +657,7 @@ public:
      * Walk-through the address book entries.
      * Stops when the provided 'ListAddrBookFunc' returns false.
      */
-    using ListAddrBookFunc = std::function<void(const CTxDestination& dest, const std::string& label, const std::string& purpose, bool is_change)> EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    using ListAddrBookFunc = std::function<void(const CTxDestination& dest, const std::string& label, const std::string& purpose, bool is_change)> NO_THREAD_SAFETY_ANALYSIS;
     void ForEachAddrBookEntry(const ListAddrBookFunc&& func = [](const CTxDestination&, const std::string&, const std::string&, bool is_change){ return; }) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
     /**
