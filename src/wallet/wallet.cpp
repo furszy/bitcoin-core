@@ -2348,7 +2348,7 @@ void CWallet::MarkDestinationsDirty(const std::set<CTxDestination>& destinations
     }
 }
 
-void CWallet::ForEachAddrBookEntry(const ListAddrBookFunc& func) const
+void CWallet::ForEachAddrBookEntry(const ListAddrBookFunc&& func) const
 {
     AssertLockHeld(cs_wallet);
     for (const std::pair<const CTxDestination, CAddressBookData>& item : m_address_book) {
