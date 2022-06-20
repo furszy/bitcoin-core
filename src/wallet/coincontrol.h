@@ -121,11 +121,6 @@ public:
         return m_selected[output];
     }
 
-    void SelectExternal(const COutPoint& outpoint, const CTxOut& txout)
-    {
-        m_selected[outpoint].SetTxOut(txout);
-    }
-
     void UnSelect(const COutPoint& output)
     {
         m_selected.erase(output);
