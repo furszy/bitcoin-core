@@ -399,9 +399,7 @@ void BerkeleyBatch::Close()
 {
     if (!pdb)
         return;
-    if (activeTxn)
-        activeTxn->abort();
-    activeTxn = nullptr;
+    TxnAbort();
     pdb = nullptr;
     CloseCursor();
 
