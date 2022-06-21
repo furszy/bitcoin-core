@@ -186,6 +186,8 @@ private:
     template <typename K, typename T>
     bool WriteIC(const K& key, const T& value, bool fOverwrite = true)
     {
+        TryInit(); // only if on-demand mode is configured
+
         if (!m_batch->Write(key, value, fOverwrite)) {
             return false;
         }
@@ -199,6 +201,8 @@ private:
     template <typename K>
     bool EraseIC(const K& key)
     {
+        TryInit(); // only if on-demand mode is configured
+
         if (!m_batch->Erase(key)) {
             return false;
         }
@@ -210,13 +214,52 @@ private:
     }
 
 public:
-    explicit WalletBatch(WalletDatabase &database, bool _fFlushOnClose = true) :
-        m_batch(database.MakeBatch(_fFlushOnClose)),
-        m_database(database)
+
+    /**
+     * If "initialize=false" the handler will not open nor initialize the db on the constructor.
+     *
+     * Users can create the object beforehand and pass it across
+     * different functions as ref without knowing if them will use it or not.
+     * This avoids grant db access and consume resources for no reason,
+     * and allows re-using the batch.
+     *
+     * The first time that a write/erase operation is performed:
+     * 1) Db access will be initialized.
+     * 2) A db txn will be created (if needed => is_txn = true).
+     *
+     * Note: If configured (is_txn=true), the db txn will be committed when the object is destructed.
+    */
+    explicit WalletBatch(WalletDatabase& database, bool fFlushOnClose = true,
+                         bool initialize = true, bool is_txn = false) :
+                         m_database(database),
+                         m_flush_on_close(fFlushOnClose),
+                         m_is_txn(is_txn)
     {
+        if (initialize) {
+            TryInit();
+        }
     }
     WalletBatch(const WalletBatch&) = delete;
     WalletBatch& operator=(const WalletBatch&) = delete;
+
+    ~WalletBatch()
+    {
+        if (m_batch && m_is_txn) {
+            TxnCommit();
+        }
+    }
+
+    /**
+     *  Initialize the wallet batch on-demand.
+     *  no-op if batch was already initialized.
+     */
+    bool TryInit()
+    {
+        if (m_batch) return false;
+        m_batch = m_database.MakeBatch(m_flush_on_close);
+        if (m_is_txn) TxnBegin();
+        return true;
+    }
 
     bool WriteName(const std::string& strAddress, const std::string& strName);
     bool EraseName(const std::string& strAddress);
@@ -286,6 +329,11 @@ public:
 private:
     std::unique_ptr<DatabaseBatch> m_batch;
     WalletDatabase& m_database;
+    // Whether it should flush to db at every write or not (only useful for bdb)
+    bool m_flush_on_close{false};
+    // Whether it should create a db txn at initialization
+    bool m_is_txn{false};
+
 };
 
 //! Compacts BDB state so that wallet.dat is self-contained (if there are changes)
