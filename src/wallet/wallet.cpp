@@ -1486,12 +1486,12 @@ bool CWallet::LoadWalletFlags(uint64_t flags)
     return true;
 }
 
-bool CWallet::AddWalletFlags(uint64_t flags)
+bool CWallet::AddWalletFlags(uint64_t flags, WalletBatch& batch)
 {
     LOCK(cs_wallet);
     // We should never be writing unknown non-tolerable wallet flags
     assert(((flags & KNOWN_WALLET_FLAGS) >> 32) == (flags >> 32));
-    if (!WalletBatch(GetDatabase()).WriteWalletFlags(flags)) {
+    if (!batch.WriteWalletFlags(flags)) {
         throw std::runtime_error(std::string(__func__) + ": writing wallet flags failed");
     }
 
@@ -2757,10 +2757,11 @@ std::shared_ptr<CWallet> CWallet::Create(WalletContext& context, const std::stri
                      !walletInstance->IsWalletFlagSet(WALLET_FLAG_BLANK_WALLET);
     if (fFirstRun)
     {
-        // ensure this wallet.dat can only be opened by clients supporting HD with chain split and expects no default key
-        walletInstance->SetMinVersion(FEATURE_LATEST);
+        WalletBatch batch(walletInstance->GetDatabase());
 
-        walletInstance->AddWalletFlags(wallet_creation_flags);
+        // ensure this wallet.dat can only be opened by clients supporting HD with chain split and expects no default key
+        walletInstance->SetMinVersion(FEATURE_LATEST, &batch);
+        walletInstance->AddWalletFlags(wallet_creation_flags, batch);
 
         // Only create LegacyScriptPubKeyMan when not descriptor wallet
         if (!walletInstance->IsWalletFlagSet(WALLET_FLAG_DESCRIPTORS)) {
