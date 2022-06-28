@@ -692,6 +692,9 @@ static std::optional<CreatedTransactionResult> CreateTransactionInternal(
     }
     coin_selection_params.m_change_target = GenerateChangeTarget(std::floor(recipients_sum / vecSend.size()), rng_fast);
 
+    // Db handler for this specific process
+    WalletBatch batch(wallet.GetDatabase());
+
     // Create change script that will be used if we need change
     CScript scriptChange;
 
@@ -710,7 +713,7 @@ static std::optional<CreatedTransactionResult> CreateTransactionInternal(
         // destination in case we don't need change.
         CTxDestination dest;
         bilingual_str dest_err;
-        if (!reservedest.GetReservedDestination(dest, true, dest_err)) {
+        if (!reservedest.GetReservedDestination(batch, dest, true, dest_err)) {
             error = _("Transaction needs a change address, but we can't generate it.") + Untranslated(" ") + dest_err;
         }
         scriptChange = GetScriptForDestination(dest);
@@ -950,7 +953,7 @@ static std::optional<CreatedTransactionResult> CreateTransactionInternal(
 
     // Before we return success, we assume any change key will be used to prevent
     // accidental re-use.
-    reservedest.KeepDestination();
+    reservedest.KeepDestination(batch);
     fee_calc_out = feeCalc;
 
     wallet.WalletLogPrintf("Fee Calculation: Fee:%d Bytes:%u Tgt:%d (requested %d) Reason:\"%s\" Decay %.5f: Estimation: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out) Fail: (%g - %g) %.2f%% %.1f/(%.1f %d mem %.1f out)\n",
