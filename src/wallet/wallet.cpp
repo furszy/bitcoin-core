@@ -2309,17 +2309,17 @@ bool CWallet::GetNewDestination(const OutputType type, const std::string label, 
 {
     LOCK(cs_wallet);
     error.clear();
+    WalletBatch batch(GetDatabase());
     bool result = false;
     auto spk_man = GetScriptPubKeyMan(type, false /* internal */);
     if (spk_man) {
-        WalletBatch batch(GetDatabase());
         spk_man->TopUp(batch);
         result = spk_man->GetNewDestination(type, dest, error);
     } else {
         error = strprintf(_("Error: No %s addresses available."), FormatOutputType(type));
     }
     if (result) {
-        SetAddressBook(dest, label, "receive");
+        SetAddressBookWithDB(batch, dest, label, "receive");
     }
 
     return result;
@@ -3543,7 +3543,7 @@ ScriptPubKeyMan* CWallet::AddWalletDescriptor(WalletDescriptor& desc, const Flat
 
         CTxDestination dest;
         if (!internal && ExtractDestination(script_pub_keys.at(0), dest)) {
-            SetAddressBook(dest, label, "receive");
+            SetAddressBookWithDB(batch, dest, label, "receive");
         }
     }
 
