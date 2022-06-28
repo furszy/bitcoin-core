@@ -51,7 +51,7 @@ static const std::shared_ptr<CWallet> MakeWallet(const std::string& name, const 
 {
     DatabaseStatus status;
     bilingual_str error;
-    std::unique_ptr<WalletDatabase> database = MakeDatabase(path, options, status, error);
+    std::unique_ptr<WalletDatabase> database = wallet::MakeWalletDatabase(path, options, status, error);
     if (!database) {
         tfm::format(std::cerr, "%s\n", error.original);
         return nullptr;
