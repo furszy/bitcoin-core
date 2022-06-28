@@ -340,7 +340,7 @@ bool LegacyScriptPubKeyMan::TopUpInactiveHDChain(const CKeyID seed_id, int64_t i
     return true;
 }
 
-std::vector<WalletDestination> LegacyScriptPubKeyMan::MarkUnusedAddresses(const CScript& script)
+std::vector<WalletDestination> LegacyScriptPubKeyMan::MarkUnusedAddresses(WalletBatch& batch, const CScript& script)
 {
     LOCK(cs_KeyStore);
     std::vector<WalletDestination> result;
@@ -357,7 +357,7 @@ std::vector<WalletDestination> LegacyScriptPubKeyMan::MarkUnusedAddresses(const 
                 }
             }
 
-            if (!TopUp()) {
+            if (!TopUp(batch)) {
                 WalletLogPrintf("%s: Topping up keypool failed (locked wallet)\n", __func__);
             }
         }
@@ -1252,7 +1252,7 @@ bool LegacyScriptPubKeyMan::NewKeyPool()
 
         m_pool_key_to_index.clear();
 
-        if (!TopUp()) {
+        if (!TopUp(batch)) {
             return false;
         }
         WalletLogPrintf("LegacyScriptPubKeyMan::NewKeyPool rewrote keypool\n");
@@ -1260,7 +1260,7 @@ bool LegacyScriptPubKeyMan::NewKeyPool()
     return true;
 }
 
-bool LegacyScriptPubKeyMan::TopUp(unsigned int kpSize)
+bool LegacyScriptPubKeyMan::TopUp(WalletBatch& batch, unsigned int kpSize)
 {
     if (!CanGenerateKeys()) {
         return false;
@@ -1671,12 +1671,13 @@ bool DescriptorScriptPubKeyMan::GetNewDestination(const OutputType type, CTxDest
             throw std::runtime_error(std::string(__func__) + ": Types are inconsistent");
         }
 
-        TopUp();
+        WalletBatch batch(m_storage.GetDatabase());
+        TopUp(batch);
 
         // Get the scriptPubKey from the descriptor
         FlatSigningProvider out_keys;
         std::vector<CScript> scripts_temp;
-        if (m_wallet_descriptor.range_end <= m_max_cached_index && !TopUp(1)) {
+        if (m_wallet_descriptor.range_end <= m_max_cached_index && !TopUp(batch, 1)) {
             // We can't generate anymore keys
             error = _("Error: Keypool ran out, please call keypoolrefill first");
             return false;
@@ -1694,7 +1695,7 @@ bool DescriptorScriptPubKeyMan::GetNewDestination(const OutputType type, CTxDest
             throw std::runtime_error(std::string(__func__) + ": Types are inconsistent. Stored type does not match type of newly generated address");
         }
         m_wallet_descriptor.next_index++;
-        WalletBatch(m_storage.GetDatabase()).WriteDescriptor(GetID(), m_wallet_descriptor);
+        batch.WriteDescriptor(GetID(), m_wallet_descriptor);
         return true;
     }
 }
@@ -1799,7 +1800,7 @@ std::map<CKeyID, CKey> DescriptorScriptPubKeyMan::GetKeys() const
     return m_map_keys;
 }
 
-bool DescriptorScriptPubKeyMan::TopUp(unsigned int size)
+bool DescriptorScriptPubKeyMan::TopUp(WalletBatch& batch, unsigned int size)
 {
     LOCK(cs_desc_man);
     unsigned int target_size;
@@ -1822,7 +1823,6 @@ bool DescriptorScriptPubKeyMan::TopUp(unsigned int size)
     FlatSigningProvider provider;
     provider.keys = GetKeys();
 
-    WalletBatch batch(m_storage.GetDatabase());
     uint256 id = GetID();
     for (int32_t i = m_max_cached_index + 1; i < new_range_end; ++i) {
         FlatSigningProvider out_keys;
@@ -1862,7 +1862,7 @@ bool DescriptorScriptPubKeyMan::TopUp(unsigned int size)
     return true;
 }
 
-std::vector<WalletDestination> DescriptorScriptPubKeyMan::MarkUnusedAddresses(const CScript& script)
+std::vector<WalletDestination> DescriptorScriptPubKeyMan::MarkUnusedAddresses(WalletBatch& batch, const CScript& script)
 {
     LOCK(cs_desc_man);
     std::vector<WalletDestination> result;
@@ -1882,7 +1882,7 @@ std::vector<WalletDestination> DescriptorScriptPubKeyMan::MarkUnusedAddresses(co
                 m_wallet_descriptor.next_index++;
             }
         }
-        if (!TopUp()) {
+        if (!TopUp(batch)) {
             WalletLogPrintf("%s: Topping up keypool failed (locked wallet)\n", __func__);
         }
     }
@@ -1994,7 +1994,7 @@ bool DescriptorScriptPubKeyMan::SetupDescriptorGeneration(const CExtKey& master_
     }
 
     // TopUp
-    TopUp();
+    TopUp(batch);
 
     m_storage.UnsetBlankWalletFlag(batch);
     return true;
