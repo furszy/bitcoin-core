@@ -2334,7 +2334,7 @@ BResult<CTxDestination> CWallet::GetNewDestination(const OutputType type, const 
     spk_man->TopUp(batch);
     auto op_dest = spk_man->GetNewDestination(type);
     if (op_dest) {
-        SetAddressBook(op_dest.GetObj(), label, "receive");
+        SetAddressBookWithDB(batch, op_dest.GetObj(), label, "receive");
     }
 
     return op_dest;
@@ -3594,7 +3594,7 @@ ScriptPubKeyMan* CWallet::AddWalletDescriptor(WalletDescriptor& desc, const Flat
 
         CTxDestination dest;
         if (!internal && ExtractDestination(script_pub_keys.at(0), dest)) {
-            SetAddressBook(dest, label, "receive");
+            SetAddressBookWithDB(batch, dest, label, "receive");
         }
     }
 
