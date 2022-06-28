@@ -292,7 +292,7 @@ bool LegacyScriptPubKeyMan::Encrypt(const CKeyingMaterial& master_key, WalletBat
     return true;
 }
 
-bool LegacyScriptPubKeyMan::GetReservedDestination(const OutputType type, bool internal, CTxDestination& address, int64_t& index, CKeyPool& keypool, bilingual_str& error)
+bool LegacyScriptPubKeyMan::GetReservedDestination(WalletBatch& batch, const OutputType type, bool internal, CTxDestination& address, int64_t& index, CKeyPool& keypool, bilingual_str& error)
 {
     if (LEGACY_OUTPUT_TYPES.count(type) == 0) {
         error = _("Error: Legacy wallets only support the \"legacy\", \"p2sh-segwit\", and \"bech32\" address types");
@@ -306,7 +306,7 @@ bool LegacyScriptPubKeyMan::GetReservedDestination(const OutputType type, bool i
         return false;
     }
 
-    if (!ReserveKeyFromKeyPool(index, keypool, internal)) {
+    if (!ReserveKeyFromKeyPool(batch, index, keypool, internal)) {
         error = _("Error: Keypool ran out, please call keypoolrefill first");
         return false;
     }
@@ -1343,11 +1343,10 @@ void LegacyScriptPubKeyMan::AddKeypoolPubkeyWithDB(const CPubKey& pubkey, const 
     m_pool_key_to_index[pubkey.GetID()] = index;
 }
 
-void LegacyScriptPubKeyMan::KeepDestination(int64_t nIndex, const OutputType& type)
+void LegacyScriptPubKeyMan::KeepDestination(WalletBatch& batch, int64_t nIndex, const OutputType& type)
 {
     assert(type != OutputType::BECH32M);
     // Remove from key pool
-    WalletBatch batch(m_storage.GetDatabase());
     batch.ErasePool(nIndex);
     CPubKey pubkey;
     bool have_pk = GetPubKey(m_index_to_reserved_key.at(nIndex), pubkey);
@@ -1388,19 +1387,19 @@ bool LegacyScriptPubKeyMan::GetKeyFromPool(CPubKey& result, const OutputType typ
     {
         LOCK(cs_KeyStore);
         int64_t nIndex;
-        if (!ReserveKeyFromKeyPool(nIndex, keypool, internal) && !m_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
+        WalletBatch batch(m_storage.GetDatabase());
+        if (!ReserveKeyFromKeyPool(batch, nIndex, keypool, internal) && !m_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
             if (m_storage.IsLocked()) return false;
-            WalletBatch batch(m_storage.GetDatabase());
             result = GenerateNewKey(batch, m_hd_chain, internal);
             return true;
         }
-        KeepDestination(nIndex, type);
+        KeepDestination(batch, nIndex, type);
         result = keypool.vchPubKey;
     }
     return true;
 }
 
-bool LegacyScriptPubKeyMan::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& keypool, bool fRequestedInternal)
+bool LegacyScriptPubKeyMan::ReserveKeyFromKeyPool(WalletBatch& batch, int64_t& nIndex, CKeyPool& keypool, bool fRequestedInternal)
 {
     nIndex = -1;
     keypool.vchPubKey = CPubKey();
@@ -1416,8 +1415,6 @@ bool LegacyScriptPubKeyMan::ReserveKeyFromKeyPool(int64_t& nIndex, CKeyPool& key
         if (setKeyPool.empty()) {
             return false;
         }
-
-        WalletBatch batch(m_storage.GetDatabase());
 
         auto it = setKeyPool.begin();
         nIndex = *it;
@@ -1760,7 +1757,7 @@ bool DescriptorScriptPubKeyMan::Encrypt(const CKeyingMaterial& master_key, Walle
     return true;
 }
 
-bool DescriptorScriptPubKeyMan::GetReservedDestination(const OutputType type, bool internal, CTxDestination& address, int64_t& index, CKeyPool& keypool, bilingual_str& error)
+bool DescriptorScriptPubKeyMan::GetReservedDestination(WalletBatch& batch, const OutputType type, bool internal, CTxDestination& address, int64_t& index, CKeyPool& keypool, bilingual_str& error)
 {
     LOCK(cs_desc_man);
     auto op_dest = GetNewDestination(type);

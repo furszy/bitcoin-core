@@ -2342,14 +2342,15 @@ BResult<CTxDestination> CWallet::GetNewChangeDestination(const OutputType type)
 {
     LOCK(cs_wallet);
 
+    WalletBatch batch(GetDatabase());
     CTxDestination dest;
     bilingual_str error;
     ReserveDestination reservedest(this, type);
-    if (!reservedest.GetReservedDestination(dest, true, error)) {
+    if (!reservedest.GetReservedDestination(batch, dest, true, error)) {
         return error;
     }
 
-    reservedest.KeepDestination();
+    reservedest.KeepDestination(batch);
     return dest;
 }
 
@@ -2420,7 +2421,7 @@ std::set<std::string> CWallet::ListAddrBookLabels(const std::string& purpose) co
     return label_set;
 }
 
-bool ReserveDestination::GetReservedDestination(CTxDestination& dest, bool internal, bilingual_str& error)
+bool ReserveDestination::GetReservedDestination(WalletBatch& batch, CTxDestination& dest, bool internal, bilingual_str& error)
 {
     m_spk_man = pwallet->GetScriptPubKeyMan(type, internal);
     if (!m_spk_man) {
@@ -2434,7 +2435,7 @@ bool ReserveDestination::GetReservedDestination(CTxDestination& dest, bool inter
         m_spk_man->TopUp();
 
         CKeyPool keypool;
-        if (!m_spk_man->GetReservedDestination(type, internal, address, nIndex, keypool, error)) {
+        if (!m_spk_man->GetReservedDestination(batch, type, internal, address, nIndex, keypool, error)) {
             return false;
         }
         fInternal = keypool.fInternal;
@@ -2443,10 +2444,10 @@ bool ReserveDestination::GetReservedDestination(CTxDestination& dest, bool inter
     return true;
 }
 
-void ReserveDestination::KeepDestination()
+void ReserveDestination::KeepDestination(WalletBatch& batch)
 {
     if (nIndex != -1) {
-        m_spk_man->KeepDestination(nIndex, type);
+        m_spk_man->KeepDestination(batch, nIndex, type);
     }
     nIndex = -1;
     address = CNoDestination();
