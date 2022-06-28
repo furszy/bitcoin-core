@@ -108,6 +108,8 @@ public:
 
     /** Open the database if it is not already opened. */
     void Open() override;
+    /** Whether the database connection is open or not already. */
+    bool IsOpen() override;
 
     /** Rewrite the entire database on disk, with the exception of key pszSkip if non-zero
      */

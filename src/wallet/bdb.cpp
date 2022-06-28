@@ -363,6 +363,11 @@ void BerkeleyDatabase::Open()
     }
 }
 
+bool BerkeleyDatabase::IsOpen()
+{
+    return env && env->IsInitialized() && m_db != nullptr;
+}
+
 void BerkeleyBatch::Flush()
 {
     if (activeTxn)

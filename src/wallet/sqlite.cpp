@@ -299,6 +299,11 @@ void SQLiteDatabase::Open()
     }
 }
 
+bool SQLiteDatabase::IsOpen()
+{
+    return m_db != nullptr;
+}
+
 bool SQLiteDatabase::Rewrite(const char* skip)
 {
     // Rewrite the database using the VACUUM command: https://sqlite.org/lang_vacuum.html

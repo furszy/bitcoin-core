@@ -111,6 +111,8 @@ public:
 
     /** Open the database if it is not already opened. */
     virtual void Open() = 0;
+    /** Whether the database connection is open or not already. */
+    virtual bool IsOpen() { return false; }
 
     //! Counts the number of active database users to be sure that the database is not closed while someone is using it
     std::atomic<int> m_refcount{0};
