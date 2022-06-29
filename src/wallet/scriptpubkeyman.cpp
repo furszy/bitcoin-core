@@ -314,7 +314,7 @@ bool LegacyScriptPubKeyMan::GetReservedDestination(WalletBatch& batch, const Out
     return true;
 }
 
-bool LegacyScriptPubKeyMan::TopUpInactiveHDChain(const CKeyID seed_id, int64_t index, bool internal)
+bool LegacyScriptPubKeyMan::TopUpInactiveHDChain(WalletBatch& batch, const CKeyID seed_id, int64_t index, bool internal)
 {
     LOCK(cs_KeyStore);
 
@@ -331,7 +331,7 @@ bool LegacyScriptPubKeyMan::TopUpInactiveHDChain(const CKeyID seed_id, int64_t i
         chain.m_next_external_index = std::max(chain.m_next_external_index, index + 1);
     }
 
-    TopUpChain(chain, 0);
+    TopUpChain(batch, chain, 0);
 
     return true;
 }
@@ -381,7 +381,7 @@ std::vector<WalletDestination> LegacyScriptPubKeyMan::MarkUnusedAddresses(Wallet
                     bool internal = (path[1] & ~BIP32_HARDENED_KEY_LIMIT) != 0;
                     int64_t index = path[2] & ~BIP32_HARDENED_KEY_LIMIT;
 
-                    if (!TopUpInactiveHDChain(meta.hd_seed_id, index, internal)) {
+                    if (!TopUpInactiveHDChain(batch, meta.hd_seed_id, index, internal)) {
                         WalletLogPrintf("%s: Adding inactive seed keys failed\n", __func__);
                     }
                 }
@@ -1262,11 +1262,11 @@ bool LegacyScriptPubKeyMan::TopUp(WalletBatch& batch, unsigned int kpSize)
         return false;
     }
 
-    if (!TopUpChain(m_hd_chain, kpSize)) {
+    if (!TopUpChain(batch, m_hd_chain, kpSize)) {
         return false;
     }
     for (auto& [chain_id, chain] : m_inactive_hd_chains) {
-        if (!TopUpChain(chain, kpSize)) {
+        if (!TopUpChain(batch, chain, kpSize)) {
             return false;
         }
     }
@@ -1274,7 +1274,7 @@ bool LegacyScriptPubKeyMan::TopUp(WalletBatch& batch, unsigned int kpSize)
     return true;
 }
 
-bool LegacyScriptPubKeyMan::TopUpChain(CHDChain& chain, unsigned int kpSize)
+bool LegacyScriptPubKeyMan::TopUpChain(WalletBatch& batch, CHDChain& chain, unsigned int kpSize)
 {
     LOCK(cs_KeyStore);
 
@@ -1306,7 +1306,6 @@ bool LegacyScriptPubKeyMan::TopUpChain(CHDChain& chain, unsigned int kpSize)
         missingInternal = 0;
     }
     bool internal = false;
-    WalletBatch batch(m_storage.GetDatabase());
     for (int64_t i = missingInternal + missingExternal; i--;) {
         if (i < missingInternal) {
             internal = true;
