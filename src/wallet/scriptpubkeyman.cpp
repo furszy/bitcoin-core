@@ -21,7 +21,7 @@ namespace wallet {
 //! Value for the first BIP 32 hardened derivation. Can be used as a bit mask and as a value. See BIP 32 for more details.
 const uint32_t BIP32_HARDENED_KEY_LIMIT = 0x80000000;
 
-bool LegacyScriptPubKeyMan::GetNewDestination(const OutputType type, CTxDestination& dest, bilingual_str& error)
+bool LegacyScriptPubKeyMan::GetNewDestination(WalletBatch& batch, const OutputType type, CTxDestination& dest, bilingual_str& error)
 {
     if (LEGACY_OUTPUT_TYPES.count(type) == 0) {
         error = _("Error: Legacy wallets only support the \"legacy\", \"p2sh-segwit\", and \"bech32\" address types");
@@ -34,7 +34,7 @@ bool LegacyScriptPubKeyMan::GetNewDestination(const OutputType type, CTxDestinat
 
     // Generate a new key that is added to wallet
     CPubKey new_key;
-    if (!GetKeyFromPool(new_key, type)) {
+    if (!GetKeyFromPool(batch, new_key, type)) {
         error = _("Error: Keypool ran out, please call keypoolrefill first");
         return false;
     }
@@ -1380,7 +1380,7 @@ void LegacyScriptPubKeyMan::ReturnDestination(int64_t nIndex, bool fInternal, co
     WalletLogPrintf("keypool return %d\n", nIndex);
 }
 
-bool LegacyScriptPubKeyMan::GetKeyFromPool(CPubKey& result, const OutputType type, bool internal)
+bool LegacyScriptPubKeyMan::GetKeyFromPool(WalletBatch& batch, CPubKey& result, const OutputType type, bool internal)
 {
     assert(type != OutputType::BECH32M);
     if (!CanGetAddresses(internal)) {
@@ -1391,7 +1391,6 @@ bool LegacyScriptPubKeyMan::GetKeyFromPool(CPubKey& result, const OutputType typ
     {
         LOCK(cs_KeyStore);
         int64_t nIndex;
-        WalletBatch batch(m_storage.GetDatabase());
         if (!ReserveKeyFromKeyPool(batch, nIndex, keypool, internal) && !m_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
             if (m_storage.IsLocked()) return false;
             result = GenerateNewKey(batch, m_hd_chain, internal);
@@ -1655,7 +1654,7 @@ std::set<CKeyID> LegacyScriptPubKeyMan::GetKeys() const
     return set_address;
 }
 
-bool DescriptorScriptPubKeyMan::GetNewDestination(const OutputType type, CTxDestination& dest, bilingual_str& error)
+bool DescriptorScriptPubKeyMan::GetNewDestination(WalletBatch& batch, const OutputType type, CTxDestination& dest, bilingual_str& error)
 {
     // Returns true if this descriptor supports getting new addresses. Conditions where we may be unable to fetch them (e.g. locked) are caught later
     if (!CanGetAddresses()) {
@@ -1671,7 +1670,6 @@ bool DescriptorScriptPubKeyMan::GetNewDestination(const OutputType type, CTxDest
             throw std::runtime_error(std::string(__func__) + ": Types are inconsistent");
         }
 
-        WalletBatch batch(m_storage.GetDatabase());
         TopUp(batch);
 
         // Get the scriptPubKey from the descriptor
@@ -1767,7 +1765,7 @@ bool DescriptorScriptPubKeyMan::Encrypt(const CKeyingMaterial& master_key, Walle
 bool DescriptorScriptPubKeyMan::GetReservedDestination(WalletBatch& batch, const OutputType type, bool internal, CTxDestination& address, int64_t& index, CKeyPool& keypool, bilingual_str& error)
 {
     LOCK(cs_desc_man);
-    bool result = GetNewDestination(type, address, error);
+    bool result = GetNewDestination(batch, type, address, error);
     index = m_wallet_descriptor.next_index - 1;
     return result;
 }

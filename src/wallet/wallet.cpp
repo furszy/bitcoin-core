@@ -2309,12 +2309,12 @@ bool CWallet::GetNewDestination(const OutputType type, const std::string label, 
 {
     LOCK(cs_wallet);
     error.clear();
-    WalletBatch batch(GetDatabase());
+    WalletBatch batch(GetDatabase(), /*fFlushOnClose=*/true, /*initialize=*/false);
     bool result = false;
     auto spk_man = GetScriptPubKeyMan(type, false /* internal */);
     if (spk_man) {
         spk_man->TopUp(batch);
-        result = spk_man->GetNewDestination(type, dest, error);
+        result = spk_man->GetNewDestination(batch, type, dest, error);
     } else {
         error = strprintf(_("Error: No %s addresses available."), FormatOutputType(type));
     }
