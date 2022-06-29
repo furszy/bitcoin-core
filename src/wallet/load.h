@@ -19,6 +19,9 @@ class Chain;
 namespace wallet {
 struct WalletContext;
 
+//! Responsible of verify the environment and initialize global configurations
+bool InitAndVerifyGlobalConfs();
+
 //! Responsible for reading and validating the -wallet arguments and verifying the wallet database.
 bool VerifyWallets(WalletContext& context);
 

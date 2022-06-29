@@ -1207,6 +1207,13 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // the interfaces, it doesn't load wallet data. Wallets actually get loaded
     // when load() and start() interface methods are called below.
     g_wallet_init_interface.Construct(node);
+
+    // Initialize and verify global configurations
+    for (const auto& client : node.chain_clients) {
+        if (!client->init()) return false;
+    }
+
+    // Signal initialization
     uiInterface.InitWallet();
 
     /* Register RPC commands regardless of -server setting so they will be

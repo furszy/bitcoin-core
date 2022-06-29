@@ -22,6 +22,14 @@
 #include <system_error>
 
 namespace wallet {
+
+bool InitAndVerifyGlobalConfs()
+{
+    // Initialize db global configurations
+    InitDbGlobalConfs();
+    return true;
+}
+
 bool VerifyWallets(WalletContext& context)
 {
     interfaces::Chain& chain = *context.chain;

@@ -292,6 +292,9 @@ class ChainClient
 public:
     virtual ~ChainClient() {}
 
+    //! Initialize and verify global configurations before anything else.
+    virtual bool init() = 0;
+
     //! Register rpcs.
     virtual void registerRpcs() = 0;
 

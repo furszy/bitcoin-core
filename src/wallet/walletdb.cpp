@@ -1100,6 +1100,13 @@ bool WalletBatch::TxnAbort()
     return m_batch->TxnAbort();
 }
 
+void InitDbGlobalConfs()
+{
+#ifdef USE_SQLITE
+    InitSQLiteGlobalConfig();
+#endif
+}
+
 std::unique_ptr<WalletDatabase> MakeDatabase(const fs::path& path, const DatabaseOptions& options, DatabaseStatus& status, bilingual_str& error)
 {
     bool exists;

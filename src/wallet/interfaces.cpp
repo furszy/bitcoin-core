@@ -546,6 +546,7 @@ public:
             m_rpc_handlers.emplace_back(m_context.chain->handleRpc(m_rpc_commands.back()));
         }
     }
+    bool init() override { return InitAndVerifyGlobalConfs(); }
     bool verify() override { return VerifyWallets(m_context); }
     bool load() override { return LoadWallets(m_context); }
     void start(CScheduler& scheduler) override { return StartWallets(m_context, scheduler); }

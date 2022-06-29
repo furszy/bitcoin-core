@@ -116,6 +116,12 @@ public:
     bool m_use_unsafe_sync;
 };
 
+/**
+ * Initialize sqlite global configurations.
+ * Throws std::runtime_error if basic conf fail to be applied.
+ */
+void InitSQLiteGlobalConfig();
+
 std::unique_ptr<SQLiteDatabase> MakeSQLiteDatabase(const fs::path& path, const DatabaseOptions& options, DatabaseStatus& status, bilingual_str& error);
 
 std::string SQLiteDatabaseVersion();

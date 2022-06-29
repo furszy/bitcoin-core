@@ -83,30 +83,32 @@ static void SetPragma(sqlite3* db, const std::string& key, const std::string& va
     }
 }
 
+void InitSQLiteGlobalConfig()
+{
+    LogPrintf("Initializing sqlite global config..\n");
+    LOCK(g_sqlite_mutex);
+    assert(g_sqlite_count == 0);
+    LogPrintf("%s: Using SQLite Version %s\n", __func__, SQLiteDatabaseVersion());
+
+    // Setup logging
+    int ret = sqlite3_config(SQLITE_CONFIG_LOG, ErrorLogCallback, nullptr);
+    if (ret != SQLITE_OK) {
+        throw std::runtime_error(strprintf("SQLiteDatabase: Failed to setup error log: %s\n", sqlite3_errstr(ret)));
+    }
+    // Force serialized threading mode
+    ret = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
+    if (ret != SQLITE_OK) {
+        throw std::runtime_error(strprintf("SQLiteDatabase: Failed to configure serialized threading mode: %s\n", sqlite3_errstr(ret)));
+    }
+}
+
 SQLiteDatabase::SQLiteDatabase(const fs::path& dir_path, const fs::path& file_path, const DatabaseOptions& options, bool mock)
     : WalletDatabase(), m_mock(mock), m_dir_path(fs::PathToString(dir_path)), m_file_path(fs::PathToString(file_path)), m_use_unsafe_sync(options.use_unsafe_sync)
 {
-    {
-        LOCK(g_sqlite_mutex);
-        LogPrintf("Using SQLite Version %s\n", SQLiteDatabaseVersion());
-        LogPrintf("Using wallet %s\n", m_dir_path);
-
-        if (++g_sqlite_count == 1) {
-            // Setup logging
-            int ret = sqlite3_config(SQLITE_CONFIG_LOG, ErrorLogCallback, nullptr);
-            if (ret != SQLITE_OK) {
-                throw std::runtime_error(strprintf("SQLiteDatabase: Failed to setup error log: %s\n", sqlite3_errstr(ret)));
-            }
-            // Force serialized threading mode
-            ret = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
-            if (ret != SQLITE_OK) {
-                throw std::runtime_error(strprintf("SQLiteDatabase: Failed to configure serialized threading mode: %s\n", sqlite3_errstr(ret)));
-            }
-        }
-        int ret = sqlite3_initialize(); // This is a no-op if sqlite3 is already initialized
-        if (ret != SQLITE_OK) {
-            throw std::runtime_error(strprintf("SQLiteDatabase: Failed to initialize SQLite: %s\n", sqlite3_errstr(ret)));
-        }
+    LogPrintf("%s: Using wallet %s\n", __func__, m_dir_path);
+    int ret = sqlite3_initialize(); // This is a, thread-safe, no-op if sqlite3 is already initialized
+    if (ret != SQLITE_OK) {
+        throw std::runtime_error(strprintf("SQLiteDatabase: Failed to initialize SQLite: %s\n", sqlite3_errstr(ret)));
     }
 
     try {
