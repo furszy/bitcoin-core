@@ -2330,9 +2330,9 @@ BResult<CTxDestination> CWallet::GetNewDestination(const OutputType type, const 
         return strprintf(_("Error: No %s addresses available."), FormatOutputType(type));
     }
 
-    WalletBatch batch(GetDatabase());
+    WalletBatch batch(GetDatabase(), /*fFlushOnClose=*/true, /*initialize=*/false);
     spk_man->TopUp(batch);
-    auto op_dest = spk_man->GetNewDestination(type);
+    auto op_dest = spk_man->GetNewDestination(batch, type);
     if (op_dest) {
         SetAddressBookWithDB(batch, op_dest.GetObj(), label, "receive");
     }

@@ -172,7 +172,7 @@ protected:
 public:
     explicit ScriptPubKeyMan(WalletStorage& storage) : m_storage(storage) {}
     virtual ~ScriptPubKeyMan() {};
-    virtual BResult<CTxDestination> GetNewDestination(const OutputType type) { return Untranslated("Not supported"); }
+    virtual BResult<CTxDestination> GetNewDestination(WalletBatch& batch, const OutputType type) { return Untranslated("Not supported"); }
     virtual isminetype IsMine(const CScript& script) const { return ISMINE_NO; }
 
     //! Check that the given decryption key is valid for this ScriptPubKeyMan, i.e. it decrypts all of the keys handled by it.
@@ -326,7 +326,7 @@ private:
     std::map<int64_t, CKeyID> m_index_to_reserved_key;
 
     //! Fetches a key from the keypool
-    bool GetKeyFromPool(CPubKey &key, const OutputType type, bool internal = false);
+    bool GetKeyFromPool(WalletBatch& batch, CPubKey &key, const OutputType type, bool internal = false);
 
     /**
      * Reserves a key from the keypool and sets nIndex to its index
@@ -360,7 +360,7 @@ private:
 public:
     using ScriptPubKeyMan::ScriptPubKeyMan;
 
-    BResult<CTxDestination> GetNewDestination(const OutputType type) override;
+    BResult<CTxDestination> GetNewDestination(WalletBatch& batch, const OutputType type) override;
     isminetype IsMine(const CScript& script) const override;
 
     bool CheckDecryptionKey(const CKeyingMaterial& master_key, bool accept_no_keys = false) override;
@@ -568,7 +568,7 @@ public:
 
     mutable RecursiveMutex cs_desc_man;
 
-    BResult<CTxDestination> GetNewDestination(const OutputType type) override;
+    BResult<CTxDestination> GetNewDestination(WalletBatch& batch, const OutputType type) override;
     isminetype IsMine(const CScript& script) const override;
 
     bool CheckDecryptionKey(const CKeyingMaterial& master_key, bool accept_no_keys = false) override;
