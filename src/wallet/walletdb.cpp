@@ -1100,6 +1100,15 @@ bool WalletBatch::TxnAbort()
     return m_batch->TxnAbort();
 }
 
+void DbSanityChecks()
+{
+#ifdef USE_BDB
+    if (!BerkeleyDatabaseSanityCheck()) {
+        throw std::runtime_error("A version conflict was detected between the run-time BerkeleyDB library and the one used during compilation.");
+    }
+#endif
+}
+
 void InitDbGlobalConfs()
 {
 #ifdef USE_SQLITE

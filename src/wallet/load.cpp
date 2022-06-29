@@ -25,6 +25,8 @@ namespace wallet {
 
 bool InitAndVerifyGlobalConfs()
 {
+    // Perform db sanity checks
+    DbSanityChecks();
     // Initialize db global configurations
     InitDbGlobalConfs();
     return true;

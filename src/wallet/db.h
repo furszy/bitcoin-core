@@ -233,6 +233,9 @@ enum class DatabaseStatus {
 /** Recursively list database paths in directory. */
 std::vector<fs::path> ListDatabases(const fs::path& path);
 
+/** Database sanity checks */
+void DbSanityChecks();
+
 /** Init the db global configurations */
 void InitDbGlobalConfs();
 
