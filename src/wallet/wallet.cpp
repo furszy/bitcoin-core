@@ -2331,7 +2331,6 @@ BResult<CTxDestination> CWallet::GetNewDestination(const OutputType type, const 
     }
 
     WalletBatch batch(GetDatabase(), /*fFlushOnClose=*/true, /*initialize=*/false);
-    spk_man->TopUp(batch);
     auto op_dest = spk_man->GetNewDestination(batch, type);
     if (op_dest) {
         SetAddressBookWithDB(batch, op_dest.GetObj(), label, "receive");
@@ -2433,8 +2432,6 @@ bool ReserveDestination::GetReservedDestination(WalletBatch& batch, CTxDestinati
 
 
     if (nIndex == -1) {
-        m_spk_man->TopUp(batch);
-
         CKeyPool keypool;
         if (!m_spk_man->GetReservedDestination(batch, type, internal, address, nIndex, keypool, error)) {
             return false;
