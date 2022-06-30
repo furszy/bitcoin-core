@@ -2313,7 +2313,6 @@ bool CWallet::GetNewDestination(const OutputType type, const std::string label, 
     bool result = false;
     auto spk_man = GetScriptPubKeyMan(type, false /* internal */);
     if (spk_man) {
-        spk_man->TopUp(batch);
         result = spk_man->GetNewDestination(batch, type, dest, error);
     } else {
         error = strprintf(_("Error: No %s addresses available."), FormatOutputType(type));
@@ -2393,8 +2392,6 @@ bool ReserveDestination::GetReservedDestination(WalletBatch& batch, CTxDestinati
 
 
     if (nIndex == -1) {
-        m_spk_man->TopUp(batch);
-
         CKeyPool keypool;
         if (!m_spk_man->GetReservedDestination(batch, type, internal, address, nIndex, keypool, error)) {
             return false;
