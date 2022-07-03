@@ -322,9 +322,8 @@ public:
     WalletTx getWalletTx(const uint256& txid) override
     {
         LOCK(m_wallet->cs_wallet);
-        auto mi = m_wallet->mapWallet.find(txid);
-        if (mi != m_wallet->mapWallet.end()) {
-            return MakeWalletTx(*m_wallet, mi->second);
+        if (const auto& wtx = m_wallet->GetWalletTx(txid)) {
+            return MakeWalletTx(*m_wallet, *wtx);
         }
         return {};
     }
