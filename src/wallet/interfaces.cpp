@@ -346,14 +346,12 @@ public:
         if (!locked_wallet) {
             return false;
         }
-        auto mi = m_wallet->mapWallet.find(txid);
-        if (mi == m_wallet->mapWallet.end()) {
-            return false;
-        }
+        const auto& wtx = m_wallet->GetWalletTx(txid);
+        if (!wtx) return false;
         num_blocks = m_wallet->GetLastBlockHeight();
         block_time = -1;
         CHECK_NONFATAL(m_wallet->chain().findBlock(m_wallet->GetLastBlockHash(), FoundBlock().time(block_time)));
-        tx_status = MakeWalletTxStatus(*m_wallet, mi->second);
+        tx_status = MakeWalletTxStatus(*m_wallet, *wtx);
         return true;
     }
     WalletTx getWalletTxDetails(const uint256& txid,
