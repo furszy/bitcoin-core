@@ -5,6 +5,7 @@
 #include <interfaces/wallet.h>
 
 #include <consensus/amount.h>
+#include <consensus/consensus.h> // for COINBASE_MATURITY
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
 #include <policy/fees.h>
@@ -84,19 +85,24 @@ WalletTxStatus MakeWalletTxStatus(const CWallet& wallet, const CWalletTx& wtx)
 {
     AssertLockHeld(wallet.cs_wallet);
 
+    // TODO: add test for this..
     WalletTxStatus result;
-    result.block_height =
-        wtx.state<TxStateConfirmed>() ? wtx.state<TxStateConfirmed>()->confirmed_block_height :
-        wtx.state<TxStateConflicted>() ? wtx.state<TxStateConflicted>()->conflicting_block_height :
-        std::numeric_limits<int>::max();
-    result.blocks_to_maturity = wallet.GetTxBlocksToMaturity(wtx);
+    /* Depth of transaction in blockchain:
+     * <0  : conflicts with a transaction this deep in the blockchain
+     *  0  : in memory pool, waiting to be included in a block
+     * >=1 : this many blocks deep in the main chain */
     result.depth_in_main_chain = wallet.GetTxDepthInMainChain(wtx);
+    result.is_coinbase = wtx.IsCoinBase();
+    result.is_in_main_chain = result.depth_in_main_chain >= 1;
+    int last_block_height = wallet.GetLastBlockHeight();
+    result.block_height = result.depth_in_main_chain > 0 ? (last_block_height - (last_block_height - result.depth_in_main_chain)) :
+                          result.depth_in_main_chain < 0 ? (last_block_height - (last_block_height + result.depth_in_main_chain)) :
+                          std::numeric_limits<int>::max();
+    result.blocks_to_maturity = !result.is_coinbase ? 0 : std::max(0, (COINBASE_MATURITY + 1) - result.depth_in_main_chain);
     result.time_received = wtx.nTimeReceived;
     result.lock_time = wtx.tx->nLockTime;
     result.is_trusted = CachedTxIsTrusted(wallet, wtx);
     result.is_abandoned = wtx.isAbandoned();
-    result.is_coinbase = wtx.IsCoinBase();
-    result.is_in_main_chain = wallet.IsTxInMainChain(wtx);
     return result;
 }
 
