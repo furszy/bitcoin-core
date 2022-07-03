@@ -3146,24 +3146,17 @@ int CWallet::GetTxDepthInMainChain(const CWalletTx& wtx) const
     }
 }
 
-int CWallet::GetTxBlocksToMaturity(const CWalletTx& wtx) const
-{
-    AssertLockHeld(cs_wallet);
-
-    if (!wtx.IsCoinBase()) {
-        return 0;
-    }
-    int chain_depth = GetTxDepthInMainChain(wtx);
-    assert(chain_depth >= 0); // coinbase tx should not be conflicted
-    return std::max(0, (COINBASE_MATURITY+1) - chain_depth);
-}
-
 bool CWallet::IsTxImmatureCoinBase(const CWalletTx& wtx) const
 {
     AssertLockHeld(cs_wallet);
 
-    // note GetBlocksToMaturity is 0 for non-coinbase tx
-    return GetTxBlocksToMaturity(wtx) > 0;
+    if (!wtx.IsCoinBase()) {
+        return false;
+    }
+    int chain_depth = GetTxDepthInMainChain(wtx);
+    assert(chain_depth >= 0); // coinbase tx should not be conflicted
+
+    return std::max(0, (COINBASE_MATURITY+1) - chain_depth) > 0;
 }
 
 bool CWallet::IsCrypted() const
