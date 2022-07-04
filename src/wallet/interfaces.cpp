@@ -313,9 +313,8 @@ public:
     CTransactionRef getTx(const uint256& txid) override
     {
         LOCK(m_wallet->cs_wallet);
-        auto mi = m_wallet->mapWallet.find(txid);
-        if (mi != m_wallet->mapWallet.end()) {
-            return mi->second.tx;
+        if (const auto& wtx = m_wallet->GetWalletTx(txid)) {
+            return wtx->tx;
         }
         return {};
     }
