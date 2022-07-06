@@ -34,22 +34,22 @@ bool DumpWallet(const ArgsManager& args, CWallet& wallet, bilingual_str& error)
         error = strprintf(_("File %s already exists. If you are sure this is what you want, move it out of the way first."), fs::PathToString(path));
         return false;
     }
-    std::ofstream dump_file;
-    dump_file.open(path);
-    if (dump_file.fail()) {
-        error = strprintf(_("Unable to open %s for writing"), fs::PathToString(path));
-        return false;
-    }
 
     CHashWriter hasher(0, 0);
 
     WalletDatabase& db = wallet.GetDatabase();
     std::unique_ptr<DatabaseBatch> batch = db.MakeBatch();
 
-    bool ret = true;
     if (!batch->StartCursor()) {
         error = _("Error: Couldn't create cursor into database");
-        ret = false;
+        return false;
+    }
+
+    std::ofstream dump_file;
+    dump_file.open(path);
+    if (dump_file.fail()) {
+        error = strprintf(_("Unable to open %s for writing"), fs::PathToString(path));
+        return false;
     }
 
     // Write out a magic string with version
@@ -62,34 +62,27 @@ bool DumpWallet(const ArgsManager& args, CWallet& wallet, bilingual_str& error)
     dump_file.write(line.data(), line.size());
     hasher.write(MakeByteSpan(line));
 
-    if (ret) {
-
-        // Read the records
-        while (true) {
-            CDataStream ss_key(SER_DISK, CLIENT_VERSION);
-            CDataStream ss_value(SER_DISK, CLIENT_VERSION);
-            bool complete;
-            ret = batch->ReadAtCursor(ss_key, ss_value, complete);
-            if (complete) {
-                ret = true;
-                break;
-            } else if (!ret) {
-                error = _("Error reading next record from wallet database");
-                break;
-            }
-            std::string key_str = HexStr(ss_key);
-            std::string value_str = HexStr(ss_value);
-            line = strprintf("%s,%s\n", key_str, value_str);
-            dump_file.write(line.data(), line.size());
-            hasher.write(MakeByteSpan(line));
+    bool ret = true;
+    // Read the records
+    while (true) {
+        CDataStream ss_key(SER_DISK, CLIENT_VERSION);
+        CDataStream ss_value(SER_DISK, CLIENT_VERSION);
+        bool complete;
+        ret = batch->ReadAtCursor(ss_key, ss_value, complete);
+        if (complete) {
+            ret = true;
+            break;
+        } else if (!ret) {
+            error = _("Error reading next record from wallet database");
+            break;
         }
+        line = strprintf("%s,%s\n", HexStr(ss_key), HexStr(ss_value));
+        dump_file.write(line.data(), line.size());
+        hasher.write(MakeByteSpan(line));
     }
 
     batch->CloseCursor();
     batch.reset();
-
-    // Close the wallet after we're done with it. The caller won't be doing this
-    wallet.Close();
 
     if (ret) {
         // Write the hash

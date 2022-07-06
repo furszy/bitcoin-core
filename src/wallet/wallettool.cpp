@@ -198,6 +198,7 @@ bool ExecuteWalletToolFunc(const ArgsManager& args, const std::string& command)
         if (!wallet_instance) return false;
         bilingual_str error;
         bool ret = DumpWallet(args, *wallet_instance, error);
+        wallet_instance->Close(); // Close the wallet after we're done with it.
         if (!ret && !error.empty()) {
             tfm::format(std::cerr, "%s\n", error.original);
             return ret;
