@@ -2283,6 +2283,7 @@ bool CWallet::DelAddressBook(const CTxDestination& address)
 
     // All good, signal changes
     NotifyAddressBookChanged(address, "", is_mine != ISMINE_NO, "", CT_DELETED);
+    return true;
 }
 
 size_t CWallet::KeypoolCountExternalKeys() const
