@@ -2366,13 +2366,21 @@ bool CWallet::SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& add
             purpose = m_address_book[address].purpose;
         }
     }
+
+    if (new_purpose && !batch.WritePurpose(EncodeDestination(address), PurposeToString(*new_purpose))) {
+        WalletLogPrintf("%s error writing purpose\n", __func__);
+        return false;
+    }
+    if (!batch.WriteName(EncodeDestination(address), strName)) {
+        WalletLogPrintf("%s error writing name\n", __func__);
+        return false;
+    }
+
     // In very old wallets, address purpose may not be recorded so we derive it from IsMine
     NotifyAddressBookChanged(address, strName, is_mine,
                              purpose.value_or(is_mine ? AddressPurpose::RECEIVE : AddressPurpose::SEND),
                              (fUpdated ? CT_UPDATED : CT_NEW));
-    if (new_purpose && !batch.WritePurpose(EncodeDestination(address), PurposeToString(*new_purpose)))
-        return false;
-    return batch.WriteName(EncodeDestination(address), strName);
+    return true;
 }
 
 bool CWallet::SetAddressBook(const CTxDestination& address, const std::string& strName, const std::optional<AddressPurpose>& purpose)
