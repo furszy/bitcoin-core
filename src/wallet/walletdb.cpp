@@ -343,11 +343,13 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             ssKey >> strAddress;
             std::string label;
             ssValue >> label;
-            pwallet->m_address_book[DecodeDestination(strAddress)].SetLabel(label);
+            pwallet->LoadAddrBookEntryLabel(DecodeDestination(strAddress), label);
         } else if (strType == DBKeys::PURPOSE) {
             std::string strAddress;
             ssKey >> strAddress;
-            ssValue >> pwallet->m_address_book[DecodeDestination(strAddress)].purpose;
+            std::string purpose;
+            ssValue >> purpose;
+            pwallet->LoadAddrBookEntryPurpose(DecodeDestination(strAddress), purpose);
         } else if (strType == DBKeys::TX) {
             uint256 hash;
             ssKey >> hash;

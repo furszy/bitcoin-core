@@ -2807,6 +2807,16 @@ void CWallet::LoadDestData(const CTxDestination &dest, const std::string &key, c
     m_address_book[dest].destdata.insert(std::make_pair(key, value));
 }
 
+void CWallet::LoadAddrBookEntryLabel(const CTxDestination& dest, const std::string& label)
+{
+    m_address_book[dest].SetLabel(label);
+}
+
+void CWallet::LoadAddrBookEntryPurpose(const CTxDestination& dest, const std::string& purpose)
+{
+    m_address_book[dest].purpose = purpose;
+}
+
 bool CWallet::IsAddressUsed(const CTxDestination& dest) const
 {
     const std::string key{"used"};
