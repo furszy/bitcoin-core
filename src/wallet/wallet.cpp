@@ -2242,7 +2242,7 @@ bool CWallet::SetAddressBook(const CTxDestination& address, const std::string& s
 
 bool CWallet::DelAddressBook(const CTxDestination& address)
 {
-    bool is_mine;
+    isminetype is_mine;
     const std::string& dest = EncodeDestination(address);
     WalletBatch batch(GetDatabase());
     {
@@ -2250,23 +2250,39 @@ bool CWallet::DelAddressBook(const CTxDestination& address)
         // If we want to delete receiving addresses, we need to take care that DestData "used" (and possibly newer DestData) gets preserved (and the "deleted" address transformed into a change entry instead of actually being deleted)
         // NOTE: This isn't a problem for sending addresses because they never have any DestData yet!
         // When adding new DestData, it should be considered here whether to retain or delete it (or move it?).
-        isminetype is_mine_internal = IsMine(address);
-        if (is_mine_internal) {
-            WalletLogPrintf("%s called with IsMine address, NOT SUPPORTED. Please report this bug! %s\n", __func__, PACKAGE_BUGREPORT);
+        is_mine = IsMine(address);
+        if (is_mine) {
+            WalletLogPrintf("%s called with IsMine address, NOT SUPPORTED. Please report this bug! %s\n", __func__,
+                            PACKAGE_BUGREPORT);
             return false;
         }
+        // Start db txn
+        batch.TxnBegin();
         // Delete destdata tuples associated with address
-        for (const std::pair<const std::string, std::string> &item : m_address_book[address].destdata) {
-            batch.EraseDestData(dest, item.first);
+        for (const std::pair<const std::string, std::string> &item: m_address_book[address].destdata) {
+            if (!batch.EraseDestData(dest, item.first)) {
+                WalletLogPrintf("%s error erasing dest data\n", __func__);
+                return false;
+            }
         }
+
+        if (!batch.ErasePurpose(dest) || !batch.EraseName(dest)) {
+            WalletLogPrintf("%s error erasing purpose/name\n", __func__);
+            return false;
+        }
+
+        // Finish db txn
+        if (!batch.TxnCommit()) {
+            WalletLogPrintf("%s error committing db txn\n", __func__);
+            return false;
+        }
+
+        // finally, remove it from the map
         m_address_book.erase(address);
-        is_mine = is_mine_internal != ISMINE_NO;
     }
 
-    NotifyAddressBookChanged(address, "", is_mine, "", CT_DELETED);
-
-    batch.ErasePurpose(dest);
-    return batch.EraseName(dest);
+    // All good, signal changes
+    NotifyAddressBookChanged(address, "", is_mine != ISMINE_NO, "", CT_DELETED);
 }
 
 size_t CWallet::KeypoolCountExternalKeys() const
