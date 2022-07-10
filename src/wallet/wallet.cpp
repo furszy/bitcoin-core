@@ -2383,6 +2383,7 @@ bool CWallet::SetAddressBook(const CTxDestination& address, const std::string& s
 
 bool CWallet::DelAddressBook(const CTxDestination& address)
 {
+    const std::string& dest = EncodeDestination(address);
     WalletBatch batch(GetDatabase());
     {
         LOCK(cs_wallet);
@@ -2395,13 +2396,20 @@ bool CWallet::DelAddressBook(const CTxDestination& address)
         }
         // Delete data rows associated with this address
         batch.EraseAddressData(address);
+
+        // Delete purpose and name
+        if (!batch.ErasePurpose(dest) || !batch.EraseName(dest)) {
+            WalletLogPrintf("%s error erasing purpose/name\n", __func__);
+            return false;
+        }
+
+        // finally, remove it from the map
         m_address_book.erase(address);
     }
 
+    // All good, signal changes
     NotifyAddressBookChanged(address, "", /*is_mine=*/false, AddressPurpose::SEND, CT_DELETED);
-
-    batch.ErasePurpose(EncodeDestination(address));
-    return batch.EraseName(EncodeDestination(address));
+    return true;
 }
 
 size_t CWallet::KeypoolCountExternalKeys() const
