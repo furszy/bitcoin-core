@@ -448,11 +448,10 @@ public:
         result.reserve(outputs.size());
         for (const auto& output : outputs) {
             result.emplace_back();
-            auto it = m_wallet->mapWallet.find(output.hash);
-            if (it != m_wallet->mapWallet.end()) {
-                int depth = m_wallet->GetTxDepthInMainChain(it->second);
+            if (const CWalletTx* wtx = m_wallet->GetWalletTx(output.hash)) {
+                int depth = m_wallet->GetTxDepthInMainChain(*wtx);
                 if (depth >= 0) {
-                    result.back() = MakeWalletTxOut(*m_wallet, it->second, output.n, depth);
+                    result.back() = MakeWalletTxOut(*m_wallet, *wtx, output.n, depth);
                 }
             }
         }
