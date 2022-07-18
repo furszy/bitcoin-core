@@ -344,6 +344,11 @@ static RPCHelpMan createwallet()
     uint64_t flags = 0;
     if (!request.params[1].isNull() && request.params[1].get_bool()) {
         flags |= WALLET_FLAG_DISABLE_PRIVATE_KEYS;
+        // We want to set BLANK when DISABLE_PRIVATE_KEYS, but only if the user did not explicitly do blank=false
+        // It can be set when blank is not provided; when it is provided, we handle it later
+        if (request.params[2].isNull()) {
+            flags |= WALLET_FLAG_BLANK_WALLET;
+        }
     }
 
     if (!request.params[2].isNull() && request.params[2].get_bool()) {

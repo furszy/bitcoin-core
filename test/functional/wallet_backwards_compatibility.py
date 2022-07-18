@@ -140,7 +140,7 @@ class BackwardsCompatibilityTest(BitcoinTestFramework):
         # w2: wallet with private keys disabled, created on master: update this
         #     test when default wallets private keys disabled can no longer be
         #     opened by older versions.
-        node_master.createwallet(wallet_name="w2", disable_private_keys=True)
+        node_master.createwallet(wallet_name="w2", disable_private_keys=True, blank=False)
         wallet = node_master.get_wallet_rpc("w2")
         info = wallet.getwalletinfo()
         assert info['private_keys_enabled'] == False
