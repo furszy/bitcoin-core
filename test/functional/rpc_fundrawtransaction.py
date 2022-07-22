@@ -1080,8 +1080,10 @@ class RawTransactionsTest(BitcoinTestFramework):
         wallet = self.nodes[2].get_wallet_rpc("test_weight_calculation")
 
         addr = wallet.getnewaddress()
-        txid = self.nodes[0].sendtoaddress(addr, 5)
+        ext_addr = self.nodes[0].getnewaddress()
+        txid = self.nodes[0].send([{addr: 5}, {ext_addr: 5}])["txid"]
         vout = find_vout_for_address(self.nodes[0], txid, addr)
+        ext_vout = find_vout_for_address(self.nodes[0], txid, ext_addr)
 
         self.nodes[0].sendtoaddress(wallet.getnewaddress(), 5)
         self.generate(self.nodes[0], 1)
@@ -1089,7 +1091,14 @@ class RawTransactionsTest(BitcoinTestFramework):
         rawtx = wallet.createrawtransaction([{'txid': txid, 'vout': vout}], [{self.nodes[0].getnewaddress(): 9.999}])
         fundedtx = wallet.fundrawtransaction(rawtx, {'fee_rate': 10})
         # with 71-byte signatures we should expect following tx size
-        tx_size = 10 + 41*2 + 31*2 + (2 + 107*2)/4
+        tx_size = ceil(10 + 41*2 + 31*2 + (2 + 107*2)/4)
+        assert_equal(fundedtx['fee'] * COIN, tx_size * 10)
+
+        # Using the other output should have 72 byte sigs
+        rawtx = wallet.createrawtransaction([{'txid': txid, 'vout': ext_vout}], [{self.nodes[0].getnewaddress(): 9.999}])
+        ext_desc = self.nodes[0].getaddressinfo(ext_addr)["desc"]
+        fundedtx = wallet.fundrawtransaction(rawtx, {'fee_rate': 10, "solving_data": {"descriptors": [ext_desc]}})
+        tx_size = ceil(10 + 41*2 + 31*2 + (2 + 107 + 108)/4)
         assert_equal(fundedtx['fee'] * COIN, tx_size * 10)
 
         self.nodes[2].unloadwallet("test_weight_calculation")
