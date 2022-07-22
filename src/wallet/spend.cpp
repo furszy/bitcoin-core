@@ -1016,10 +1016,14 @@ bool FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& nFeeRet,
     for (const CTxIn& txin : tx.vin) {
         // if it's not in the wallet and corresponding UTXO is found than select as external output
         const auto& outPoint = txin.prevout;
-        if (wallet.mapWallet.find(outPoint.hash) == wallet.mapWallet.end() && !coins[outPoint].out.IsNull()) {
-            coinControl.SelectExternal(outPoint, coins[outPoint].out);
-        } else {
+        if (wallet.IsMine(outPoint)) {
             coinControl.Select(outPoint);
+        } else {
+            if (coins[outPoint].out.IsNull()) {
+                error = _("Unable to find UTXO for external input");
+                return false;
+            }
+            coinControl.SelectExternal(outPoint, coins[outPoint].out);
         }
     }
 
