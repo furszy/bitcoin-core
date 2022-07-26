@@ -1010,26 +1010,27 @@ bool FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& nFeeRet,
     // CreateTransaction call and LockCoin calls (when lockUnspents is true).
     LOCK(wallet.cs_wallet);
 
-    // Fetch specified UTXOs from the UTXO set to get the scriptPubKeys and values of the outputs being selected
-    // and to match with the given solving_data. Only used for non-wallet outputs.
-    std::map<COutPoint, Coin> coins;
-    for (const CTxIn& txin : tx.vin) {
-        coins[txin.prevout]; // Create empty map entry keyed by prevout.
-    }
-    wallet.chain().findCoins(coins);
-
+    // Select internal coins and mark external ones to be fetched from the chain's information.
+    std::map<COutPoint, Coin> external_coins;
     for (const CTxIn& txin : tx.vin) {
         // if it's not in the wallet and corresponding UTXO is found than select as external output
         const auto& outPoint = txin.prevout;
         if (wallet.IsMine(outPoint)) {
             coinControl.Select(outPoint);
         } else {
-            if (coins[outPoint].out.IsNull()) {
-                error = _("Unable to find UTXO for external input");
-                return false;
-            }
-            coinControl.SelectExternal(outPoint, coins[outPoint].out);
+            external_coins[txin.prevout]; // Create empty map entry keyed by prevout.
         }
+    }
+
+    // Fetch specified UTXOs from the UTXO set to get the scriptPubKeys and values of the outputs being selected
+    // and to match with the given solving_data. Only used for non-wallet outputs.
+    wallet.chain().findCoins(external_coins);
+    for (const auto& it : external_coins) {
+        if (it.second.out.IsNull()) {
+            error = _("Unable to find UTXO for external input");
+            return false;
+        }
+        coinControl.SelectExternal(it.first, it.second.out);
     }
 
     auto res = CreateTransaction(wallet, vecSend, nChangePosInOut, coinControl, false);
