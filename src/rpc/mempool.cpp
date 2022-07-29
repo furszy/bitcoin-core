@@ -605,7 +605,6 @@ static RPCHelpMan gettxspendingprevout()
         },
         [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
         {
-            RPCTypeCheckArgument(request.params[0], UniValue::VARR);
             const UniValue& output_params = request.params[0];
             if (output_params.empty()) {
                 throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, outputs are missing");
