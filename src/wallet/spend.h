@@ -105,7 +105,14 @@ const CTxOut& FindNonChangeParentOutput(const CWallet& wallet, const COutPoint& 
  */
 std::map<CTxDestination, std::vector<COutput>> ListCoins(const CWallet& wallet) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
 
-std::vector<OutputGroup> GroupOutputs(const CWallet& wallet, const std::vector<COutput>& outputs, const CoinSelectionParams& coin_sel_params, const CoinEligibilityFilter& filter, bool positive_only);
+/**
+* Group coins by the provided filters.
+*/
+OutputGroups GroupOutputs(const CWallet& wallet,
+                          const CoinsResult& coins,
+                          const CoinSelectionParams& coin_sel_params,
+                          const CoinEligibilityFilter& filter);
+
 /**
  * Attempt to find a valid input set that preserves privacy by not mixing OutputTypes.
  * `ChooseSelectionResult()` will be called on each OutputType individually and the best
@@ -139,7 +146,7 @@ util::Result<SelectionResult> AttemptSelection(const CWallet& wallet, const CAmo
  *                                                  or (2) an specific error message if there was something particularly wrong (e.g. a selection
  *                                                  result that surpassed the tx max weight size).
  */
-util::Result<SelectionResult> ChooseSelectionResult(const CAmount& nTargetValue, Groups groups, const CoinSelectionParams& coin_selection_params);
+util::Result<SelectionResult> ChooseSelectionResult(const CAmount& nTargetValue, Groups& groups, const CoinSelectionParams& coin_selection_params);
 
 // User manually selected inputs that must be part of the transaction
 struct PreSelectedInputs

@@ -7,6 +7,7 @@
 
 #include <consensus/amount.h>
 #include <consensus/consensus.h>
+#include <outputtype.h>
 #include <policy/feerate.h>
 #include <primitives/transaction.h>
 #include <random.h>
@@ -192,6 +193,11 @@ struct CoinEligibilityFilter
     CoinEligibilityFilter(int conf_mine, int conf_theirs, uint64_t max_ancestors) : conf_mine(conf_mine), conf_theirs(conf_theirs), max_ancestors(max_ancestors), max_descendants(max_ancestors) {}
     CoinEligibilityFilter(int conf_mine, int conf_theirs, uint64_t max_ancestors, uint64_t max_descendants) : conf_mine(conf_mine), conf_theirs(conf_theirs), max_ancestors(max_ancestors), max_descendants(max_descendants) {}
     CoinEligibilityFilter(int conf_mine, int conf_theirs, uint64_t max_ancestors, uint64_t max_descendants, bool include_partial) : conf_mine(conf_mine), conf_theirs(conf_theirs), max_ancestors(max_ancestors), max_descendants(max_descendants), m_include_partial_groups(include_partial) {}
+
+    bool operator<(const CoinEligibilityFilter& other) const {
+        return std::tie(conf_mine, conf_theirs, max_ancestors, max_descendants, m_include_partial_groups)
+               < std::tie(other.conf_mine, other.conf_theirs, other.max_ancestors, other.max_descendants, other.m_include_partial_groups);
+    }
 };
 
 /** A group of UTXOs paid to the same output script. */
@@ -245,6 +251,29 @@ struct OutputGroup
 struct Groups {
     std::vector<OutputGroup> positive_group;
     std::vector<OutputGroup> mixed_group;
+};
+
+/**
+* Stores several 'Groups' whose
+* were filtered by different output type
+*/
+struct OutputGroups
+{
+    // Map filters to output groups.
+    std::map<OutputType, Groups> groups_by_type;
+    // All groups, no filters
+    Groups all_groups;
+
+    enum class InsertGroupType {
+        ONLY_POSITIVE, // Insert only to `positive_group`
+        MIXED_GROUPS, // Insert only to `mixed_group`
+        BOTH // Insert to `positive_group` and `mixed_group`
+    };
+
+    // Pushes the output group into the filtered groups map and the all groups container.
+    void push(const OutputGroup& group, OutputType type, InsertGroupType insert_type);
+    // Retrieves 'Groups' filtered by 'filter'
+    std::optional<Groups> find(OutputType type);
 };
 
 /** Compute the waste for this result given the cost of change

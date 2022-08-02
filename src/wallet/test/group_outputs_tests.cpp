@@ -25,7 +25,8 @@ static std::shared_ptr<CWallet> NewWallet(const node::NodeContext& m_node, const
     return wallet;
 }
 
-static void addCoin(std::vector<COutput>& coins,
+static void addCoin(CoinsResult& coins,
+                     OutputType type,
                      CWallet& wallet,
                      const CScript& dest,
                      const CAmount& nValue,
@@ -45,7 +46,7 @@ static void addCoin(std::vector<COutput>& coins,
     assert(ret.second);
     CWalletTx& wtx = (*ret.first).second;
     const auto& txout = wtx.tx->vout.at(0);
-    coins.emplace_back(COutPoint(wtx.GetHash(), 0),
+    coins.Add(type, {COutPoint(wtx.GetHash(), 0),
                        txout,
                        depth,
                        CalculateMaximumSignedInputSize(txout, &wallet, /*coin_control=*/nullptr),
@@ -54,7 +55,7 @@ static void addCoin(std::vector<COutput>& coins,
                        /*safe=*/ true,
                        wtx.GetTxTime(),
                        is_from_me,
-                       fee_rate);
+                       fee_rate});
 }
 
  CoinSelectionParams makeSelectionParams(FastRandomContext& rand, bool avoid_partial_spends)
@@ -76,31 +77,31 @@ class GroupVerified
 {
 public:
     std::shared_ptr<CWallet> wallet{nullptr};
-    std::vector<COutput> coins;
+    CoinsResult coins;
     FastRandomContext rand;
 
-    void GroupVerify(const CoinEligibilityFilter& filter,
+    void GroupVerify(const OutputType type,
+                     const CoinEligibilityFilter& filter,
                      bool avoid_partial_spends,
                      bool positive_only,
                      int expected_size)
     {
-        std::vector<OutputGroup> groups = GroupOutputs(*wallet,
-                                                       coins,
-                                                       makeSelectionParams(rand, avoid_partial_spends),
-                                                       filter,
-                                                       positive_only);
-        BOOST_CHECK_EQUAL(groups.size(), expected_size);
+        OutputGroups groups = GroupOutputs(*wallet, coins, makeSelectionParams(rand, avoid_partial_spends), filter);
+        std::vector<OutputGroup>& groups_out = positive_only ? groups.groups_by_type[type].positive_group :
+                                               groups.groups_by_type[type].mixed_group;
+        BOOST_CHECK_EQUAL(groups_out.size(), expected_size);
     }
 
-    void GroupAndVerify(const CoinEligibilityFilter& filter,
+    void GroupAndVerify(const OutputType type,
+                        const CoinEligibilityFilter& filter,
                         int expected_with_partial_spends_size,
                         int expected_without_partial_spends_size,
                         bool positive_only)
     {
         // First avoid partial spends
-        GroupVerify(filter, false, positive_only,  expected_with_partial_spends_size);
+        GroupVerify(type, filter, false, positive_only,  expected_with_partial_spends_size);
         // Second don't avoid partial spends
-        GroupVerify(filter, true, positive_only, expected_without_partial_spends_size);
+        GroupVerify(type, filter, true, positive_only, expected_without_partial_spends_size);
     }
 };
 
@@ -121,10 +122,11 @@ BOOST_AUTO_TEST_CASE(outputs_grouping_tests)
     unsigned long GROUP_SIZE = 10;
     const CScript& dest = GetScriptForDestination(*wallet->GetNewDestination(OutputType::BECH32, ""));
     for (unsigned long i = 0; i < GROUP_SIZE; i++) {
-        addCoin(group_verifier.coins, *wallet, dest, 10 * COIN, true);
+        addCoin(group_verifier.coins, OutputType::BECH32, *wallet, dest, 10 * COIN, true);
     }
 
-    group_verifier.GroupAndVerify(BASIC_FILTER,
+    group_verifier.GroupAndVerify(OutputType::BECH32,
+                                  BASIC_FILTER,
                                   /*expected_with_partial_spends_size=*/ GROUP_SIZE,
                                   /*expected_without_partial_spends_size=*/ 1,
                                   /*positive_only=*/ true);
@@ -134,12 +136,13 @@ BOOST_AUTO_TEST_CASE(outputs_grouping_tests)
     //    group for avoid partial spends and 10 different output groups for partial spends
     // ####################################################################################
 
-    const CScript& dest2 = GetScriptForDestination(*wallet->GetNewDestination(OutputType::P2SH_SEGWIT, ""));
+    const CScript& dest2 = GetScriptForDestination(*wallet->GetNewDestination(OutputType::BECH32, ""));
     for (unsigned long i = 0; i < GROUP_SIZE; i++) {
-        addCoin(group_verifier.coins, *wallet, dest2, 5 * COIN, true);
+        addCoin(group_verifier.coins, OutputType::BECH32, *wallet, dest2, 5 * COIN, true);
     }
 
-    group_verifier.GroupAndVerify(BASIC_FILTER,
+    group_verifier.GroupAndVerify(OutputType::BECH32,
+            BASIC_FILTER,
             /*expected_with_partial_spends_size=*/ GROUP_SIZE * 2,
             /*expected_without_partial_spends_size=*/ 2,
             /*positive_only=*/ true);
@@ -149,17 +152,19 @@ BOOST_AUTO_TEST_CASE(outputs_grouping_tests)
     // ################################################################################
 
     const CScript& dest3 = GetScriptForDestination(*wallet->GetNewDestination(OutputType::BECH32, ""));
-    addCoin(group_verifier.coins, *wallet, dest3, 1, true, CFeeRate(100));
-    BOOST_CHECK(group_verifier.coins.back().GetEffectiveValue() <= 0);
+    addCoin(group_verifier.coins, OutputType::BECH32, *wallet, dest3, 1, true, CFeeRate(100));
+    BOOST_CHECK(group_verifier.coins.coins[OutputType::BECH32].back().GetEffectiveValue() <= 0);
 
     // First expect no changes with "positive_only" enabled
-    group_verifier.GroupAndVerify(BASIC_FILTER,
+    group_verifier.GroupAndVerify(OutputType::BECH32,
+            BASIC_FILTER,
             /*expected_with_partial_spends_size=*/ GROUP_SIZE * 2,
             /*expected_without_partial_spends_size=*/ 2,
             /*positive_only=*/ true);
 
     // Then expect changes with "positive_only" disabled
-    group_verifier.GroupAndVerify(BASIC_FILTER,
+    group_verifier.GroupAndVerify(OutputType::BECH32,
+            BASIC_FILTER,
             /*expected_with_partial_spends_size=*/ GROUP_SIZE * 2 + 1,
             /*expected_without_partial_spends_size=*/ 3,
             /*positive_only=*/ false);
@@ -171,10 +176,11 @@ BOOST_AUTO_TEST_CASE(outputs_grouping_tests)
     // ##############################################################################
 
     const CScript& dest4 = GetScriptForDestination(*wallet->GetNewDestination(OutputType::BECH32, ""));
-    addCoin(group_verifier.coins, *wallet, dest4, 6 * COIN, false, CFeeRate(0), 2);
+    addCoin(group_verifier.coins, OutputType::BECH32, *wallet, dest4, 6 * COIN, false, CFeeRate(0), 2);
 
     // Expect no changes from this round and the previous one (point 4)
-    group_verifier.GroupAndVerify(BASIC_FILTER,
+    group_verifier.GroupAndVerify(OutputType::BECH32,
+            BASIC_FILTER,
             /*expected_with_partial_spends_size=*/ GROUP_SIZE * 2 + 1,
             /*expected_without_partial_spends_size=*/ 3,
             /*positive_only=*/ false);
@@ -186,10 +192,11 @@ BOOST_AUTO_TEST_CASE(outputs_grouping_tests)
     // ##############################################################################
 
     const CScript& dest5 = GetScriptForDestination(*wallet->GetNewDestination(OutputType::BECH32, ""));
-    addCoin(group_verifier.coins, *wallet, dest5, 6 * COIN, true, CFeeRate(0), 0);
+    addCoin(group_verifier.coins, OutputType::BECH32, *wallet, dest5, 6 * COIN, true, CFeeRate(0), 0);
 
     // Expect no changes from this round and the previous one (point 5)
-    group_verifier.GroupAndVerify(BASIC_FILTER,
+    group_verifier.GroupAndVerify(OutputType::BECH32,
+            BASIC_FILTER,
             /*expected_with_partial_spends_size=*/ GROUP_SIZE * 2 + 1,
             /*expected_without_partial_spends_size=*/ 3,
             /*positive_only=*/ false);
@@ -200,18 +207,20 @@ BOOST_AUTO_TEST_CASE(outputs_grouping_tests)
 
     const CScript& dest7 = GetScriptForDestination(*wallet->GetNewDestination(OutputType::BECH32, ""));
     for (unsigned long i = 0; i < 130; i++) { // OUTPUT_GROUP_MAX_ENTRIES{100}
-        addCoin(group_verifier.coins, *wallet, dest7, 9 * COIN, true);
+        addCoin(group_verifier.coins, OutputType::BECH32, *wallet, dest7, 9 * COIN, true);
     }
 
     // Exclude partial groups must have no changes from this round and the previous one (point 6)
-    group_verifier.GroupAndVerify(BASIC_FILTER,
+    group_verifier.GroupAndVerify(OutputType::BECH32,
+            BASIC_FILTER,
             /*expected_with_partial_spends_size=*/ GROUP_SIZE * 2 + 130,
             /*expected_without_partial_spends_size=*/ 3,
             /*positive_only=*/ true);
 
     // Include partial groups should get one more group inside the "avoid partial spends" count
     const CoinEligibilityFilter& avoid_partial_groups_filter{1, 6, 0, 0, /*include_partial=*/ true};
-    group_verifier.GroupAndVerify(avoid_partial_groups_filter,
+    group_verifier.GroupAndVerify(OutputType::BECH32,
+            avoid_partial_groups_filter,
             /*expected_with_partial_spends_size=*/ GROUP_SIZE * 2 + 130,
             /*expected_without_partial_spends_size=*/ 4,
             /*positive_only=*/ true);
