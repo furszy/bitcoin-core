@@ -274,7 +274,11 @@ struct OutputGroups
     void push(const OutputGroup& group, OutputType type, InsertGroupType insert_type);
     // Retrieves 'Groups' filtered by 'filter'
     std::optional<Groups> find(OutputType type);
+    // Different output types count
+    int typesCount() { return groups_by_type.size(); }
 };
+
+typedef std::map<CoinEligibilityFilter, OutputGroups> FilteredOutputGroups;
 
 /** Compute the waste for this result given the cost of change
  * and the opportunity cost of spending these inputs now vs in the future.
