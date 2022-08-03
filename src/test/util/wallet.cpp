@@ -20,10 +20,14 @@ const std::string ADDRESS_BCRT1_UNSPENDABLE = "bcrt1qqqqqqqqqqqqqqqqqqqqqqqqqqqq
 std::string getnewaddress(CWallet& w)
 {
     constexpr auto output_type = OutputType::BECH32;
-    auto op_dest = w.GetNewDestination(output_type, "");
-    assert(op_dest.HasRes());
+    return EncodeDestination(getNewDestination(w, output_type));
+}
 
-    return EncodeDestination(op_dest.GetObj());
+CTxDestination getNewDestination(CWallet& w, OutputType output_type)
+{
+    const auto& res = w.GetNewDestination(output_type, "");
+    assert(res);
+    return res.GetObj();
 }
 
 #endif // ENABLE_WALLET
