@@ -883,14 +883,18 @@ static BResult<CreatedTransactionResult> CreateTransactionInternal(
     const CAmount not_input_fees = coin_selection_params.m_effective_feerate.GetFee(coin_selection_params.tx_noinputs_size);
     CAmount selection_target = recipients_sum + not_input_fees;
 
-    // Get available coins
-    auto available_coins = AvailableCoins(wallet,
-                                              &coin_control,
-                                              coin_selection_params.m_effective_feerate,
-                                              1,            /*nMinimumAmount*/
-                                              MAX_MONEY,    /*nMaximumAmount*/
-                                              MAX_MONEY,    /*nMinimumSumAmount*/
-                                              0);           /*nMaximumCount*/
+    // Fetch wallet available coins
+    // (If non-manually selected inputs are allowed, aka "other inputs")
+    CoinsResult available_coins;
+    if (coin_control.m_allow_other_inputs) {
+        available_coins = AvailableCoins(wallet,
+                                         &coin_control,
+                                         coin_selection_params.m_effective_feerate,
+                                         1,            /*nMinimumAmount*/
+                                         MAX_MONEY,    /*nMaximumAmount*/
+                                         MAX_MONEY,    /*nMinimumSumAmount*/
+                                         0);           /*nMaximumCount*/
+    }
 
     // Choose coins to use
     std::optional<SelectionResult> result = SelectCoins(wallet, available_coins, /*nTargetValue=*/selection_target, coin_control, coin_selection_params);

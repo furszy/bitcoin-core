@@ -289,6 +289,7 @@ RPCHelpMan sendtoaddress()
     coin_control.m_avoid_address_reuse = GetAvoidReuseFlag(*pwallet, request.params[8]);
     // We also enable partial spend avoidance if reuse avoidance is set.
     coin_control.m_avoid_partial_spends |= coin_control.m_avoid_address_reuse;
+    coin_control.m_allow_other_inputs = true;
 
     SetFeeEstimateMode(*pwallet, coin_control, /*conf_target=*/request.params[6], /*estimate_mode=*/request.params[7], /*fee_rate=*/request.params[9], /*override_min_fee=*/false);
 
@@ -399,6 +400,7 @@ RPCHelpMan sendmany()
     ParseRecipients(sendTo, subtractFeeFromAmount, recipients);
     const bool verbose{request.params[9].isNull() ? false : request.params[9].get_bool()};
 
+    coin_control.m_allow_other_inputs = true;
     return SendMoney(*pwallet, coin_control, recipients, std::move(mapValue), verbose);
 },
     };

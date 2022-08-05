@@ -532,6 +532,7 @@ public:
     {
         CTransactionRef tx;
         CCoinControl dummy;
+        dummy.m_allow_other_inputs = true;
         {
             constexpr int RANDOM_CHANGE_POSITION = -1;
             auto res = CreateTransaction(*wallet, {recipient}, RANDOM_CHANGE_POSITION, dummy);
