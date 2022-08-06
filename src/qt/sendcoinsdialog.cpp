@@ -71,6 +71,8 @@ SendCoinsDialog::SendCoinsDialog(const PlatformStyle *_platformStyle, QWidget *p
     fFeeMinimized(true),
     platformStyle(_platformStyle)
 {
+    // Default behavior, wallet can select coins automatically
+    m_coin_control->m_allow_other_inputs = true;
     ui->setupUi(this);
 
     if (!_platformStyle->getImagesOnButtons()) {
@@ -927,6 +929,7 @@ void SendCoinsDialog::coinControlFeatureChanged(bool checked)
 
     if (!checked && model) { // coin control features disabled
         m_coin_control = std::make_unique<CCoinControl>();
+        m_coin_control->m_allow_other_inputs = true;
     }
 
     coinControlUpdateLabels();
