@@ -20,8 +20,12 @@ extern const std::string ADDRESS_BCRT1_UNSPENDABLE;
 #ifdef ENABLE_WALLET
 namespace wallet {
 class CWallet;
+struct DatabaseOptions;
+class WalletDatabase;
 
 std::unique_ptr<CWallet> CreateSyncedWallet(interfaces::Chain& chain, CChain& cchain, ArgsManager& args, const CKey& key);
+// Creates a copy of the provided database
+std::unique_ptr<WalletDatabase> DuplicateMockDatabase(WalletDatabase& database, DatabaseOptions& options);
 } // namespace wallet
 
 // RPC-like //
