@@ -14,10 +14,21 @@ namespace interfaces {
 class Chain;
 } // namespace interfaces
 
+// Constants //
+extern const std::string ADDRESS_BCRT1_UNSPENDABLE;
+
+#ifdef ENABLE_WALLET
 namespace wallet {
 class CWallet;
 
 std::unique_ptr<CWallet> CreateSyncedWallet(interfaces::Chain& chain, CChain& cchain, ArgsManager& args, const CKey& key);
 } // namespace wallet
 
+// RPC-like //
+/** Import the address to the wallet */
+void importaddress(wallet::CWallet& wallet, const std::string& address);
+/** Returns a new address from the wallet */
+std::string getnewaddress(wallet::CWallet& w);
+
+#endif // ENABLE_WALLET
 #endif // BITCOIN_WALLET_TEST_UTIL_H

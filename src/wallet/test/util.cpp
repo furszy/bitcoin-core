@@ -11,9 +11,9 @@
 #include <wallet/wallet.h>
 #include <wallet/walletdb.h>
 
-#include <boost/test/unit_test.hpp>
-
 #include <memory>
+
+const std::string ADDRESS_BCRT1_UNSPENDABLE = "bcrt1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3xueyj";
 
 namespace wallet {
 std::unique_ptr<CWallet> CreateSyncedWallet(interfaces::Chain& chain, CChain& cchain, ArgsManager& args, const CKey& key)
@@ -39,10 +39,16 @@ std::unique_ptr<CWallet> CreateSyncedWallet(interfaces::Chain& chain, CChain& cc
     WalletRescanReserver reserver(*wallet);
     reserver.reserve();
     CWallet::ScanResult result = wallet->ScanForWalletTransactions(cchain.Genesis()->GetBlockHash(), /*start_height=*/0, /*max_height=*/{}, reserver, /*fUpdate=*/false, /*save_progress=*/false);
-    BOOST_CHECK_EQUAL(result.status, CWallet::ScanResult::SUCCESS);
-    BOOST_CHECK_EQUAL(result.last_scanned_block, cchain.Tip()->GetBlockHash());
-    BOOST_CHECK_EQUAL(*result.last_scanned_height, cchain.Height());
-    BOOST_CHECK(result.last_failed_block.IsNull());
+    assert(result.status == CWallet::ScanResult::SUCCESS);
+    assert(result.last_scanned_block == cchain.Tip()->GetBlockHash());
+    assert(*result.last_scanned_height == cchain.Height());
+    assert(result.last_failed_block.IsNull());
     return wallet;
 }
 } // namespace wallet
+
+std::string getnewaddress(wallet::CWallet& w)
+{
+    constexpr auto output_type = OutputType::BECH32;
+    return EncodeDestination(*Assert(w.GetNewDestination(output_type, "")));
+}

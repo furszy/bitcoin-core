@@ -18,7 +18,7 @@ TEST_UTIL_H = \
     test/util/str.h \
     test/util/transaction_utils.h \
     test/util/validation.h \
-    test/util/wallet.h
+    wallet/test/util.h
 
 libtest_util_a_CPPFLAGS = $(AM_CPPFLAGS) $(BITCOIN_INCLUDES) $(MINIUPNPC_CPPFLAGS) $(NATPMP_CPPFLAGS) $(EVENT_CFLAGS) $(EVENT_PTHREADS_CFLAGS)
 libtest_util_a_CXXFLAGS = $(AM_CXXFLAGS) $(PIE_FLAGS)
@@ -32,5 +32,5 @@ libtest_util_a_SOURCES = \
   test/util/str.cpp \
   test/util/transaction_utils.cpp \
   test/util/validation.cpp \
-  test/util/wallet.cpp \
+  wallet/test/util.cpp \
   $(TEST_UTIL_H)
