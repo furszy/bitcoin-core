@@ -367,7 +367,7 @@ const CTxOut& FindNonChangeParentOutput(const CWallet& wallet, const CTransactio
     AssertLockHeld(wallet.cs_wallet);
     const CTransaction* ptx = &tx;
     int n = output;
-    while (OutputIsChange(wallet, ptx->vout[n]) && ptx->vin.size() > 0) {
+    while (IsOutputChange(wallet, *ptx, n) && ptx->vin.size() > 0) {
         const COutPoint& prevout = ptx->vin[0].prevout;
         auto it = wallet.mapWallet.find(prevout.hash);
         if (it == wallet.mapWallet.end() || it->second.tx->vout.size() <= prevout.n ||
