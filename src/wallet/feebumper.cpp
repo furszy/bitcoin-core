@@ -234,8 +234,10 @@ Result CreateRateBumpTransaction(CWallet& wallet, const uint256& txid, const CCo
     // is one). If outputs vector is non-empty, replace original
     // outputs with its contents, otherwise use original outputs.
     std::vector<CRecipient> recipients;
-    for (const auto& output : outputs.empty() ? wtx.tx->vout : outputs) {
-        if (!OutputIsChange(wallet, output)) {
+    const auto& vec_outputs = outputs.empty() ? wtx.tx->vout : outputs;
+    for (size_t pos = 0; pos < vec_outputs.size(); pos++) {
+        const auto& output = vec_outputs[pos];
+        if (!IsOutputChange(wallet, *wtx.tx, pos)) {
             CRecipient recipient = {output.scriptPubKey, output.nValue, false};
             recipients.push_back(recipient);
         } else {
