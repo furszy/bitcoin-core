@@ -15,6 +15,7 @@
 #include <script/standard.h>
 #include <sync.h>
 #include <util/bip32.h>
+#include <util/check.h>
 #include <util/system.h>
 #include <util/time.h>
 #include <util/translation.h>
@@ -140,9 +141,7 @@ RPCHelpMan importprivkey()
         EnsureWalletIsUnlocked(*pwallet);
 
         std::string strSecret = request.params[0].get_str();
-        std::string strLabel;
-        if (!request.params[1].isNull())
-            strLabel = request.params[1].get_str();
+        auto strLabel = LabelFromValue(request.params[1]).value_or(DEFAULT_WALLET_LABEL);
 
         // Whether to perform rescan after import
         if (!request.params[2].isNull())
@@ -233,9 +232,7 @@ RPCHelpMan importaddress()
 
     EnsureLegacyScriptPubKeyMan(*pwallet, true);
 
-    std::string strLabel;
-    if (!request.params[1].isNull())
-        strLabel = request.params[1].get_str();
+    auto strLabel = LabelFromValue(request.params[1]).value_or(DEFAULT_WALLET_LABEL);
 
     // Whether to perform rescan after import
     bool fRescan = true;
@@ -426,9 +423,7 @@ RPCHelpMan importpubkey()
 
     EnsureLegacyScriptPubKeyMan(*pwallet, true);
 
-    std::string strLabel;
-    if (!request.params[1].isNull())
-        strLabel = request.params[1].get_str();
+    auto strLabel = LabelFromValue(request.params[1]).value_or(DEFAULT_WALLET_LABEL);
 
     // Whether to perform rescan after import
     bool fRescan = true;
@@ -1163,7 +1158,7 @@ static UniValue ProcessImport(CWallet& wallet, const UniValue& data, const int64
         if (internal && data.exists("label")) {
             throw JSONRPCError(RPC_INVALID_PARAMETER, "Internal addresses should not have a label");
         }
-        const std::string& label = data.exists("label") ? data["label"].get_str() : "";
+        auto label = LabelFromValue(data["label"]).value_or(DEFAULT_WALLET_LABEL);
         const bool add_keypool = data.exists("keypool") ? data["keypool"].get_bool() : false;
 
         // Add to keypool only works with privkeys disabled
@@ -1457,7 +1452,7 @@ static UniValue ProcessDescriptorImport(CWallet& wallet, const UniValue& data, c
         const std::string& descriptor = data["desc"].get_str();
         const bool active = data.exists("active") ? data["active"].get_bool() : false;
         const bool internal = data.exists("internal") ? data["internal"].get_bool() : false;
-        const std::string& label = data.exists("label") ? data["label"].get_str() : "";
+        auto label = LabelFromValue(data["label"]).value_or(DEFAULT_WALLET_LABEL);
 
         // Parse descriptor string
         FlatSigningProvider keys;

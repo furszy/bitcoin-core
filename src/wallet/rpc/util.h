@@ -9,6 +9,7 @@
 
 #include <any>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -40,7 +41,7 @@ const LegacyScriptPubKeyMan& EnsureConstLegacyScriptPubKeyMan(const CWallet& wal
 
 bool GetAvoidReuseFlag(const CWallet& wallet, const UniValue& param);
 bool ParseIncludeWatchonly(const UniValue& include_watchonly, const CWallet& wallet);
-std::string LabelFromValue(const UniValue& value);
+std::optional<std::string> LabelFromValue(const UniValue& value);
 //! Fetch parent descriptors of this scriptPubKey.
 void PushParentDescriptors(const CWallet& wallet, const CScript& script_pubkey, UniValue& entry);
 
