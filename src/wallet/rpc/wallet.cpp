@@ -145,6 +145,63 @@ static RPCHelpMan getwalletinfo()
     };
 }
 
+static RPCHelpMan getwalletfilters()
+{
+    return RPCHelpMan{"getwalletfilters",
+                      "Returns the wallet scripts set encoded in compact format. Useful for testing membership\n",
+                      {
+                        {"filter_type", RPCArg::Type::STR, RPCArg::Optional::OMITTED,
+                            strprintf("The filter type on which the scripts will be encoded. Default: '%s'. Supported types are: %s.", BlockFilterTypeName(BlockFilterType::BASIC), ListBlockFilterTypes())},
+                      },
+                      RPCResult{
+                        RPCResult::Type::ARR, "", "",
+                        {{
+                              RPCResult::Type::OBJ, "", "",
+                              {
+                                      {RPCResult::Type::STR, "descriptor", "The descriptor from where the 'filter_set' was calculated. "
+                                                                           "'legacy' when executed on a legacy wallet."},
+                                      {RPCResult::Type::NUM, "range_end", "The last tracked index"},
+                                      {RPCResult::Type::STR, "filter_set", "The hex encoded filter set"},
+                              }
+                        }},
+                      },
+                      RPCExamples{
+                              HelpExampleCli("getwalletfilters", "")
+                              + HelpExampleRpc("getwalletfilters", "")
+                      },
+                      [&](const RPCHelpMan &self, const JSONRPCRequest &request) -> UniValue
+{
+    const std::shared_ptr<const CWallet> pwallet = GetWalletForJSONRPCRequest(request);
+    if (!pwallet) return UniValue::VNULL;
+
+    if (request.params.size() > 0) {
+        // For now, only the 'BASIC' filter type is supported.
+        BlockFilterType type;
+        bool invalid = !BlockFilterTypeByName(request.params[0].get_str(), type) || type != BlockFilterType::BASIC;
+        if (invalid) throw JSONRPCError(RPC_INVALID_PARAMETER, strprintf("Invalid filter type. Supported types are: %s", ListBlockFilterTypes()));
+    }
+
+    // Make sure the results are valid at least up to the most recent block
+    // the user could have gotten from another RPC command prior to now
+    pwallet->BlockUntilSyncedToCurrentChain();
+
+    UniValue arr(UniValue::VARR);
+    for (const auto& [spkm_id, last_range_and_elements] : pwallet->GetScriptsFilter()) {
+        UniValue obj(UniValue::VOBJ);
+        const auto& spkm = dynamic_cast<DescriptorScriptPubKeyMan*>(pwallet->GetScriptPubKeyMan(spkm_id));
+        std::string desc_info = "legacy"; // Legacy wallets do not contain descriptors
+        if (spkm) desc_info = WITH_LOCK(spkm->cs_desc_man, return spkm->GetWalletDescriptor().descriptor->ToString());
+        obj.pushKV("descriptor", desc_info);
+        obj.pushKV("range_end", last_range_and_elements.first);
+        GCSFilter filter(GCSFilter::Params(), last_range_and_elements.second);
+        obj.pushKV("filter_set", HexStr(filter.GetEncoded()));
+        arr.push_back(obj);
+    }
+
+    return arr;
+}};
+}
+
 static RPCHelpMan listwalletdir()
 {
     return RPCHelpMan{"listwalletdir",
@@ -1126,6 +1183,7 @@ Span<const CRPCCommand> GetWalletRPCCommands()
         {"wallet", &getunconfirmedbalance},
         {"wallet", &getbalances},
         {"wallet", &getwalletinfo},
+        {"wallet", &getwalletfilters},
         {"wallet", &importaddress},
         {"wallet", &importdescriptors},
         {"wallet", &importmulti},

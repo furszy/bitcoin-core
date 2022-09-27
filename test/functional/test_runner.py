@@ -105,6 +105,8 @@ BASE_SCRIPTS = [
     # vv Tests less than 60s vv
     'rpc_psbt.py --legacy-wallet',
     'rpc_psbt.py --descriptors',
+    'wallet_filters.py --descriptors',
+    'wallet_filters.py --legacy-wallet',
     'wallet_fundrawtransaction.py --legacy-wallet',
     'wallet_fundrawtransaction.py --descriptors',
     'wallet_bumpfee.py --legacy-wallet',
