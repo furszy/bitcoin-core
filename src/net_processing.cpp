@@ -66,6 +66,8 @@ static constexpr auto HEADERS_DOWNLOAD_TIMEOUT_BASE = 15min;
 static constexpr auto HEADERS_DOWNLOAD_TIMEOUT_PER_HEADER = 1ms;
 /** How long to wait for a peer to respond to a getheaders request */
 static constexpr auto HEADERS_RESPONSE_TIME{2min};
+/** How long to not try to actively sync headers from a peer that sent us an empty getheaders response*/
+static constexpr auto HEADERS_EMPTY_RESPONSE_TIME_FREEZE{2min};
 /** Protect at least this many outbound peers from disconnection due to slow/
  * behind headers chain.
  */
@@ -377,6 +379,9 @@ struct Peer {
 
     /** Time of the last getheaders message to this peer */
     NodeClock::time_point m_last_getheaders_timestamp GUARDED_BY(NetEventsInterface::g_msgproc_mutex){};
+
+    /** Time of the last empty getheaders response from this peer */
+    NodeClock::time_point m_last_getheaders_empty_response GUARDED_BY(NetEventsInterface::g_msgproc_mutex){};
 
     /** Protects m_headers_sync **/
     Mutex m_headers_sync_mutex;
@@ -2599,6 +2604,7 @@ bool PeerManagerImpl::MaybeSendGetHeaders(CNode& pfrom, const CBlockLocator& loc
     if (current_time - peer.m_last_getheaders_timestamp > HEADERS_RESPONSE_TIME) {
         m_connman.PushMessage(&pfrom, msgMaker.Make(NetMsgType::GETHEADERS, locator, uint256()));
         peer.m_last_getheaders_timestamp = current_time;
+        peer.m_last_getheaders_empty_response = {};
         return true;
     }
     return false;
@@ -2761,6 +2767,9 @@ void PeerManagerImpl::ProcessHeadersMessage(CNode& pfrom, Peer& peer,
                 if (state.fSyncStarted) nSyncStarted--;
                 state.fSyncStarted = false;
                 state.m_headers_sync_timeout = 0us;
+
+                // Plus, update the last empty response timestamp to not try to re-request headers from this node
+                peer.m_last_getheaders_empty_response = NodeClock::now();
             }
         }
         return;
@@ -5410,8 +5419,11 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
         }
 
         if (!state.fSyncStarted && CanServeBlocks(*peer) && !fImporting && !fReindex) {
+            // The peer shouldn't have sent us an empty response lately
+            bool has_sent_empty_response = NodeClock::now() - peer->m_last_getheaders_empty_response < HEADERS_EMPTY_RESPONSE_TIME_FREEZE;
+
             // Only actively request headers from a single peer, unless we're close to today.
-            if ((nSyncStarted == 0 && sync_blocks_and_headers_from_peer) || m_chainman.m_best_header->Time() > GetAdjustedTime() - 24h) {
+            if (!has_sent_empty_response && ((nSyncStarted == 0 && sync_blocks_and_headers_from_peer) || m_chainman.m_best_header->Time() > GetAdjustedTime() - 24h)) {
                 const CBlockIndex* pindexStart = m_chainman.m_best_header;
                 /* If possible, start at the block preceding the currently
                    best known header.  This ensures that we always get a
