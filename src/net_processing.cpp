@@ -2739,15 +2739,29 @@ void PeerManagerImpl::ProcessHeadersMessage(CNode& pfrom, Peer& peer,
     size_t nCount = headers.size();
 
     if (nCount == 0) {
-        // Nothing interesting. Stop asking this peers for more headers.
-        // If we were in the middle of headers sync, receiving an empty headers
-        // message suggests that the peer suddenly has nothing to give us
-        // (perhaps it reorged to our chain). Clear download state for this peer.
-        LOCK(peer.m_headers_sync_mutex);
-        if (peer.m_headers_sync) {
-            peer.m_headers_sync.reset(nullptr);
-            LOCK(m_headers_presync_mutex);
-            m_headers_presync_stats.erase(pfrom.GetId());
+        {
+            // Nothing interesting. Stop asking this peers for more headers.
+            // If we were in the middle of headers sync, receiving an empty headers
+            // message suggests that the peer suddenly has nothing to give us
+            // (perhaps it reorged to our chain). Clear download state for this peer.
+            LOCK(peer.m_headers_sync_mutex);
+            if (peer.m_headers_sync) {
+                peer.m_headers_sync.reset(nullptr);
+                LOCK(m_headers_presync_mutex);
+                m_headers_presync_stats.erase(pfrom.GetId());
+            }
+        }
+
+        {
+            LOCK(::cs_main);
+            // If we are not synced yet, and the node sent us an empty response, cleanup the sync state
+            // so we can actively sync from another peer.
+            if (m_chainman.m_best_header->Time() < GetAdjustedTime() - 12h) {
+                CNodeState &state = *State(pfrom.GetId());
+                if (state.fSyncStarted) nSyncStarted--;
+                state.fSyncStarted = false;
+                state.m_headers_sync_timeout = 0us;
+            }
         }
         return;
     }
