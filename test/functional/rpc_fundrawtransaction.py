@@ -106,42 +106,43 @@ class RawTransactionsTest(BitcoinTestFramework):
         self.generate(self.nodes[2], 1)
         self.generate(self.nodes[0], 121)
 
-        self.test_add_inputs_default_value()
-        self.test_weight_calculation()
-        self.test_change_position()
-        self.test_simple()
-        self.test_simple_two_coins()
-        self.test_simple_two_outputs()
-        self.test_change()
-        self.test_no_change()
-        self.test_invalid_option()
-        self.test_invalid_change_address()
-        self.test_valid_change_address()
-        self.test_change_type()
-        self.test_coin_selection()
-        self.test_two_vin()
-        self.test_two_vin_two_vout()
-        self.test_invalid_input()
-        self.test_fee_p2pkh()
-        self.test_fee_p2pkh_multi_out()
-        self.test_fee_p2sh()
-        self.test_fee_4of5()
-        self.test_spend_2of2()
-        self.test_locked_wallet()
-        self.test_many_inputs_fee()
-        self.test_many_inputs_send()
-        self.test_op_return()
-        self.test_watchonly()
-        self.test_all_watched_funds()
-        self.test_option_feerate()
-        self.test_address_reuse()
-        self.test_option_subtract_fee_from_outputs()
-        self.test_subtract_fee_with_presets()
-        self.test_transaction_too_large()
-        self.test_include_unsafe()
-        self.test_external_inputs()
-        self.test_22670()
-        self.test_feerate_rounding()
+        # self.test_add_inputs_default_value()
+        # self.test_weight_calculation()
+        # self.test_change_position()
+        # self.test_simple()
+        # self.test_simple_two_coins()
+        # self.test_simple_two_outputs()
+        # self.test_change()
+        # self.test_no_change()
+        # self.test_invalid_option()
+        # self.test_invalid_change_address()
+        # self.test_valid_change_address()
+        # self.test_change_type()
+        # self.test_coin_selection()
+        # self.test_two_vin()
+        # self.test_two_vin_two_vout()
+        # self.test_invalid_input()
+        # self.test_fee_p2pkh()
+        # self.test_fee_p2pkh_multi_out()
+        # self.test_fee_p2sh()
+        # self.test_fee_4of5()
+        # self.test_spend_2of2()
+        # self.test_locked_wallet()
+        # self.test_many_inputs_fee()
+        # self.test_many_inputs_send()
+        # self.test_op_return()
+        # self.test_watchonly()
+        # self.test_all_watched_funds()
+        # self.test_option_feerate()
+        # self.test_address_reuse()
+        # self.test_option_subtract_fee_from_outputs()
+        # self.test_subtract_fee_with_presets()
+        # self.test_transaction_too_large()
+        # self.test_include_unsafe()
+        # self.test_external_inputs()
+        # self.test_22670()
+        # self.test_feerate_rounding()
+        self.test_conflicting_preset_input()
 
     def test_change_position(self):
         """Ensure setting changePosition in fundraw with an exact match is handled properly."""
@@ -1350,6 +1351,37 @@ class RawTransactionsTest(BitcoinTestFramework):
         rawtx = w.createrawtransaction(inputs=[], outputs=[{self.nodes[0].getnewaddress(address_type="bech32"): 1 - 0.00000202}])
         assert_raises_rpc_error(-4, "Insufficient funds", w.fundrawtransaction, rawtx, {"fee_rate": 1.85})
 
+    def test_conflicting_preset_input(self):
+        self.log.info("Test fundrawtransaction ignoring preset inputs conflicting txes outputs")
+        self.nodes[0].createwallet("preselect_conflicting_tx")
+        wallet = self.nodes[0].get_wallet_rpc("preselect_conflicting_tx")
+
+        # Fund the wallet and create an unconfirmed tx
+        self.nodes[2].sendmany("", {wallet.getnewaddress(): 1, wallet.getnewaddress(): 1})
+        self.generate(self.nodes[2], 1)
+        wallet.sendtoaddress(wallet.getnewaddress(), 0.9)
+
+        # Create tx that spends the unconfirmed tx output
+        target_address = self.nodes[2].getnewaddress()
+        raw_tx1 = wallet.createrawtransaction(inputs=[], outputs={target_address: 1.9}, locktime=0, replaceable=True)
+        funded_tx1 = wallet.fundrawtransaction(raw_tx1, {'fee_rate': 1})['hex']
+
+        # Make sure that it has the 3 inputs (1 confirmed output, and 2 unconfirmed ones)
+        tx1_inputs = self.nodes[0].decoderawtransaction(funded_tx1)['vin']
+        assert_equal(len(tx1_inputs), len(wallet.listunspent(minconf=0)))
+
+        txid1 = self.nodes[0].sendrawtransaction(wallet.signrawtransactionwithwallet(funded_tx1)['hex'])
+        assert txid1 in self.nodes[0].getrawmempool()
+
+        # Create a replacement tx now by using the same unconfirmed input.
+        # The 2.3 BTC target is to try to fool the wallet to select the 'tx1' output (which shouldn't do as
+        # we are spending one of its inputs here!). e.g. a replacement tx cannot spend any output of the tx
+        # that is replacing, those outputs will no longer exist after the replacement.
+        utxo1 = tx1_inputs[0]
+        raw_tx2 = wallet.createrawtransaction(inputs=[{'txid': utxo1['txid'], 'vout': utxo1['vout']}], outputs={target_address: 2.3})
+        assert_raises_rpc_error(-4, "Insufficient funds", wallet.fundrawtransaction, raw_tx2, {'add_inputs': True, 'fee_rate': 10})
+
+        wallet.unloadwallet()
 
 if __name__ == '__main__':
     RawTransactionsTest().main()
