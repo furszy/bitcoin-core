@@ -973,10 +973,10 @@ BOOST_AUTO_TEST_CASE(SelectCoins_effective_value_test)
     cc.SetInputWeight(output.outpoint, 148);
     cc.SelectExternal(output.outpoint, output.txout);
 
-    const auto preset_inputs = *Assert(FetchSelectedInputs(*wallet, cc, cs_params));
+    const auto res_preset_inputs = *Assert(FetchSelectedInputs(*wallet, cc, cs_params));
     available_coins.coins[OutputType::BECH32].erase(available_coins.coins[OutputType::BECH32].begin());
 
-    const auto result = SelectCoins(*wallet, available_coins, preset_inputs, target, cc, cs_params);
+    const auto result = SelectCoins(*wallet, available_coins, res_preset_inputs.preset_inputs, target, cc, cs_params);
     BOOST_CHECK(!result);
 }
 

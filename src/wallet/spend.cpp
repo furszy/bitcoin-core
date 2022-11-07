@@ -145,10 +145,10 @@ static OutputType GetOutputType(TxoutType type, bool is_from_p2sh)
 
 // Fetch and validate the coin control selected inputs.
 // Coins could be internal (from the wallet) or external.
-util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const CCoinControl& coin_control,
+util::Result<SelectedInputsData> FetchSelectedInputs(const CWallet& wallet, const CCoinControl& coin_control,
                                             const CoinSelectionParams& coin_selection_params) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet)
 {
-    PreSelectedInputs result;
+    SelectedInputsData result;
     std::vector<COutPoint> vPresetInputs;
     coin_control.ListSelected(vPresetInputs);
     for (const COutPoint& outpoint : vPresetInputs) {
@@ -181,9 +181,16 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const
             return util::Error{strprintf(_("Not solvable pre-selected input %s"), outpoint.ToString())}; // Not solvable, can't estimate size for fee
         }
 
+        // if any of this preset inputs conflicts with another tx that we have (the input is already spent on other tx), add the conflicting tx hash to a list.
+        // So we can check later that no outputs from such tx are chosen during Coin Selection.
+        auto op_conflicting_txes = wallet.GetConflicts(outpoint);
+        if (op_conflicting_txes) {
+            result.conflicting_txes.insert(std::end(result.conflicting_txes), std::begin(*op_conflicting_txes), std::end(*op_conflicting_txes));
+        }
+
         /* Set some defaults for depth, spendable, solvable, safe, time, and from_me as these don't matter for preset inputs since no selection is being done. */
         COutput output(outpoint, txout, /*depth=*/ 0, input_bytes, /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, /*time=*/ 0, /*from_me=*/ false, coin_selection_params.m_effective_feerate);
-        result.Insert(output, coin_selection_params.m_subtract_fee_outputs);
+        result.preset_inputs.Insert(output, coin_selection_params.m_subtract_fee_outputs);
     }
     return result;
 }
@@ -195,7 +202,8 @@ CoinsResult AvailableCoins(const CWallet& wallet,
                            const CAmount& nMaximumAmount,
                            const CAmount& nMinimumSumAmount,
                            const uint64_t nMaximumCount,
-                           bool only_spendable)
+                           bool only_spendable,
+                           std::vector<uint256>* skip_txes)
 {
     AssertLockHeld(wallet.cs_wallet);
 
@@ -265,6 +273,11 @@ CoinsResult AvailableCoins(const CWallet& wallet,
         if (nDepth < min_depth || nDepth > max_depth) {
             continue;
         }
+
+        // Skip specific transactions
+        if (skip_txes && std::any_of(skip_txes->begin(), skip_txes->end(), [&wtxid](const uint256& tx_id) {
+            return wtxid == tx_id;
+        })) continue;
 
         bool tx_from_me = CachedTxIsFromMe(wallet, wtx, ISMINE_ALL);
 
@@ -886,28 +899,32 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     CAmount selection_target = recipients_sum + not_input_fees;
 
     // Fetch manually selected coins
-    PreSelectedInputs preset_inputs;
+    SelectedInputsData selected_inputs;
     if (coin_control.HasSelected()) {
         auto res_fetch_inputs = FetchSelectedInputs(wallet, coin_control, coin_selection_params);
         if (!res_fetch_inputs) return util::Error{util::ErrorString(res_fetch_inputs)};
-        preset_inputs = *res_fetch_inputs;
+        selected_inputs = *res_fetch_inputs;
     }
 
     // Fetch wallet available coins if "other inputs" are
     // allowed (coins automatically selected by the wallet)
     CoinsResult available_coins;
     if (coin_control.m_allow_other_inputs) {
+        // Note: we skip all outputs from transactions that we have any of its inputs pre-selected.
+        // (in other words, if we are replacing an unconfirmed tx then we must not treat any of its outputs as "available").
         available_coins = AvailableCoins(wallet,
                                          &coin_control,
                                          coin_selection_params.m_effective_feerate,
                                          1,            /*nMinimumAmount*/
                                          MAX_MONEY,    /*nMaximumAmount*/
                                          MAX_MONEY,    /*nMinimumSumAmount*/
-                                         0);           /*nMaximumCount*/
+                                         0,            /*nMaximumCount*/
+                                         true,         /*only_spendable*/
+                                         selected_inputs.conflicting_txes.empty() ? nullptr : &selected_inputs.conflicting_txes);
     }
 
     // Choose coins to use
-    std::optional<SelectionResult> result = SelectCoins(wallet, available_coins, preset_inputs, /*nTargetValue=*/selection_target, coin_control, coin_selection_params);
+    std::optional<SelectionResult> result = SelectCoins(wallet, available_coins, selected_inputs.preset_inputs, /*nTargetValue=*/selection_target, coin_control, coin_selection_params);
     if (!result) {
         return util::Error{_("Insufficient funds")};
     }

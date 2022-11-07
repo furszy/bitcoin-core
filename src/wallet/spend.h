@@ -65,7 +65,8 @@ CoinsResult AvailableCoins(const CWallet& wallet,
                            const CAmount& nMaximumAmount = MAX_MONEY,
                            const CAmount& nMinimumSumAmount = MAX_MONEY,
                            const uint64_t nMaximumCount = 0,
-                           bool only_spendable = true) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
+                           bool only_spendable = true,
+                           std::vector<uint256>* skip_txes = nullptr) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
 
 /**
  * Wrapper function for AvailableCoins which skips the `feerate` parameter. Use this function
@@ -141,11 +142,16 @@ struct PreSelectedInputs
     }
 };
 
+struct SelectedInputsData {
+    PreSelectedInputs preset_inputs;
+    std::vector<uint256> conflicting_txes;
+};
+
 /**
  * Fetch and validate coin control selected inputs.
  * Coins could be internal (from the wallet) or external.
 */
-util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const CCoinControl& coin_control,
+util::Result<SelectedInputsData> FetchSelectedInputs(const CWallet& wallet, const CCoinControl& coin_control,
                                                     const CoinSelectionParams& coin_selection_params) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
 
 /**

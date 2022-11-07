@@ -726,6 +726,24 @@ bool CWallet::IsSpent(const COutPoint& outpoint) const
     return false;
 }
 
+std::optional<std::vector<uint256>> CWallet::GetConflicts(const COutPoint& outpoint) const
+{
+    std::vector<uint256> conflicting_txes;
+    std::pair<TxSpends::const_iterator, TxSpends::const_iterator> range;
+    range = mapTxSpends.equal_range(outpoint);
+
+    for (TxSpends::const_iterator it = range.first; it != range.second; ++it) {
+        const uint256& wtxid = it->second;
+        if (auto wtx = GetWalletTx(wtxid)) {
+            int depth = GetTxDepthInMainChain(*wtx);
+            if (depth > 0  || (depth == 0 && !wtx->isAbandoned())) {
+                conflicting_txes.emplace_back(wtx->GetHash());
+            }
+        }
+    }
+    return conflicting_txes;
+}
+
 void CWallet::AddToSpends(const COutPoint& outpoint, const uint256& wtxid, WalletBatch* batch)
 {
     mapTxSpends.insert(std::make_pair(outpoint, wtxid));
