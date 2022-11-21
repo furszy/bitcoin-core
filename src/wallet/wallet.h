@@ -233,7 +233,7 @@ class WalletRescanReserver; //forward declarations for ScanForWalletTransactions
 /**
  * A CWallet maintains a set of transactions and balances, and provides the ability to create new transactions.
  */
-class CWallet final : public WalletStorage, public interfaces::Chain::Notifications
+class CWallet final : public WalletStorage, public interfaces::Chain::Notifications, public ObserverSPKM
 {
 private:
     CKeyingMaterial vMasterKey GUARDED_BY(cs_wallet);
@@ -383,6 +383,8 @@ public:
 
     ~CWallet()
     {
+        // Unregister observers
+        for (const auto& [id, spkm] : m_spk_managers) spkm->Unregister(this);
         // Should not have slots connected at this point.
         assert(NotifyUnload.empty());
     }
@@ -939,6 +941,10 @@ public:
     //! Adds the ScriptPubKeyMans given in MigrationData to this wallet, removes LegacyScriptPubKeyMan,
     //! and where needed, moves tx and address book entries to watchonly_wallet or solvable_wallet
     bool ApplyMigrationData(MigrationData& data, bilingual_str& error) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+
+    // ScriptsPubKeyMan observer
+    void notifyWatchOnlyChanged(bool fHaveWatchOnly) { NotifyWatchonlyChanged(fHaveWatchOnly); }
+    void notifyCanGetAddressesChanged() { NotifyCanGetAddressesChanged(); }
 };
 
 /**

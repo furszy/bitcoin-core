@@ -18,7 +18,7 @@
 #include <wallet/walletdb.h>
 #include <wallet/walletutil.h>
 
-#include <boost/signals2/signal.hpp>
+#include <util/observable.h>
 
 #include <optional>
 #include <unordered_map>
@@ -157,6 +157,16 @@ struct WalletDestination
     std::optional<bool> internal;
 };
 
+/**
+ * Class used to subscribe to 'ScriptPubKeyMan' events.
+ */
+struct ObserverSPKM {
+    /** Signal for "watch-only address added" */
+    virtual void notifyWatchOnlyChanged(bool fHaveWatchOnly) = 0;
+    /** Signal for "keypool has new keys" */
+    virtual void notifyCanGetAddressesChanged() = 0;
+};
+
 /*
  * A class implementing ScriptPubKeyMan manages some (or all) scriptPubKeys used in a wallet.
  * It contains the scripts and keys related to the scriptPubKeys it manages.
@@ -164,7 +174,7 @@ struct WalletDestination
  * when a scriptPubKey has been used. It also handles when and how to store a scriptPubKey
  * and its related scripts and keys, including encryption.
  */
-class ScriptPubKeyMan
+class ScriptPubKeyMan : public Observable<ObserverSPKM>
 {
 protected:
     WalletStorage& m_storage;
@@ -251,11 +261,9 @@ public:
         LogPrintf(("%s " + fmt).c_str(), m_storage.GetDisplayName(), parameters...);
     };
 
-    /** Watch-only address added */
-    boost::signals2::signal<void (bool fHaveWatchOnly)> NotifyWatchonlyChanged;
-
-    /** Keypool has new keys */
-    boost::signals2::signal<void ()> NotifyCanGetAddressesChanged;
+private:
+    void NotifyWatchonlyChanged(bool fHaveWatchOnly) { Notify([fHaveWatchOnly](ObserverSPKM* ob){ ob->notifyWatchOnlyChanged(fHaveWatchOnly); }); }
+    void NotifyCanGetAddressesChanged() { Notify([](ObserverSPKM* ob){ ob->notifyCanGetAddressesChanged(); }); }
 };
 
 /** OutputTypes supported by the LegacyScriptPubKeyMan */
