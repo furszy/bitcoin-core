@@ -49,6 +49,7 @@
 #include <txmempool.h>
 #include <util/chaintype.h>
 #include <util/check.h>
+#include <util/fs_helpers.h>
 #include <util/rbf.h>
 #include <util/strencodings.h>
 #include <util/string.h>
@@ -98,8 +99,7 @@ struct NetworkSetup
 static NetworkSetup g_networksetup_instance;
 
 BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vector<const char*>& extra_args)
-    : m_path_root{fs::temp_directory_path() / "test_common_" PACKAGE_NAME / g_insecure_rand_ctx_temp_path.rand256().ToString()},
-      m_args{}
+    : m_args{}
 {
     m_node.shutdown = &m_interrupt;
     m_node.args = &gArgs;
@@ -120,18 +120,53 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
         arguments = Cat(arguments, G_TEST_COMMAND_LINE_ARGUMENTS());
     }
     util::ThreadRename("test");
-    fs::create_directories(m_path_root);
-    m_args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
-    gArgs.ForceSetArg("-datadir", fs::PathToString(m_path_root));
     gArgs.ClearPathCache();
     {
         SetupServerArgs(*m_node.args);
+        m_node.args->AddArg("-testdatadir", strprintf("Custom data directory (default: %s<random_string>)", fs::PathToString(fs::temp_directory_path() / "test_common_" PACKAGE_NAME / "")),
+                            ArgsManager::ALLOW_ANY, OptionsCategory::DEBUG_TEST);
         std::string error;
         if (!m_node.args->ParseParameters(arguments.size(), arguments.data(), error)) {
             m_node.args->ClearArgs();
             throw std::runtime_error{error};
         }
     }
+
+    if (!m_node.args->IsArgSet("-testdatadir")) {
+        // By default, the data directory has a random name
+        const auto rand_str{g_insecure_rand_ctx_temp_path.rand256().ToString()};
+        m_path_root = fs::temp_directory_path() / "test_common_" PACKAGE_NAME / rand_str;
+        TryCreateDirectories(m_path_root);
+    } else {
+        // Custom data directory
+        m_has_custom_datadir = true;
+        fs::path root_dir{m_node.args->GetPathArg("-testdatadir")};
+        if (root_dir.empty()) {
+            std::cerr << "-testdatadir argument is empty, please specify a path\n";
+            exit(EXIT_FAILURE);
+        }
+        const std::string test_path{G_TEST_GET_FULL_NAME ? G_TEST_GET_FULL_NAME() : ""};
+        const fs::path lockdir{root_dir / "test_temp" / fs::PathFromString(test_path)};
+        m_path_root = lockdir / "datadir";
+
+        // Try to obtain the lock; if unsuccessful don't disturb the existing test.
+        TryCreateDirectories(lockdir);
+        if (util::LockDirectory(lockdir, ".lock", /*probe_only=*/false) != util::LockResult::Success) {
+            std::cerr << "Cannot obtain a lock on test data lock directory " + fs::PathToString(lockdir) + '\n' +
+                             "The test executable is probably already running.\n";
+            exit(EXIT_FAILURE);
+        }
+
+        // Always start with a fresh data directory; this doesn't delete the .lock file.
+        fs::remove_all(m_path_root);
+        TryCreateDirectories(m_path_root);
+
+        // Print the test directory name if custom.
+        std::cout << "Test directory (will not be deleted): " << m_path_root << std::endl;
+    }
+    m_args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+    gArgs.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+
     SelectParams(chainType);
     SeedInsecureRand();
     if (G_TEST_LOG_FUN) LogInstance().PushBackCallback(G_TEST_LOG_FUN);
@@ -159,7 +194,7 @@ BasicTestingSetup::~BasicTestingSetup()
     m_node.kernel.reset();
     SetMockTime(0s); // Reset mocktime for following tests
     LogInstance().DisconnectTestLogger();
-    fs::remove_all(m_path_root);
+    if (!m_has_custom_datadir) fs::remove_all(m_path_root);
     gArgs.ClearArgs();
 }
 
