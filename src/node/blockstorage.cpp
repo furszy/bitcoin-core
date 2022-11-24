@@ -176,13 +176,17 @@ bool CBlockIndexHeightOnlyComparator::operator()(const CBlockIndex* pa, const CB
     return pa->nHeight < pb->nHeight;
 }
 
-std::vector<CBlockIndex*> BlockManager::GetAllBlockIndices()
+std::vector<CBlockIndex*> BlockManager::GetAllBlockIndices(bool sorted)
 {
     AssertLockHeld(cs_main);
     std::vector<CBlockIndex*> rv;
     rv.reserve(m_block_index.size());
     for (auto& [_, block_index] : m_block_index) {
         rv.push_back(&block_index);
+    }
+
+    if (sorted) {
+        std::sort(rv.begin(), rv.end(), CBlockIndexHeightOnlyComparator());
     }
     return rv;
 }
@@ -426,9 +430,7 @@ bool BlockManager::LoadBlockIndex(const std::optional<uint256>& snapshot_blockha
     Assert(m_snapshot_height.has_value() == snapshot_blockhash.has_value());
 
     // Calculate nChainWork
-    std::vector<CBlockIndex*> vSortedByHeight{GetAllBlockIndices()};
-    std::sort(vSortedByHeight.begin(), vSortedByHeight.end(),
-              CBlockIndexHeightOnlyComparator());
+    std::vector<CBlockIndex*> vSortedByHeight{GetAllBlockIndices(/*sorted=*/true)};
 
     CBlockIndex* previous_index{nullptr};
     for (CBlockIndex* pindex : vSortedByHeight) {

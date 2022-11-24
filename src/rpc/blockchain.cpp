@@ -1607,6 +1607,13 @@ static RPCHelpMan reconsiderblock()
         }
 
         chainman.ActiveChainstate().ResetBlockFailureFlags(pblockindex);
+
+        // Update the best header
+        for (const auto& block_index : chainman.m_blockman.GetAllBlockIndices(/*sorted=*/true)) {
+            if (block_index->IsValid(BLOCK_VALID_TREE) && node::CBlockIndexWorkComparator()(chainman.m_best_header, block_index)) {
+                chainman.m_best_header = block_index;
+            }
+        }
     }
 
     BlockValidationState state;

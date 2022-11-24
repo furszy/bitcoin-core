@@ -1876,7 +1876,15 @@ void Chainstate::InvalidChainFound(CBlockIndex* pindexNew)
         m_chainman.m_best_invalid = pindexNew;
     }
     if (m_chainman.m_best_header != nullptr && m_chainman.m_best_header->GetAncestor(pindexNew->nHeight) == pindexNew) {
-        m_chainman.m_best_header = m_chain.Tip();
+        // TODO: add tests for this behavior change..
+        // Update best header by seeking for the most-work chain. For that, use the tip as starting point.
+        CBlockIndex* best_header = m_chain.Tip();
+        for (const auto& block_index : m_chainman.m_blockman.GetAllBlockIndices(/*sorted=*/true)) {
+            if (block_index->IsValid(BLOCK_VALID_TREE) && node::CBlockIndexWorkComparator()(best_header, block_index)) {
+                best_header = block_index;
+            }
+        }
+        m_chainman.m_best_header = best_header;
     }
 
     LogPrintf("%s: invalid block=%s  height=%d  log2_work=%f  date=%s\n", __func__,
@@ -4789,11 +4797,7 @@ bool ChainstateManager::LoadBlockIndex()
 
         m_blockman.ScanAndUnlinkAlreadyPrunedFiles();
 
-        std::vector<CBlockIndex*> vSortedByHeight{m_blockman.GetAllBlockIndices()};
-        std::sort(vSortedByHeight.begin(), vSortedByHeight.end(),
-                  CBlockIndexHeightOnlyComparator());
-
-        for (CBlockIndex* pindex : vSortedByHeight) {
+        for (CBlockIndex* pindex : m_blockman.GetAllBlockIndices(/*sorted=*/true)) {
             if (m_interrupt) return false;
             // If we have an assumeutxo-based chainstate, then the snapshot
             // block will be a candidate for the tip, but it may not be
