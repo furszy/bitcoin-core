@@ -41,22 +41,57 @@ test_bitcoin --log_level=all --run_test=getarg_tests
 ```
 
 `log_level` controls the verbosity of the test framework, which logs when a
-test case is entered, for example. `test_bitcoin` also accepts the command
-line arguments accepted by `bitcoind`. Use `--` to separate both types of
-arguments:
+test case is entered, for example.
+
+`test_bitcoin` also accepts some of the command line arguments accepted by
+`bitcoind`. Use `--` to separate these sets of arguments:
 
 ```bash
 test_bitcoin --log_level=all --run_test=getarg_tests -- -printtoconsole=1
 ```
 
-The `-printtoconsole=1` after the two dashes redirects the debug log, which
-would normally go to a file in the test datadir
-(`BasicTestingSetup::m_path_root`), to the standard terminal output.
+The `-printtoconsole=1` after the two dashes sends debug logging, which
+normally goes only to `debug.log` within the data directory, also to the
+standard terminal output.
 
 ... or to run just the doubledash test:
 
 ```bash
 test_bitcoin --run_test=getarg_tests/doubledash
+```
+
+`test_bitcoin` creates a temporary working (data) directory with a randomly
+generated pathname within `test_common_Bitcoin Core/`, which in turn is within
+the system's temporary directory (see
+[`temp_directory_path`](https://en.cppreference.com/w/cpp/filesystem/temp_directory_path)).
+This data directory looks like a simplified form of the standard `bitcoind` data
+directory. Its content will vary depending on the test, but it will always
+have a `debug.log` file, for example.
+
+The location of the temporary data directory can be overridden with the
+`-testdatadir` option, which can make debugging easier. The directory
+path used is the argument path appended with `/test_temp`. The directory
+path is created if necessary.
+Specifying this argument also causes the data directory
+not to be removed after the last test. This is useful for looking at
+what the test wrote to `debug.log` after it completes, for example.
+(The directory is removed at the start of the next test run,
+so no leftover state is used.)
+
+If you run multiple sequential individual tests (for example, `-run_tests=getarg_tests`
+runs a suite of several tests), the data directory will correspond
+only to the _last_ test that runs.
+
+```bash
+$ test_bitcoin --run_test=getarg_tests/doubledash -- -testdatadir=/somewhere/mydatadir
+Test directory (will not be deleted): "/somewhere/mydatadir/test_temp"
+Running 1 test case...
+
+*** No errors detected
+$ ls -l /somewhere/mydatadir
+total 8
+drwxrwxr-x 2 admin admin 4096 Nov 27 22:45 blocks
+-rw-rw-r-- 1 admin admin 1003 Nov 27 22:45 debug.log
 ```
 
 Run `test_bitcoin --help` for the full list.
