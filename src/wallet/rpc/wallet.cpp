@@ -713,6 +713,7 @@ static RPCHelpMan migratewallet()
         HELP_REQUIRING_PASSPHRASE,
         {
             {"wallet_name", RPCArg::Type::STR, RPCArg::DefaultHint{"the wallet name from the RPC endpoint"}, "The name of the wallet to migrate. If provided both here and in the RPC endpoint, the two must be identical."},
+            {"passphrase", RPCArg::Type::STR, RPCArg::Optional::OMITTED_NAMED_ARG, "The wallet passphrase"},
         },
         RPCResult{
             RPCResult::Type::OBJ, "", "",
@@ -741,17 +742,20 @@ static RPCHelpMan migratewallet()
                 wallet_name = request.params[0].get_str();
             }
 
+            // Note that the walletpassphrase is stored in request.params[1] which is not mlock()ed
+            SecureString wallet_pass;
+            wallet_pass.reserve(100);
+            // TODO: get rid of this .c_str() by implementing SecureString::operator=(std::string)
+            // Alternately, find a way to make request.params[0] mlock()'d to begin with.
+            wallet_pass = request.params[1].isNull() ? "" : request.params[1].get_str().c_str();
+
             WalletContext& context = EnsureWalletContext(request.context);
             std::shared_ptr<CWallet> wallet = GetWallet(context, wallet_name);
             util::Result<MigrationResult> res;
             if (wallet) {
-                if (wallet->IsCrypted()) {
-                    throw JSONRPCError(RPC_WALLET_WRONG_ENC_STATE, "Error: migratewallet on encrypted wallets is currently unsupported.");
-                }
-
-                res = MigrateLegacyToDescriptor(std::move(wallet), context);
+                res = MigrateLegacyToDescriptor(std::move(wallet), wallet_pass, context);
             } else {
-                res = MigrateLegacyToDescriptor(wallet_name, context);
+                res = MigrateLegacyToDescriptor(wallet_name, wallet_pass, context);
             }
 
             if (!res) {

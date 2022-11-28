@@ -3837,7 +3837,7 @@ std::optional<MigrationData> CWallet::GetDescriptorsForLegacy(bilingual_str& err
 
     std::optional<MigrationData> res = legacy_spkm->MigrateToDescriptor();
     if (res == std::nullopt) {
-        error = _("Error: Unable to produce descriptors for this legacy wallet. Make sure the wallet is unlocked first");
+        error = _("Error: Unable to produce descriptors for this legacy wallet. Make sure to provide the wallet's passphrase if it is encrypted.");
         return std::nullopt;
     }
     return res;
@@ -4110,7 +4110,7 @@ bool DoMigration(CWallet& wallet, WalletContext& context, bilingual_str& error, 
     return true;
 }
 
-util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>&& wallet, WalletContext& context)
+util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>&& wallet, SecureString passphrase, WalletContext& context)
 {
     std::vector<bilingual_str> warnings;
     std::string wallet_name = wallet->GetName();
@@ -4121,10 +4121,10 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>
     }
     UnloadWallet(std::move(wallet));
 
-    return MigrateLegacyToDescriptor(wallet_name, context);
+    return MigrateLegacyToDescriptor(wallet_name, passphrase, context);
 }
 
-util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& wallet_name, WalletContext& context)
+util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& wallet_name, SecureString passphrase, WalletContext& context)
 {
     MigrationResult res;
     bilingual_str error;
@@ -4160,6 +4160,9 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
     bool success = false;
     {
         LOCK(local_wallet->cs_wallet);
+
+        // Unlock the wallet
+        local_wallet->Unlock(passphrase);
 
         // First change to using SQLite
         if (!local_wallet->MigrateToSQLite(error)) return util::Error{error};
