@@ -399,11 +399,47 @@ class WalletMigrationTest(BitcoinTestFramework):
     def test_encrypted(self):
         self.log.info("Test migration of an encrypted wallet")
         wallet = self.create_legacy_wallet("encrypted")
+        default = self.nodes[0].get_wallet_rpc(self.default_wallet_name)
 
         wallet.encryptwallet("pass")
+        addr = wallet.getnewaddress()
+        txid = default.sendtoaddress(addr, 1)
+        self.generate(self.nodes[0], 1)
+        bals = wallet.getbalances()
 
-        assert_raises_rpc_error(-15, "Error: migratewallet on encrypted wallets is currently unsupported.", wallet.migratewallet)
-        # TODO: Fix migratewallet so that we can actually migrate encrypted wallets
+        assert_raises_rpc_error(-4, "Error: Unable to produce descriptors for this legacy wallet. Make sure to provide the wallet's passphrase if it is encrypted.", wallet.migratewallet)
+
+        wallet.migratewallet(passphrase="pass")
+
+        info = wallet.getwalletinfo()
+        assert_equal(info["descriptors"], True)
+        assert_equal(info["format"], "sqlite")
+        wallet.gettransaction(txid)
+
+        assert_equal(bals, wallet.getbalances())
+
+    def test_unloaded(self):
+        self.log.info("Test migration of a wallet that isn't loaded")
+        wallet = self.create_legacy_wallet("notloaded")
+        default = self.nodes[0].get_wallet_rpc(self.default_wallet_name)
+
+        addr = wallet.getnewaddress()
+        txid = default.sendtoaddress(addr, 1)
+        self.generate(self.nodes[0], 1)
+        bals = wallet.getbalances()
+
+        wallet.unloadwallet()
+
+        assert_raises_rpc_error(-8, "RPC endpoint wallet and wallet_name parameter specify different wallets", wallet.migratewallet, "someotherwallet")
+        assert_raises_rpc_error(-8, "Either RPC endpoint wallet or wallet_name parameter must be provided", self.nodes[0].migratewallet)
+        self.nodes[0].migratewallet("notloaded")
+
+        info = wallet.getwalletinfo()
+        assert_equal(info["descriptors"], True)
+        assert_equal(info["format"], "sqlite")
+        wallet.gettransaction(txid)
+
+        assert_equal(bals, wallet.getbalances())
 
     def run_test(self):
         self.generate(self.nodes[0], 101)
@@ -415,6 +451,7 @@ class WalletMigrationTest(BitcoinTestFramework):
         self.test_no_privkeys()
         self.test_pk_coinbases()
         self.test_encrypted()
+        self.test_unloaded()
 
 if __name__ == '__main__':
     WalletMigrationTest().main()
