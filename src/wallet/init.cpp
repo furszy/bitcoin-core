@@ -11,6 +11,7 @@
 #include <node/context.h>
 #include <node/interface_ui.h>
 #include <outputtype.h>
+#include <policy/policy.h>
 #include <univalue.h>
 #include <util/check.h>
 #include <util/moneystr.h>
@@ -95,6 +96,7 @@ void WalletInit::AddWalletOptions(ArgsManager& argsman) const
 
     argsman.AddArg("-walletrejectlongchains", strprintf("Wallet will not create transactions that violate mempool chain limits (default: %u)", DEFAULT_WALLET_REJECT_LONG_CHAINS), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::WALLET_DEBUG_TEST);
     argsman.AddArg("-walletcrosschain", strprintf("Allow reusing wallet files across chains (default: %u)", DEFAULT_WALLETCROSSCHAIN), ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::WALLET_DEBUG_TEST);
+    argsman.AddArg("-walletmaxtxsize", strprintf("The maximum weight for transactions we're willing to create (default: %u)", MAX_STANDARD_TX_WEIGHT), ArgsManager::ALLOW_ANY, OptionsCategory::WALLET);
 
     argsman.AddHiddenArgs({"-zapwallettxes"});
 }

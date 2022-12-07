@@ -563,9 +563,9 @@ util::Result<SelectionResult> ChooseSelectionResult(const CWallet& wallet, const
     }
 
     std::vector<SelectionResult> eligible_results;
-    std::copy_if(results.begin(), results.end(), std::back_inserter(eligible_results), [coin_selection_params](const SelectionResult& result) {
+    std::copy_if(results.begin(), results.end(), std::back_inserter(eligible_results), [coin_selection_params, &wallet](const SelectionResult& result) {
         const auto initWeight{coin_selection_params.tx_noinputs_size * WITNESS_SCALE_FACTOR};
-        return initWeight + result.GetWeight() <= static_cast<int>(MAX_STANDARD_TX_WEIGHT);
+        return initWeight + result.GetWeight() <= wallet.m_create_tx_max_weight;
     });
 
     if (eligible_results.empty()) {
