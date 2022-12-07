@@ -515,9 +515,11 @@ util::Result<SelectionResult> AttemptSelection(const CWallet& wallet, const CAmo
     // Run coin selection on each OutputType and compute the Waste Metric
     std::vector<SelectionResult> results;
     for (const auto& it : available_coins.coins) {
-        if (auto result{ChooseSelectionResult(wallet, nTargetValue, eligibility_filter, it.second, coin_selection_params)}) {
-            results.push_back(*result);
-        }
+        auto result{ChooseSelectionResult(wallet, nTargetValue, eligibility_filter, it.second, coin_selection_params)};
+        // If any specific error message appears here, then something particularly wrong happened.
+        if (!util::ErrorString(result).empty()) return result; // So let's return the specific error.
+        // Append the favorable result.
+        if (result) results.push_back(*result);
     }
     // If we have at least one solution for funding the transaction without mixing, choose the minimum one according to waste metric
     // and return the result
@@ -526,9 +528,7 @@ util::Result<SelectionResult> AttemptSelection(const CWallet& wallet, const CAmo
     // If we can't fund the transaction from any individual OutputType, run coin selection one last time
     // over all available coins, which would allow mixing
     if (allow_mixed_output_types) {
-        if (auto result{ChooseSelectionResult(wallet, nTargetValue, eligibility_filter, available_coins.All(), coin_selection_params)}) {
-            return result;
-        }
+        return ChooseSelectionResult(wallet, nTargetValue, eligibility_filter, available_coins.All(), coin_selection_params);
     }
     // Either mixing is not allowed and we couldn't find a solution from any single OutputType, or mixing was allowed and we still couldn't
     // find a solution using all available coins
@@ -686,7 +686,14 @@ util::Result<SelectionResult> AutomaticCoinSelection(const CWallet& wallet, Coin
             // allow mixed output types only if the filter is
             bool allow_mixed_output_types = i >= index_for_allow_mixed_output_types;
             if (auto res{AttemptSelection(wallet, value_to_select, filter, available_coins,
-                                          coin_selection_params, allow_mixed_output_types)}) return res;
+                                          coin_selection_params, allow_mixed_output_types)}) {
+                return res; // result found
+            } else {
+                // If any specific error message appears here, then something particularly wrong happened.
+                if (!util::ErrorString(res).empty()) {
+                    return res; // So let's return the specific error.
+                }
+            }
         }
         // Coin Selection failed.
         return util::Result<SelectionResult>(util::Error());
