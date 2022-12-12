@@ -130,9 +130,9 @@ const LegacyScriptPubKeyMan& EnsureConstLegacyScriptPubKeyMan(const CWallet& wal
     return *spk_man;
 }
 
-std::optional<std::string> LabelFromValue(const UniValue& value)
+std::string LabelFromValue(const UniValue& value)
 {
-    if (value.isNull()) return std::nullopt;
+    if (value.isNull()) return ""; // empty
 
     std::string label = value.get_str();
     if (label == "*")

@@ -6,7 +6,6 @@
 #include <key_io.h>
 #include <rpc/util.h>
 #include <util/bip32.h>
-#include <util/check.h>
 #include <util/translation.h>
 #include <wallet/receive.h>
 #include <wallet/rpc/util.h>
@@ -44,7 +43,7 @@ RPCHelpMan getnewaddress()
     }
 
     // Parse the label first so we don't generate a key if there's an error
-    auto label = LabelFromValue(request.params[0]).value_or(DEFAULT_WALLET_LABEL);
+    std::string label = LabelFromValue(request.params[0]);
 
     OutputType output_type = pwallet->m_default_address_type;
     if (!request.params[1].isNull()) {
@@ -139,7 +138,7 @@ RPCHelpMan setlabel()
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid Bitcoin address");
     }
 
-    auto label = *CHECK_NONFATAL(LabelFromValue(request.params[1]));
+    std::string label = LabelFromValue(request.params[1]);
 
     if (pwallet->IsMine(dest)) {
         pwallet->SetAddressBook(dest, label, "receive");
@@ -257,7 +256,7 @@ RPCHelpMan addmultisigaddress()
 
     LOCK2(pwallet->cs_wallet, spk_man.cs_KeyStore);
 
-    auto label = LabelFromValue(request.params[2]).value_or(DEFAULT_WALLET_LABEL);
+    std::string label = LabelFromValue(request.params[2]);
 
     int required = request.params[0].getInt<int>();
 
@@ -659,7 +658,7 @@ RPCHelpMan getaddressesbylabel()
 
     LOCK(pwallet->cs_wallet);
 
-    auto label = *CHECK_NONFATAL(LabelFromValue(request.params[0]));
+    std::string label = LabelFromValue(request.params[0]);
 
     // Find all addresses that have the given label
     UniValue ret(UniValue::VOBJ);
