@@ -566,7 +566,7 @@ util::Result<SelectionResult> ChooseSelectionResult(const CAmount& nTargetValue,
     // Maximum allowed transaction weight
     int max_weight = MAX_STANDARD_TX_WEIGHT - (coin_selection_params.tx_noinputs_size * WITNESS_SCALE_FACTOR);
 
-    if (auto bnb_result{SelectCoinsBnB(groups.positive_group, nTargetValue, coin_selection_params.m_cost_of_change)}) {
+    if (auto bnb_result{SelectCoinsBnB(groups.positive_group, nTargetValue, coin_selection_params.m_cost_of_change, max_weight)}) {
         results.push_back(*bnb_result);
     } else append_error(bnb_result);
 
