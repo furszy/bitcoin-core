@@ -3602,6 +3602,14 @@ void CWallet::SetupDescriptorScriptPubKeyMans()
         CExtKey master_key;
         master_key.SetSeed(seed_key);
 
+        // Store the master key as our active hd key
+        if (!AddHDKey(master_key)) {
+            throw std::runtime_error(std::string(__func__) + ": Unable to add new random HD key");
+        }
+        if (!SetActiveHDKey(master_key.Neuter())) {
+            throw std::runtime_error(std::string(__func__) + ": Unable to set new Active HD key");
+        }
+
         SetupDescriptorScriptPubKeyMans(master_key);
     } else {
         ExternalSigner signer = ExternalSignerScriptPubKeyMan::GetExternalSigner();
@@ -4358,6 +4366,14 @@ bool CWallet::LoadActiveHDKey(const CExtPubKey& xpub)
     return true;
 }
 
+bool CWallet::SetActiveHDKey(const CExtPubKey& xpub)
+{
+    AssertLockHeld(cs_wallet);
+    Assume(m_hd_keys.count(xpub) + m_hd_crypted_keys.count(xpub) == 1);
+    if (!LoadActiveHDKey(xpub)) return false;
+    return WalletBatch(GetDatabase()).WriteActiveHDKey(xpub);
+}
+
 bool CWallet::LoadHDKey(const CExtPubKey& xpub, const CKey& key)
 {
     AssertLockHeld(cs_wallet);
@@ -4370,5 +4386,37 @@ bool CWallet::LoadHDCryptedKey(const CExtPubKey& xpub, const std::vector<unsigne
     AssertLockHeld(cs_wallet);
     auto [_, inserted] = m_hd_crypted_keys.emplace(xpub, crypted_key);
     return inserted;
+}
+
+bool CWallet::AddHDKey(const CExtKey& extkey)
+{
+    AssertLockHeld(cs_wallet);
+    assert(!IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS));
+
+    CExtPubKey xpub = extkey.Neuter();
+
+    // Check if provided key already exists
+    if (m_hd_keys.find(xpub) != m_hd_keys.end() ||
+        m_hd_crypted_keys.find(xpub) != m_hd_crypted_keys.end()) {
+        return true;
+    }
+
+    if (IsCrypted()) {
+        if (IsLocked()) {
+            return false;
+        }
+
+        std::vector<unsigned char> crypted_secret;
+        CKeyingMaterial secret(extkey.key.begin(), extkey.key.end());
+        if (!EncryptSecret(GetEncryptionKey(), secret, xpub.pubkey.GetHash(), crypted_secret)) {
+            return false;
+        }
+
+        m_hd_crypted_keys[xpub] = crypted_secret;
+        return WalletBatch(GetDatabase()).WriteHDCryptedKey(xpub, crypted_secret);
+    } else {
+        m_hd_keys[xpub] = extkey.key;
+        return WalletBatch(GetDatabase()).WriteHDKey(extkey);
+    }
 }
 } // namespace wallet
