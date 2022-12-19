@@ -4428,4 +4428,32 @@ bool CWallet::AddHDKey(const CExtKey& extkey)
         return WalletBatch(GetDatabase()).WriteHDKey(extkey);
     }
 }
+
+std::optional<CExtKey> CWallet::GetHDKey(const CExtPubKey& xpub)
+{
+    AssertLockHeld(cs_wallet);
+
+    CKey key;
+    if (IsCrypted()) {
+        if (IsLocked()) {
+            return std::nullopt;
+        }
+        const auto& it = m_hd_crypted_keys.find(xpub);
+        if (it == m_hd_crypted_keys.end()) {
+            return std::nullopt;
+        }
+        if (!DecryptKey(GetEncryptionKey(), it->second, xpub.pubkey, key)) {
+            return std::nullopt;
+        }
+    } else {
+        const auto& it = m_hd_keys.find(xpub);
+        if (it == m_hd_keys.end()) {
+            return std::nullopt;
+        }
+        key = it->second;
+    }
+
+    CExtKey extkey(xpub, key);
+    return extkey;
+}
 } // namespace wallet
