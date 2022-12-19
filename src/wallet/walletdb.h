@@ -62,6 +62,7 @@ namespace DBKeys {
 extern const std::string ACENTRY;
 extern const std::string ACTIVEEXTERNALSPK;
 extern const std::string ACTIVEINTERNALSPK;
+extern const std::string ACTIVEHDKEY; // Active HD Master key, identified by extended pubkey
 extern const std::string BESTBLOCK;
 extern const std::string BESTBLOCK_NOMERKLE;
 extern const std::string CRYPTED_KEY;
@@ -70,6 +71,8 @@ extern const std::string DEFAULTKEY;
 extern const std::string DESTDATA;
 extern const std::string FLAGS;
 extern const std::string HDCHAIN;
+extern const std::string HDKEY; // A HD key, identified by extended pubkey
+extern const std::string HDCKEY;
 extern const std::string KEY;
 extern const std::string KEYMETA;
 extern const std::string LOCKED_UTXO;
@@ -273,6 +276,10 @@ public:
 
     bool WriteActiveScriptPubKeyMan(uint8_t type, const uint256& id, bool internal);
     bool EraseActiveScriptPubKeyMan(uint8_t type, bool internal);
+
+    bool WriteHDKey(const CExtKey& extkey);
+    bool WriteHDCryptedKey(const CExtPubKey& extpub, const std::vector<unsigned char>& crypted_key);
+    bool WriteActiveHDKey(const CExtPubKey& extpub);
 
     DBErrors LoadWallet(CWallet* pwallet);
     DBErrors FindWalletTxHashes(std::vector<uint256>& tx_hashes);

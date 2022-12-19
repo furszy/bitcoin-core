@@ -33,6 +33,7 @@ namespace DBKeys {
 const std::string ACENTRY{"acentry"};
 const std::string ACTIVEEXTERNALSPK{"activeexternalspk"};
 const std::string ACTIVEINTERNALSPK{"activeinternalspk"};
+const std::string ACTIVEHDKEY{"activehdkey"};
 const std::string BESTBLOCK_NOMERKLE{"bestblock_nomerkle"};
 const std::string BESTBLOCK{"bestblock"};
 const std::string CRYPTED_KEY{"ckey"};
@@ -41,6 +42,8 @@ const std::string DEFAULTKEY{"defaultkey"};
 const std::string DESTDATA{"destdata"};
 const std::string FLAGS{"flags"};
 const std::string HDCHAIN{"hdchain"};
+const std::string HDKEY{"hdkey"};
+const std::string HDCKEY{"hdckey"};
 const std::string KEYMETA{"keymeta"};
 const std::string KEY{"key"};
 const std::string LOCKED_UTXO{"lockedutxo"};
@@ -296,6 +299,40 @@ bool WalletBatch::WriteLockedUTXO(const COutPoint& output)
 bool WalletBatch::EraseLockedUTXO(const COutPoint& output)
 {
     return EraseIC(std::make_pair(DBKeys::LOCKED_UTXO, std::make_pair(output.hash, output.n)));
+}
+
+bool WalletBatch::WriteHDKey(const CExtKey& extkey)
+{
+    std::vector<unsigned char> xpub(BIP32_EXTKEY_SIZE);
+    extkey.Neuter().Encode(xpub.data());
+
+    CPrivKey privkey = extkey.key.GetPrivKey();
+
+    return WriteIC(std::make_pair(DBKeys::HDKEY, xpub), std::make_pair(privkey, PrivKeyChecksum(privkey, xpub)), false);
+}
+
+bool WalletBatch::WriteHDCryptedKey(const CExtPubKey& extpub, const std::vector<unsigned char>& crypted_key)
+{
+    // Compute a checksum of the encrypted key
+    uint256 checksum = Hash(crypted_key);
+
+    std::vector<unsigned char> xpub(BIP32_EXTKEY_SIZE);
+    extpub.Encode(xpub.data());
+
+    const auto key = std::make_pair(DBKeys::HDCKEY, xpub);
+    if (!WriteIC(key, std::make_pair(crypted_key, checksum), false)) {
+        return false;
+    }
+    EraseIC(std::make_pair(DBKeys::HDKEY, xpub));
+    return true;
+}
+
+bool WalletBatch::WriteActiveHDKey(const CExtPubKey& extpub)
+{
+    std::vector<unsigned char> xpub(BIP32_EXTKEY_SIZE);
+    extpub.Encode(xpub.data());
+
+    return WriteIC(DBKeys::ACTIVEHDKEY, xpub, true);
 }
 
 bool LoadKey(CWallet* pwallet, DataStream& ssKey, DataStream& ssValue, std::string& strErr)
