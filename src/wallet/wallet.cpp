@@ -844,6 +844,25 @@ bool CWallet::EncryptWallet(const SecureString& strWalletPassphrase)
             }
         }
 
+        // Encrypt the HD keys
+        assert(m_hd_crypted_keys.empty());
+        for (const auto& [xpub, key] : m_hd_keys) {
+            std::vector<unsigned char> crypted_secret;
+            CKeyingMaterial secret(key.begin(), key.end());
+            if (!EncryptSecret(_vMasterKey, secret, xpub.pubkey.GetHash(), crypted_secret)) {
+                encrypted_batch->TxnAbort();
+                delete encrypted_batch;
+                encrypted_batch = nullptr;
+                // We now probably have half of our keys encrypted in memory, and half not...
+                // die and let the user reload the unencrypted wallet.
+                assert(false);
+            }
+
+            m_hd_crypted_keys[xpub] = crypted_secret;
+            encrypted_batch->WriteHDCryptedKey(xpub, crypted_secret);
+        }
+        m_hd_keys.clear();
+
         // Encryption was introduced in version 0.4.0
         SetMinVersion(FEATURE_WALLETCRYPT, encrypted_batch);
 
