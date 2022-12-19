@@ -4374,6 +4374,15 @@ bool CWallet::SetActiveHDKey(const CExtPubKey& xpub)
     return WalletBatch(GetDatabase()).WriteActiveHDKey(xpub);
 }
 
+std::optional<CExtPubKey> CWallet::GetActiveHDPubKey()
+{
+    AssertLockHeld(cs_wallet);
+    if (m_xpub.pubkey.IsValid()) {
+        return m_xpub;
+    }
+    return std::nullopt;
+}
+
 bool CWallet::LoadHDKey(const CExtPubKey& xpub, const CKey& key)
 {
     AssertLockHeld(cs_wallet);
