@@ -812,6 +812,7 @@ static DataStream PrefixStream(const Args&... args)
 static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& batch, int last_client) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet)
 {
     AssertLockHeld(pwallet->cs_wallet);
+    DBErrors result = DBErrors::LOAD_OK;
 
     // Load descriptor record
     int num_keys = 0;
@@ -964,14 +965,99 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
 
         return result;
     });
+    result = std::max(result, desc_res.m_result);
 
-    if (desc_res.m_result <= DBErrors::NONCRITICAL_ERROR) {
+    // Get Active HD Key
+    LoadResult active_hdkey_res = LoadRecords(pwallet, batch, DBKeys::ACTIVEHDKEY,
+        [] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& err) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet) {
+        std::vector<unsigned char> xpub(BIP32_EXTKEY_SIZE);
+        value >> xpub;
+        CExtPubKey extpub;
+        extpub.Decode(xpub.data());
+        if (!extpub.pubkey.IsValid()) {
+            err = "Error reading wallet database: CExtPubKey corrupt";
+            return DBErrors::CORRUPT;
+        }
+        // TODO: Load extpub into the wallet
+        return DBErrors::LOAD_OK;
+    });
+    result = std::max(result, active_hdkey_res.m_result);
+
+    // Get HDKeys
+    LoadResult hdkey_res = LoadRecords(pwallet, batch, DBKeys::HDKEY,
+        [] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& err) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet) {
+        CExtPubKey extpub;
+        std::vector<unsigned char> xpub(BIP32_EXTKEY_SIZE);
+        key >> xpub;
+        extpub.Decode(xpub.data());
+        if (!extpub.pubkey.IsValid()) {
+            err = "Error reading wallet database: CExtPubKey corrupt";
+            return DBErrors::CORRUPT;
+        }
+
+        CKey pkey;
+        CPrivKey pkey_data;
+        uint256 hash;
+
+        value >> pkey_data;
+        value >> hash;
+
+        if (PrivKeyChecksum(pkey_data, xpub) != hash) {
+            err = "Error reading wallet database: CPubKey/CPrivKey corrupt";
+            return DBErrors::CORRUPT;
+        }
+
+        if (!pkey.Load(pkey_data, extpub.pubkey, true)) {
+            err = "Error reading wallet database: CPrivKey corrupt";
+            return DBErrors::CORRUPT;
+        }
+        // TODO: Load xprv into the wallet
+        return DBErrors::LOAD_OK;
+    });
+    result = std::max(result, hdkey_res.m_result);
+    num_keys += hdkey_res.m_records;
+
+    // Get encrypted HDKeys
+    LoadResult enc_hdkey_res = LoadRecords(pwallet, batch, DBKeys::HDCKEY,
+        [] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& err) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet) {
+        CExtPubKey extpub;
+        std::vector<unsigned char> xpub(BIP32_EXTKEY_SIZE);
+        key >> xpub;
+        extpub.Decode(xpub.data());
+        if (!extpub.pubkey.IsValid()) {
+            err = "Error reading wallet database: CExtPubKey corrupt";
+            return DBErrors::CORRUPT;
+        }
+
+        std::vector<unsigned char> privkey;
+        value >> privkey;
+
+        // Get the checksum and check it
+        uint256 checksum;
+        value >> checksum;
+        if (Hash(privkey) != checksum) {
+            err = "Error reading wallet database: Encrypted hd key corrupt";
+            return DBErrors::CORRUPT;
+        }
+
+        // TODO: Load crypted xprv into the wallet
+        return DBErrors::LOAD_OK;
+    });
+    result = std::max(result, enc_hdkey_res.m_result);
+    num_ckeys += enc_hdkey_res.m_records;
+
+    if (num_ckeys > 0 && num_keys != 0) {
+        pwallet->WalletLogPrintf("Error: Wallet has both encrypted and unencrypted HD keys\n");
+        return DBErrors::CORRUPT;
+    }
+
+    if (result <= DBErrors::NONCRITICAL_ERROR) {
         // Only log if there are no critical errors
         pwallet->WalletLogPrintf("Descriptors: %u, Descriptor Keys: %u plaintext, %u encrypted, %u total.\n",
                desc_res.m_records, num_keys, num_ckeys, num_keys + num_ckeys);
     }
 
-    return desc_res.m_result;
+    return result;
 }
 
 static DBErrors LoadAddressBookRecords(CWallet* pwallet, DatabaseBatch& batch) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet)
