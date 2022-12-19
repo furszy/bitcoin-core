@@ -817,8 +817,10 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
     // Load descriptor record
     int num_keys = 0;
     int num_ckeys= 0;
+    std::map<std::pair<uint256, CKeyID>, CKey> desc_keys;
+    std::map<std::pair<uint256, CKeyID>, std::pair<CPubKey, std::vector<unsigned char>>> desc_crypt_keys;
     LoadResult desc_res = LoadRecords(pwallet, batch, DBKeys::WALLETDESCRIPTOR,
-        [&batch, &num_keys, &num_ckeys, &last_client] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& strErr) {
+        [&batch, &num_keys, &num_ckeys, &last_client, &desc_keys, &desc_crypt_keys] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& strErr) {
         DBErrors result = DBErrors::LOAD_OK;
 
         uint256 id;
@@ -905,7 +907,7 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
         // Get unencrypted keys
         prefix = PrefixStream(DBKeys::WALLETDESCRIPTORKEY, id);
         LoadResult key_res = LoadRecords(pwallet, batch, DBKeys::WALLETDESCRIPTORKEY, prefix,
-            [&id, &spk_man] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& strErr) {
+            [&id, &spk_man, &desc_keys] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& strErr) {
             uint256 desc_id;
             CPubKey pubkey;
             key >> desc_id;
@@ -935,6 +937,7 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
                 return DBErrors::CORRUPT;
             }
             spk_man->AddKey(pubkey.GetID(), privkey);
+            desc_keys.insert(std::make_pair(std::make_pair(desc_id, pubkey.GetID()), privkey));
             return DBErrors::LOAD_OK;
         });
         result = std::max(result, key_res.m_result);
@@ -943,7 +946,7 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
         // Get encrypted keys
         prefix = PrefixStream(DBKeys::WALLETDESCRIPTORCKEY, id);
         LoadResult ckey_res = LoadRecords(pwallet, batch, DBKeys::WALLETDESCRIPTORCKEY, prefix,
-            [&id, &spk_man] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& err) {
+            [&id, &spk_man, &desc_crypt_keys] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& err) {
             uint256 desc_id;
             CPubKey pubkey;
             key >> desc_id;
@@ -958,6 +961,7 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
             value >> privkey;
 
             spk_man->AddCryptedKey(pubkey.GetID(), pubkey, privkey);
+            desc_crypt_keys.insert(std::make_pair(std::make_pair(desc_id, pubkey.GetID()), std::make_pair(pubkey, privkey)));
             return DBErrors::LOAD_OK;
         });
         result = std::max(result, ckey_res.m_result);
@@ -1063,6 +1067,9 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
         // Only log if there are no critical errors
         pwallet->WalletLogPrintf("Descriptors: %u, Descriptor Keys: %u plaintext, %u encrypted, %u total.\n",
                desc_res.m_records, num_keys, num_ckeys, num_keys + num_ckeys);
+
+        // Upgrade the wallet to have a global HD key
+        pwallet->UpgradeToGlobalHDKey(desc_keys, desc_crypt_keys);
     }
 
     return result;
