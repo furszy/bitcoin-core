@@ -315,6 +315,12 @@ private:
     //! the current wallet version: clients below this version are not able to load the wallet
     int nWalletVersion GUARDED_BY(cs_wallet){FEATURE_BASE};
 
+    //! The extended public key to be used for new automatically generated descriptors
+    CExtPubKey m_xpub GUARDED_BY(cs_wallet);
+    //! The previous and current extended keys that are used for automatically generated descriptors
+    std::map<CExtPubKey, CKey> m_hd_keys GUARDED_BY(cs_wallet);
+    std::map<CExtPubKey, std::vector<unsigned char>> m_hd_crypted_keys GUARDED_BY(cs_wallet);
+
     /** The next scheduled rebroadcast of wallet transactions. */
     NodeClock::time_point m_next_resend{GetDefaultNextResend()};
     /** Whether this wallet will submit newly created transactions to the node's mempool and
@@ -1028,6 +1034,11 @@ public:
 
     //! Whether the (external) signer performs R-value signature grinding
     bool CanGrindR() const;
+
+    //! Handling wallet HD Master Keys that are used for new automatic descriptors. No derivation will be performed.
+    bool LoadActiveHDKey(const CExtPubKey& xpub) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    bool LoadHDKey(const CExtPubKey& xpub, const CKey& key) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    bool LoadHDCryptedKey(const CExtPubKey& xpub, const std::vector<unsigned char>& crypted_key) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 };
 
 /**

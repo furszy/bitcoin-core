@@ -978,7 +978,10 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
             err = "Error reading wallet database: CExtPubKey corrupt";
             return DBErrors::CORRUPT;
         }
-        // TODO: Load extpub into the wallet
+        if (!pwallet->LoadActiveHDKey(extpub)) {
+            err = "Error reading wallet database: Unable to set Active HD Key";
+            return DBErrors::CORRUPT;
+        }
         return DBErrors::LOAD_OK;
     });
     result = std::max(result, active_hdkey_res.m_result);
@@ -1011,7 +1014,10 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
             err = "Error reading wallet database: CPrivKey corrupt";
             return DBErrors::CORRUPT;
         }
-        // TODO: Load xprv into the wallet
+        if (!pwallet->LoadHDKey(extpub, pkey)) {
+            err = "Error reading wallet database: Unable to load HD Key";
+            return DBErrors::CORRUPT;
+        }
         return DBErrors::LOAD_OK;
     });
     result = std::max(result, hdkey_res.m_result);
@@ -1039,8 +1045,10 @@ static DBErrors LoadDescriptorWalletRecords(CWallet* pwallet, DatabaseBatch& bat
             err = "Error reading wallet database: Encrypted hd key corrupt";
             return DBErrors::CORRUPT;
         }
-
-        // TODO: Load crypted xprv into the wallet
+        if (!pwallet->LoadHDCryptedKey(extpub, privkey)) {
+            err = "Error reading wallet database: Unable to load encrypted HD Key";
+            return DBErrors::CORRUPT;
+        }
         return DBErrors::LOAD_OK;
     });
     result = std::max(result, enc_hdkey_res.m_result);

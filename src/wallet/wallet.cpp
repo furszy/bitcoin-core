@@ -4331,4 +4331,25 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
     }
     return res;
 }
+
+bool CWallet::LoadActiveHDKey(const CExtPubKey& xpub)
+{
+    AssertLockHeld(cs_wallet);
+    m_xpub = xpub;
+    return true;
+}
+
+bool CWallet::LoadHDKey(const CExtPubKey& xpub, const CKey& key)
+{
+    AssertLockHeld(cs_wallet);
+    auto [_, inserted] = m_hd_keys.emplace(xpub, key);
+    return inserted;
+}
+
+bool CWallet::LoadHDCryptedKey(const CExtPubKey& xpub, const std::vector<unsigned char>& crypted_key)
+{
+    AssertLockHeld(cs_wallet);
+    auto [_, inserted] = m_hd_crypted_keys.emplace(xpub, crypted_key);
+    return inserted;
+}
 } // namespace wallet
