@@ -443,7 +443,15 @@ public:
     //! check whether we support the named feature
     bool CanSupportFeature(enum WalletFeature wf) const override EXCLUSIVE_LOCKS_REQUIRED(cs_wallet) { AssertLockHeld(cs_wallet); return IsFeatureSupported(nWalletVersion, wf); }
 
-    bool IsSpent(const COutPoint& outpoint) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    struct SpentOutput {
+        // Whether the tx containing the output was included in a block or not.
+        // (will be true also for conflicting outputs).
+        bool was_spent_in_chain{true};
+    };
+
+    //! returns true if the wallet owns the outpoint and the pointed output was spent already.
+    //! note: abandoned txes outputs are not defined as "spent".
+    std::optional<CWallet::SpentOutput> IsSpent(const COutPoint& outpoint) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
     // Whether this or any known scriptPubKey with the same single key has been spent.
     bool IsSpentKey(const CScript& scriptPubKey) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);

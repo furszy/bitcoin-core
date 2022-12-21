@@ -1167,6 +1167,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         assert_raises_rpc_error(-4, ERR_NOT_ENOUGH_PRESET_INPUTS, wallet.send, outputs=[{addr1: 3}], options=options)
 
         ################################################
+        self.generate(self.nodes[0], 1)  # Reset wallet state
 
         # Case (1), 'walletcreatefundedpsbt' command
         # Default add_inputs value with no preset inputs (add_inputs=true)
@@ -1440,14 +1441,8 @@ class RawTransactionsTest(BitcoinTestFramework):
         assert_raises_rpc_error(-4, "Insufficient funds", wallet.fundrawtransaction, raw_tx2, {'add_inputs': True, 'minconf': 3, 'fee_rate': 10})
 
         self.log.info("Fail to broadcast a new TX with maxconf 0 due to BIP125 rules to verify it actually chose unconfirmed outputs")
-        # Now fund 'raw_tx2' to fulfill the total target (1 BTC) by using all the wallet unconfirmed outputs.
-        # As it was created with the first unconfirmed output, 'raw_tx2' only has 0.1 BTC covered (need to fund 0.9 BTC more).
-        # So, the selection process, to cover the amount, will pick up the 'final_tx1' output as well, which is an output of the tx that this
-        # new tx is replacing!. So, once we send it to the mempool, it will return a "bad-txns-spends-conflicting-tx"
-        # because the input will no longer exist once the first tx gets replaced by this new one).
-        funded_invalid = wallet.fundrawtransaction(raw_tx2, {'add_inputs': True, 'maxconf': 0, 'fee_rate': 10})['hex']
-        final_invalid = wallet.signrawtransactionwithwallet(funded_invalid)['hex']
-        assert_raises_rpc_error(-26, "bad-txns-spends-conflicting-tx", self.nodes[0].sendrawtransaction, final_invalid)
+        assert_raises_rpc_error(-4, "Insufficient funds. Note: Some coins might had not been available due the manual selection of an already spent output as one of the transaction inputs",
+                                wallet.fundrawtransaction, raw_tx2, {'add_inputs': True, 'maxconf': 0, 'fee_rate': 10})
 
         self.log.info("Craft a replacement adding inputs with highest depth possible")
         funded_tx2 = wallet.fundrawtransaction(raw_tx2, {'add_inputs': True, 'minconf': 2, 'fee_rate': 10})['hex']

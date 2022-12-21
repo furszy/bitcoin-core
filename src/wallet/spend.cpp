@@ -1218,6 +1218,7 @@ util::Result<CreatedTransactionResult> FundTransaction(CWallet& wallet, const CM
     }
     wallet.chain().findCoins(coins);
 
+    bool is_replacement = false;
     for (const CTxIn& txin : tx.vin) {
         const auto& outPoint = txin.prevout;
         PreselectedInput& preset_txin = coinControl.Select(outPoint);
@@ -1232,10 +1233,26 @@ util::Result<CreatedTransactionResult> FundTransaction(CWallet& wallet, const CM
         preset_txin.SetSequence(txin.nSequence);
         preset_txin.SetScriptSig(txin.scriptSig);
         preset_txin.SetScriptWitness(txin.scriptWitness);
+
+        // A tx replaces another one if at least one of its inputs are already spent by another tx.
+        // The tx to be replaced can be found inside the wallet or in the mempool.
+        is_replacement |= preset_txin.HasTxOut() ? wallet.chain().isSpentInMempool(outPoint) :
+                          !wallet.IsSpent(outPoint).value_or(CWallet::SpentOutput{}).was_spent_in_chain;
+    }
+
+    // If this tx is a replacement, disallow unconfirmed UTXO selection by rising the
+    // coin control min depth param. Ensuring that we don't add any new unconfirmed UTXOs
+    // to replacement transactions.
+    if (is_replacement && coinControl.m_min_depth == 0) {
+        coinControl.m_min_depth = 1;
     }
 
     auto res = CreateTransaction(wallet, vecSend, change_pos, coinControl, false);
     if (!res) {
+        if (is_replacement) {
+            return util::Error{util::ErrorString(res) + Untranslated(". ") +
+                    _("Note: Some coins might had not been available due the manual selection of an already spent output as one of the transaction inputs")};
+        }
         return res;
     }
 
