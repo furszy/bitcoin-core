@@ -113,7 +113,7 @@ WalletTxOut MakeWalletTxOut(const CWallet& wallet,
     result.txout = wtx.tx->vout[n];
     result.time = wtx.GetTxTime();
     result.depth_in_main_chain = depth;
-    result.is_spent = wallet.IsSpent(COutPoint(wtx.GetHash(), n));
+    result.is_spent = wallet.IsSpent(COutPoint(wtx.GetHash(), n)) != std::nullopt;
     return result;
 }
 
@@ -124,7 +124,7 @@ WalletTxOut MakeWalletTxOut(const CWallet& wallet,
     result.txout = output.txout;
     result.time = output.time;
     result.depth_in_main_chain = output.depth;
-    result.is_spent = wallet.IsSpent(output.outpoint);
+    result.is_spent = wallet.IsSpent(output.outpoint) != std::nullopt;
     return result;
 }
 

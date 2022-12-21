@@ -1209,18 +1209,31 @@ bool FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& nFeeRet,
     }
     wallet.chain().findCoins(coins);
 
+    // Check if any input was already spent by another tx in the mempool
+    bool is_replacement = false;
     for (const CTxIn& txin : tx.vin) {
         const auto& outPoint = txin.prevout;
         if (wallet.IsMine(outPoint)) {
             // The input was found in the wallet, so select as internal
             coinControl.Select(outPoint);
+            // Check if was spent but still unconfirmed
+            if (const auto& spent_out = wallet.IsSpent(outPoint)) is_replacement = !spent_out->was_spent_in_chain;
         } else if (coins[outPoint].out.IsNull()) {
             error = _("Unable to find UTXO for external input");
             return false;
         } else {
             // The input was not in the wallet, but is in the UTXO set, so select as external
             coinControl.SelectExternal(outPoint, coins[outPoint].out);
+            // Check if was spent in any mempool tx
+            if (!is_replacement) is_replacement = wallet.chain().isSpentInMempool(outPoint);
         }
+    }
+
+    // If this tx is a replacement, disallow unconfirmed UTXO selection by rising the
+    // coin control min depth param. Ensuring that we don't add any new unconfirmed UTXOs
+    // to replacement transactions.
+    if (is_replacement && coinControl.m_min_depth == 0) {
+        coinControl.m_min_depth = 1;
     }
 
     auto res = CreateTransaction(wallet, vecSend, nChangePosInOut, coinControl, false);
