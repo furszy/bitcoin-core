@@ -101,7 +101,8 @@ class ImportDescriptorsTest(BitcoinTestFramework):
         test_address(w1,
                      key.p2pkh_addr,
                      solvable=True,
-                     ismine=True,
+                     ismine=False,
+                     iswatchonly=True,
                      labels=["Descriptor import test"])
         assert_equal(w1.getwalletinfo()['keypoolsize'], 0)
 
@@ -110,7 +111,7 @@ class ImportDescriptorsTest(BitcoinTestFramework):
 
         self.log.info("Test can update descriptor label")
         self.test_importdesc({**import_request, "label": "Updated label"}, success=True)
-        test_address(w1, key.p2pkh_addr, solvable=True, ismine=True, labels=["Updated label"])
+        test_address(w1, key.p2pkh_addr, solvable=True, ismine=False, iswatchonly=True, labels=["Updated label"])
 
         self.log.info("Internal addresses cannot have labels")
         self.test_importdesc({**import_request, "internal": True},
@@ -126,7 +127,8 @@ class ImportDescriptorsTest(BitcoinTestFramework):
                               "internal": True},
                              success=True)
         info = w1.getaddressinfo(addr)
-        assert_equal(info["ismine"], True)
+        assert_equal(info["ismine"], False)
+        assert_equal(info["iswatchonly"], True)
         assert_equal(info["ischange"], True)
 
         # # Test importing of a P2SH-P2WPKH descriptor
@@ -167,7 +169,8 @@ class ImportDescriptorsTest(BitcoinTestFramework):
 
         test_address(w1,
                      key.p2sh_p2wpkh_addr,
-                     ismine=True,
+                     ismine=False,
+                     iswatchonly=True,
                      solvable=True)
 
         # Check persistence of data and that loading works correctly
@@ -175,7 +178,8 @@ class ImportDescriptorsTest(BitcoinTestFramework):
         self.nodes[1].loadwallet('w1')
         test_address(w1,
                      key.p2sh_p2wpkh_addr,
-                     ismine=True,
+                     ismine=False,
+                     iswatchonly=True,
                      solvable=True)
 
         # # Test importing of a multisig descriptor

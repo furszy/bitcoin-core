@@ -2020,7 +2020,7 @@ isminetype DescriptorScriptPubKeyMan::IsMine(const CScript& script) const
 {
     LOCK(cs_desc_man);
     if (m_map_script_pub_keys.count(script) > 0) {
-        return ISMINE_SPENDABLE;
+        return HavePrivateKeys() ? ISMINE_SPENDABLE : ISMINE_WATCH_ONLY;
     }
     return ISMINE_NO;
 }
