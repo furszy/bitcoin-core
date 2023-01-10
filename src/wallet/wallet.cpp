@@ -3708,7 +3708,7 @@ std::optional<bool> CWallet::IsInternalScriptPubKeyMan(ScriptPubKeyMan* spk_man)
 ScriptPubKeyMan* CWallet::AddWalletDescriptor(WalletDescriptor& desc, const FlatSigningProvider& signing_provider, const std::string& label, bool internal)
 {
     AssertLockHeld(cs_wallet);
-
+    desc.internal = internal;
     if (!IsWalletFlagSet(WALLET_FLAG_DESCRIPTORS)) {
         WalletLogPrintf("Cannot add WalletDescriptor to a non-descriptor wallet\n");
         return nullptr;
@@ -4090,7 +4090,7 @@ bool DoMigration(CWallet& wallet, WalletContext& context, bilingual_str& error, 
                 assert(!desc->IsRange()); // It shouldn't be possible to have LegacyScriptPubKeyMan make a ranged watchonly descriptor
 
                 // Add to the wallet
-                WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
+                WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0, /*internal=*/false);
                 data->watchonly_wallet->AddWalletDescriptor(w_desc, keys, "", false);
             }
 
@@ -4121,7 +4121,7 @@ bool DoMigration(CWallet& wallet, WalletContext& context, bilingual_str& error, 
                 assert(!desc->IsRange()); // It shouldn't be possible to have LegacyScriptPubKeyMan make a ranged watchonly descriptor
 
                 // Add to the wallet
-                WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
+                WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0, /*internal=*/false);
                 data->solvable_wallet->AddWalletDescriptor(w_desc, keys, "", false);
             }
 
