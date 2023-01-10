@@ -23,7 +23,7 @@ bool ExternalSignerScriptPubKeyMan::SetupDescriptor(std::unique_ptr<Descriptor> 
     int64_t creation_time = GetTime();
 
     // Make the descriptor
-    WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
+    WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0, /*internal=*/false);
     m_wallet_descriptor = w_desc;
 
     // Store the descriptor

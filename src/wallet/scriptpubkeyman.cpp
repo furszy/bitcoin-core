@@ -1780,7 +1780,7 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
         FlatSigningProvider keys;
         std::string error;
         std::unique_ptr<Descriptor> desc = Parse(desc_str, keys, error, false);
-        WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
+        WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0, /*internal=*/false);
 
         // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
         auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(m_storage, w_desc, m_keypool_size));
@@ -1824,8 +1824,9 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
             FlatSigningProvider keys;
             std::string error;
             std::unique_ptr<Descriptor> desc = Parse(desc_str, keys, error, false);
-            uint32_t chain_counter = std::max((i == 1 ? chain.nInternalChainCounter : chain.nExternalChainCounter), (uint32_t)0);
-            WalletDescriptor w_desc(std::move(desc), 0, 0, chain_counter, 0);
+            bool is_internal = i == 1;
+            uint32_t chain_counter = std::max((is_internal ? chain.nInternalChainCounter : chain.nExternalChainCounter), (uint32_t)0);
+            WalletDescriptor w_desc(std::move(desc), 0, 0, chain_counter, 0, is_internal);
 
             // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
             auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(m_storage, w_desc, m_keypool_size));
@@ -1889,7 +1890,7 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
             desc->Expand(0, provider, desc_spks, provider);
         } else {
             // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
-            WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
+            WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0, /*internal=*/false);
             auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(m_storage, w_desc, m_keypool_size));
             for (const auto& keyid : privkeyids) {
                 CKey key;
@@ -2301,7 +2302,7 @@ bool DescriptorScriptPubKeyMan::SetupDescriptorGeneration(const CExtKey& master_
     FlatSigningProvider keys;
     std::string error;
     std::unique_ptr<Descriptor> desc = Parse(desc_str, keys, error, false);
-    WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
+    WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0, internal);
     m_wallet_descriptor = w_desc;
 
     // Store the master private key, and descriptor
