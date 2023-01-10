@@ -48,17 +48,24 @@ CAmount TxGetCredit(const CWallet& wallet, const CTransaction& tx, const isminef
     return nCredit;
 }
 
-bool IsOutputChange(const CWallet& wallet, const CTransaction& tx, unsigned int change_pos)
+bool AnyInputMine(const CWallet& wallet, const CTransaction& tx)
+{
+    return std::any_of(tx.vin.begin(), tx.vin.end(), [&wallet](const CTxIn& in) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet) { return InputIsMine(wallet, in); });
+}
+
+std::vector<uint32_t> CalcChangeIndexes(const CWallet& wallet, const CTransaction& tx)
 {
     AssertLockHeld(wallet.cs_wallet);
-    // If at least one of the inputs is from the wallet, then there might be a change output.
-    // Otherwise, it's definitely not a change output.
-    if (!std::any_of(tx.vin.begin(), tx.vin.end(),
-                     [&wallet](const CTxIn& in) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet) { return InputIsMine(wallet, in); })) {
-        return false;
-    }
+    // If the tx inputs are not from this wallet, then no output can be change
+    if (!AnyInputMine(wallet, tx))  return {};
 
-    return ScriptIsChange(wallet, tx.vout.at(change_pos).scriptPubKey);
+    std::vector<uint32_t> indexes;
+    for (unsigned int index = 0; index < tx.vout.size(); index++) {
+        if (ScriptIsChange(wallet, tx.vout.at(index).scriptPubKey)) {
+            indexes.emplace_back(index);
+        }
+    }
+    return indexes;
 }
 
 bool ScriptIsChange(const CWallet& wallet, const CScript& script)
@@ -110,21 +117,16 @@ bool ScriptIsChange(const CWallet& wallet, const CScript& script)
     }
 }
 
-CAmount OutputGetChange(const CWallet& wallet, const CTransaction& tx, unsigned int change_pos)
-{
-    AssertLockHeld(wallet.cs_wallet);
-    const CTxOut& txout = tx.vout.at(change_pos);
-    if (!MoneyRange(txout.nValue))
-        throw std::runtime_error(std::string(__func__) + ": value out of range");
-    return IsOutputChange(wallet, tx, change_pos) ? txout.nValue : 0;
-}
-
-CAmount TxGetChange(const CWallet& wallet, const CTransaction& tx)
+CAmount TxGetChange(const CWallet& wallet, const CWalletTx& wtx)
 {
     LOCK(wallet.cs_wallet);
+    assert(wtx.m_change_indexes); // must be set
+
+    if (wtx.m_change_indexes->empty()) return 0;
+
     CAmount nChange = 0;
-    for (size_t change_pos=0 ; change_pos<tx.vout.size(); change_pos++) {
-        nChange += OutputGetChange(wallet, tx, change_pos);
+    for (const int32_t index : *wtx.m_change_indexes) {
+        nChange += wtx.tx->vout.at(index).nValue;
         if (!MoneyRange(nChange))
             throw std::runtime_error(std::string(__func__) + ": value out of range");
     }
@@ -175,7 +177,7 @@ CAmount CachedTxGetChange(const CWallet& wallet, const CWalletTx& wtx)
 {
     if (wtx.fChangeCached)
         return wtx.nChangeCached;
-    wtx.nChangeCached = TxGetChange(wallet, *wtx.tx);
+    wtx.nChangeCached = TxGetChange(wallet, wtx);
     wtx.fChangeCached = true;
     return wtx.nChangeCached;
 }
@@ -254,7 +256,7 @@ void CachedTxGetAmounts(const CWallet& wallet, const CWalletTx& wtx,
         //   2) the output is to us (received)
         if (nDebit > 0)
         {
-            if (!include_change && IsOutputChange(wallet, *wtx.tx, i))
+            if (!include_change && wtx.IsOutputChange(i))
                 continue;
         }
         else if (!(fIsMine & filter))
@@ -421,7 +423,7 @@ std::set< std::set<CTxDestination> > GetAddressGroupings(const CWallet& wallet)
             if (any_mine)
             {
                for (size_t pos = 0; pos < wtx.tx->vout.size(); pos++) {
-                   if (IsOutputChange(wallet, *wtx.tx, pos)) {
+                   if (wtx.IsOutputChange(pos)) {
                        CTxDestination txoutAddr;
                        if (!ExtractDestination(wtx.tx->vout[pos].scriptPubKey, txoutAddr))
                            continue;

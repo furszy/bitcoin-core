@@ -362,12 +362,12 @@ CAmount GetAvailableBalance(const CWallet& wallet, const CCoinControl* coinContr
     return AvailableCoins(wallet, coinControl).GetTotalAmount();
 }
 
-const CTxOut& FindNonChangeParentOutput(const CWallet& wallet, const CTransaction& tx, int output)
+const CTxOut& FindNonChangeParentOutput(const CWallet& wallet, const CWalletTx& wtx, int output)
 {
     AssertLockHeld(wallet.cs_wallet);
-    const CTransaction* ptx = &tx;
+    const CTransaction* ptx = wtx.tx.get();
     int n = output;
-    while (IsOutputChange(wallet, *ptx, n) && ptx->vin.size() > 0) {
+    while (wtx.IsOutputChange(n) && ptx->vin.size() > 0) {
         const COutPoint& prevout = ptx->vin[0].prevout;
         auto it = wallet.mapWallet.find(prevout.hash);
         if (it == wallet.mapWallet.end() || it->second.tx->vout.size() <= prevout.n ||
@@ -383,7 +383,7 @@ const CTxOut& FindNonChangeParentOutput(const CWallet& wallet, const CTransactio
 const CTxOut& FindNonChangeParentOutput(const CWallet& wallet, const COutPoint& outpoint)
 {
     AssertLockHeld(wallet.cs_wallet);
-    return FindNonChangeParentOutput(wallet, *wallet.GetWalletTx(outpoint.hash)->tx, outpoint.n);
+    return FindNonChangeParentOutput(wallet, *wallet.GetWalletTx(outpoint.hash), outpoint.n);
 }
 
 std::map<CTxDestination, std::vector<COutput>> ListCoins(const CWallet& wallet)
@@ -414,7 +414,7 @@ std::map<CTxDestination, std::vector<COutput>> ListCoins(const CWallet& wallet)
                 wallet.IsMine(wtx.tx->vout[output.n]) == is_mine_filter
             ) {
                 CTxDestination address;
-                if (ExtractDestination(FindNonChangeParentOutput(wallet, *wtx.tx, output.n).scriptPubKey, address)) {
+                if (ExtractDestination(FindNonChangeParentOutput(wallet, wtx, output.n).scriptPubKey, address)) {
                     const auto out = wtx.tx->vout.at(output.n);
                     result[address].emplace_back(
                             COutPoint(wtx.GetHash(), output.n), out, depth, CalculateMaximumSignedInputSize(out, &wallet, /*coin_control=*/nullptr), /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ false, wtx.GetTxTime(), CachedTxIsFromMe(wallet, wtx, ISMINE_ALL));

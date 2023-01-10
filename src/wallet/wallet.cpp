@@ -39,6 +39,7 @@
 #include <wallet/context.h>
 #include <wallet/fees.h>
 #include <wallet/external_signer_scriptpubkeyman.h>
+#include <wallet/receive.h>
 
 #include <univalue.h>
 
@@ -518,6 +519,21 @@ void CWallet::UpgradeDescriptorCache()
         desc_spkm->UpgradeDescriptorCache();
     }
     SetWalletFlag(WALLET_FLAG_LAST_HARDENED_XPUB_CACHED);
+}
+
+void CWallet::RecalculateChange()
+{
+    AssertLockHeld(cs_wallet);
+    WalletBatch batch(GetDatabase());
+    batch.TxnBegin();
+    for (auto& it : mapWallet) {
+        std::vector<uint32_t> indexes = CalcChangeIndexes(*this, *it.second.tx);
+        if (!indexes.empty()) {
+            it.second.m_change_indexes = indexes;
+            batch.WriteTx(it.second);
+        }
+    }
+    batch.TxnCommit();
 }
 
 bool CWallet::Unlock(const SecureString& strWalletPassphrase, bool accept_no_keys)
@@ -1044,6 +1060,7 @@ CWalletTx* CWallet::AddToWallet(CTransactionRef tx, const TxState& state, const 
         wtx.m_it_wtxOrdered = wtxOrdered.insert(std::make_pair(wtx.nOrderPos, &wtx));
         wtx.nTimeSmart = ComputeTimeSmart(wtx, rescanning_old_block);
         AddToSpends(wtx, &batch);
+        wtx.m_change_indexes = CalcChangeIndexes(*this, *wtx.tx);
     }
 
     if (!fInsertedNew)
@@ -3769,6 +3786,9 @@ ScriptPubKeyMan* CWallet::AddWalletDescriptor(WalletDescriptor& desc, const Flat
 
     // Save the descriptor to DB
     spk_man->WriteDescriptor();
+
+    // If internal, recalculate change indexes. // TODO: this shouldn't be done at startup nor if we are importing several descriptors..
+    if (desc.internal) RecalculateChange();
 
     return spk_man;
 }

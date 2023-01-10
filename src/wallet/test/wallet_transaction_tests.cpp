@@ -79,19 +79,38 @@ std::unique_ptr<CWallet> CreateEmtpyWallet(TestChain100Setup* context, bool only
                                    context->m_args, random_key);
 }
 
-bool OutputIsChange(const std::unique_ptr<CWallet>& wallet, const CTransactionRef& tx, unsigned int change_pos)
+// What should the wallet compute
+bool OutputIsChangeBasic(const std::unique_ptr<CWallet>& wallet, const CTransactionRef& tx, unsigned int change_pos)
 {
-    return WITH_LOCK(wallet->cs_wallet, return IsOutputChange(*wallet, *tx, change_pos));
+    LOCK(wallet->cs_wallet);
+    // If at least one of the inputs is from the wallet, then there might be a change output.
+    // Otherwise, it's definitely not a change output.
+    if (!AnyInputMine(*wallet, *tx)) {
+        return false;
+    }
+
+    return ScriptIsChange(*wallet, tx->vout.at(change_pos).scriptPubKey);
+}
+
+bool OutputIsChange(const std::unique_ptr<CWallet>& wallet, const CWalletTx& wtx, unsigned int change_pos, size_t change_outputs_size)
+{
+    BOOST_ASSERT(wtx.m_change_indexes);
+    BOOST_ASSERT(wtx.m_change_indexes->size() == change_outputs_size);
+    return change_outputs_size > 0 && wtx.m_change_indexes->at(0) == change_pos;
 }
 
 // Creates a transaction and adds it to the wallet via the mempool signal
 CreatedTransactionResult CreateAndAddTx(const std::unique_ptr<CWallet>& wallet, const CTxDestination& dest, CAmount amount)
 {
     CCoinControl coin_control;
-    auto op_tx = *Assert(CreateTransaction(*wallet, {{GetScriptForDestination(dest), amount, true}},-1, coin_control));
-    // Prior to adding it to the wallet, check if the wallet can detect the change script
-    BOOST_CHECK(OutputIsChange(wallet, op_tx.tx, op_tx.change_pos));
+    uint32_t change_pos = 1;
+    auto op_tx = *Assert(CreateTransaction(*wallet, {{GetScriptForDestination(dest), amount, true}},change_pos, coin_control));
+    // Prior to adding it to the wallet, check we can detect the change script
+    BOOST_CHECK(OutputIsChangeBasic(wallet, op_tx.tx, op_tx.change_pos));
     wallet->transactionAddedToMempool(op_tx.tx);
+    // Now check that the change index was calculated properly
+    BOOST_CHECK(OutputIsChange(wallet, *WITH_LOCK(wallet->cs_wallet, return wallet->GetWalletTx(op_tx.tx->GetHash())),
+                               change_pos, /*change_outputs_size=*/1));
     return op_tx;
 }
 
@@ -100,8 +119,9 @@ void CreateTxAndVerifyChange(const std::unique_ptr<CWallet>& wallet, const std::
     CTxDestination dest = *Assert(external_wallet->GetNewDestination(dest_type, ""));
     auto res = CreateAndAddTx(wallet, dest, dest_amount);
     BOOST_CHECK(res.tx->vout.at(res.change_pos).nValue == (50 * COIN - dest_amount));
-    BOOST_CHECK(OutputIsChange(wallet, res.tx, res.change_pos));
-    BOOST_CHECK(!OutputIsChange(wallet, res.tx, !res.change_pos));
+    auto wtx = WITH_LOCK(wallet->cs_wallet, return wallet->GetWalletTx(res.tx->GetHash()));
+    BOOST_CHECK(OutputIsChange(wallet, *wtx, res.change_pos, /*change_outputs_size=*/1));
+    BOOST_CHECK(!OutputIsChange(wallet, *wtx, !res.change_pos, /*change_outputs_size=*/1));
 }
 
 /**
@@ -145,11 +165,11 @@ BOOST_FIXTURE_TEST_CASE(descriptors_wallet_detect_change_output, TestChain100Set
         CCoinControl coin_control;
         coin_control.destChange = *Assert(wallet->GetNewDestination(OutputType::BECH32, ""));
         auto op_tx = *Assert(CreateTransaction(*wallet, {{CScript() << OP_TRUE, 1 * COIN, true}}, -1, coin_control));
-        BOOST_CHECK(!OutputIsChange(wallet, op_tx.tx, op_tx.change_pos));
+        BOOST_CHECK(!OutputIsChangeBasic(wallet, op_tx.tx, op_tx.change_pos));
         wallet->transactionAddedToMempool(op_tx.tx);
         auto wtx = WITH_LOCK(wallet->cs_wallet, return wallet->GetWalletTx(op_tx.tx->GetHash()));
         BOOST_ASSERT(wtx);
-        BOOST_CHECK(!OutputIsChange(wallet, wtx->tx, op_tx.change_pos));
+        BOOST_CHECK(!OutputIsChange(wallet, *wtx, op_tx.change_pos, /*change_outputs_size=*/0));
     }
 
     {
@@ -168,22 +188,23 @@ BOOST_FIXTURE_TEST_CASE(descriptors_wallet_detect_change_output, TestChain100Set
         coin_control.Select(COutPoint(op_tx_source.tx->GetHash(), !op_tx_source.change_pos));
         coin_control.destChange = dest;
         auto op_tx = *Assert(CreateTransaction(*wallet, {{CScript() << OP_TRUE, 1 * COIN, true}}, -1, coin_control));
-        BOOST_CHECK(!OutputIsChange(wallet, op_tx.tx, op_tx.change_pos));
+        BOOST_CHECK(!OutputIsChangeBasic(wallet, op_tx.tx, op_tx.change_pos));
         wallet->transactionAddedToMempool(op_tx.tx);
         auto wtx = wallet->GetWalletTx(op_tx.tx->GetHash());
         BOOST_ASSERT(wtx);
-        BOOST_CHECK(!OutputIsChange(wallet, wtx->tx, op_tx.change_pos));
+        BOOST_CHECK(!OutputIsChange(wallet, *wtx, op_tx.change_pos, /*change_outputs_size=*/0));
     }
 
     {
         // 3) Test what happens when the user sets an address book label to a destination created from an internal key.
         auto op_tx = CreateAndAddTx(wallet, *Assert(wallet->GetNewDestination(OutputType::BECH32, "")), 15 * COIN);
-        BOOST_CHECK(OutputIsChange(wallet, op_tx.tx, op_tx.change_pos));
+        auto wtx = WITH_LOCK(wallet->cs_wallet, return wallet->GetWalletTx(op_tx.tx->GetHash()));
+        BOOST_CHECK(OutputIsChange(wallet, *wtx, op_tx.change_pos, /*change_outputs_size=*/1));
         // Now change the change destination label
         CTxDestination change_dest;
         BOOST_CHECK(ExtractDestination(op_tx.tx->vout.at(op_tx.change_pos).scriptPubKey, change_dest));
         BOOST_CHECK(wallet->SetAddressBook(change_dest, "not_a_change_address", "receive"));
-        BOOST_CHECK(OutputIsChange(wallet, op_tx.tx, op_tx.change_pos)); // -> fails here for the old change detection.
+        BOOST_CHECK(OutputIsChange(wallet, *wtx, op_tx.change_pos, /*change_outputs_size=*/1)); // -> fails here for the old change detection.
     }
 
     {
@@ -198,7 +219,12 @@ BOOST_FIXTURE_TEST_CASE(descriptors_wallet_detect_change_output, TestChain100Set
 
         // Send coins to the local wallet internal address directly.
         auto op_tx = CreateAndAddTx(external_wallet, *Assert(wallet->GetNewChangeDestination(OutputType::BECH32)), 10 * COIN);
-        BOOST_CHECK(!OutputIsChange(wallet, op_tx.tx, op_tx.change_pos));
+        BOOST_CHECK(!OutputIsChangeBasic(wallet, op_tx.tx, op_tx.change_pos));
+        // Add it to the wallet and check that it's not detected as change
+        wallet->transactionAddedToMempool(op_tx.tx);
+        auto wtx = WITH_LOCK(wallet->cs_wallet, return wallet->GetWalletTx(op_tx.tx->GetHash()));
+        BOOST_ASSERT(wtx);
+        BOOST_CHECK(!OutputIsChange(wallet, *wtx, op_tx.change_pos, /*change_outputs_size=*/0));
     }
 }
 
@@ -250,13 +276,13 @@ BOOST_FIXTURE_TEST_CASE(external_tx_creation_change_output_detection, TestChain1
         const CTxOut& output = op_tx.tx->vout.at(!op_tx.change_pos);
         BOOST_ASSERT(output.nValue == dest_amount);
         BOOST_CHECK(WITH_LOCK(wallet->cs_wallet, return wallet->IsMine(output)));
-        BOOST_CHECK(!OutputIsChange(wallet, op_tx.tx, !op_tx.change_pos)); // ----> Currently fails here
+        BOOST_CHECK(!OutputIsChangeBasic(wallet, op_tx.tx, !op_tx.change_pos)); // ----> Currently fails here
 
         // Now add it to the wallet and verify that is not invalidly marked as change
         wallet->transactionAddedToMempool(op_tx.tx);
         const CWalletTx* wtx = Assert(WITH_LOCK(wallet->cs_wallet, return wallet->GetWalletTx(op_tx.tx->GetHash())));
-        BOOST_CHECK(!OutputIsChange(wallet, wtx->tx, !op_tx.change_pos));
-        BOOST_CHECK_EQUAL(TxGetChange(*wallet, *op_tx.tx), 0);
+        BOOST_CHECK(!OutputIsChange(wallet, *wtx, !op_tx.change_pos, /*change_outputs_size=*/0));
+        BOOST_CHECK_EQUAL(TxGetChange(*wallet, *wtx), 0);
     }
 
     {
@@ -273,7 +299,7 @@ BOOST_FIXTURE_TEST_CASE(external_tx_creation_change_output_detection, TestChain1
 
         // As this address is above our keypool, we are not able to consider it from the wallet!
         BOOST_CHECK(!WITH_LOCK(wallet->cs_wallet, return wallet->IsMine(output)));
-        BOOST_CHECK(!OutputIsChange(wallet, op_tx.tx, !op_tx.change_pos));
+        BOOST_CHECK(!OutputIsChangeBasic(wallet, op_tx.tx, !op_tx.change_pos));
 
         const CBlock& block = CreateAndProcessBlock({CMutableTransaction(*op_tx.tx)}, GetScriptForDestination(PKHash(coinbaseKey.GetPubKey().GetID())));
         wallet->blockConnected(kernel::MakeBlockInfo(WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip()), &block));

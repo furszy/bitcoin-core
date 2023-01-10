@@ -15,14 +15,19 @@ isminetype InputIsMine(const CWallet& wallet, const CTxIn& txin) EXCLUSIVE_LOCKS
 
 /** Returns whether all of the inputs match the filter */
 bool AllInputsMine(const CWallet& wallet, const CTransaction& tx, const isminefilter& filter);
+/** Returns true if at least one input is owned by the wallet */
+bool AnyInputMine(const CWallet& wallet, const CTransaction& tx);
 
 CAmount OutputGetCredit(const CWallet& wallet, const CTxOut& txout, const isminefilter& filter);
 CAmount TxGetCredit(const CWallet& wallet, const CTransaction& tx, const isminefilter& filter);
 
-bool IsOutputChange(const CWallet& wallet, const CTransaction& tx, unsigned int change_pos) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
 bool ScriptIsChange(const CWallet& wallet, const CScript& script) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
-CAmount OutputGetChange(const CWallet& wallet, const CTransaction& tx, unsigned int change_pos) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
-CAmount TxGetChange(const CWallet& wallet, const CTransaction& tx);
+
+/** Return the change total amount, must be used after loading-up the wtx into the wallet not before */
+CAmount TxGetChange(const CWallet& wallet, const CWalletTx& wtx);
+
+/** Return the change outputs indexes for the provided wallet (there could be more than one) */
+std::vector<uint32_t> CalcChangeIndexes(const CWallet& wallet, const CTransaction& tx) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
 
 CAmount CachedTxGetCredit(const CWallet& wallet, const CWalletTx& wtx, const isminefilter& filter)
     EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);

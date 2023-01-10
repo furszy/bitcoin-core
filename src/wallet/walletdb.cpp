@@ -971,6 +971,12 @@ DBErrors WalletBatch::LoadWallet(CWallet* pwallet)
         }
     }
 
+    // Try to upgrade the wallet to use the new change detection process if needed
+    if (last_client != CLIENT_VERSION) {
+        LogPrintf("Updating wallet to use the new change detection process, could take a while..\n");
+        pwallet->RecalculateChange();
+    }
+
     return result;
 }
 

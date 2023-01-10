@@ -228,7 +228,7 @@ Result CreateRateBumpTransaction(CWallet& wallet, const uint256& txid, const CCo
     CAmount output_value = 0;
     for (size_t pos = 0; pos < wtx.tx->vout.size(); pos++) {
         const auto& output = wtx.tx->vout[pos];
-        if (!IsOutputChange(wallet, *wtx.tx, pos)) {
+        if (!wtx.IsOutputChange(pos)) {
             CRecipient recipient = {output.scriptPubKey, output.nValue, false};
             recipients.push_back(recipient);
         } else {

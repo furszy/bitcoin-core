@@ -476,6 +476,9 @@ public:
     //! Upgrade DescriptorCaches
     void UpgradeDescriptorCache() EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
+    //! Updates the change indexes information for each wtx
+    void RecalculateChange() EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+
     bool LoadMinVersion(int nVersion) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet) { AssertLockHeld(cs_wallet); nWalletVersion = nVersion; return true; }
 
     //! Adds a destination data tuple to the store, without saving it to disk

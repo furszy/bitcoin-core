@@ -198,6 +198,11 @@ public:
     mutable bool fChangeCached;
     mutable CAmount nChangeCached;
 
+    /**
+     * The vout indexes for the change outputs
+     */
+    std::optional<std::vector<uint32_t>> m_change_indexes;
+
     CWalletTx(CTransactionRef tx, const TxState& state) : tx(std::move(tx)), m_state(state)
     {
         Init();
@@ -238,6 +243,7 @@ public:
         uint256 serializedHash = TxStateSerializedBlockHash(m_state);
         int serializedIndex = TxStateSerializedIndex(m_state);
         s << tx << serializedHash << dummy_vector1 << serializedIndex << dummy_vector2 << mapValueCopy << vOrderForm << fTimeReceivedIsTxTime << nTimeReceived << fFromMe << dummy_bool;
+        if (m_change_indexes) s << *m_change_indexes;
     }
 
     template<typename Stream>
@@ -251,6 +257,12 @@ public:
         uint256 serialized_block_hash;
         int serializedIndex;
         s >> tx >> serialized_block_hash >> dummy_vector1 >> serializedIndex >> dummy_vector2 >> mapValue >> vOrderForm >> fTimeReceivedIsTxTime >> nTimeReceived >> fFromMe >> dummy_bool;
+
+        if (!s.empty()) {
+            std::vector<uint32_t> change_indexes;
+            s >> change_indexes;
+            m_change_indexes = change_indexes;
+        }
 
         m_state = TxStateInterpretSerialized({serialized_block_hash, serializedIndex});
 
@@ -298,6 +310,11 @@ public:
     const uint256& GetHash() const { return tx->GetHash(); }
     const uint256& GetWitnessHash() const { return tx->GetWitnessHash(); }
     bool IsCoinBase() const { return tx->IsCoinBase(); }
+
+    bool IsOutputChange(unsigned int change_pos) const {
+        assert(m_change_indexes); // must be loaded prior calling this method
+        return std::count(m_change_indexes->begin(), m_change_indexes->end(), change_pos);
+    }
 
     // Disable copying of CWalletTx objects to prevent bugs where instances get
     // copied in and out of the mapWallet map, and fields are updated in the
