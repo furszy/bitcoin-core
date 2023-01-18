@@ -4110,7 +4110,7 @@ bool DoMigration(CWallet& wallet, WalletContext& context, bilingual_str& error, 
     return true;
 }
 
-util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>&& wallet, SecureString passphrase, WalletContext& context)
+static util::Result<bool> UnloadWalletForMigration(std::shared_ptr<CWallet>& wallet, WalletContext& context)
 {
     std::vector<bilingual_str> warnings;
     std::string wallet_name = wallet->GetName();
@@ -4121,7 +4121,7 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>
     }
     UnloadWallet(std::move(wallet));
 
-    return MigrateLegacyToDescriptor(wallet_name, passphrase, context);
+    return true;
 }
 
 util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& wallet_name, SecureString passphrase, WalletContext& context)
@@ -4129,6 +4129,12 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
     MigrationResult res;
     bilingual_str error;
     std::vector<bilingual_str> warnings;
+
+    // If it's loaded, unload wallet during the migration process
+    if (auto wallet = GetWallet(context, wallet_name)) {
+        auto res_unload = UnloadWalletForMigration(wallet, context);
+        if (!res_unload) return util::Error{util::ErrorString(res_unload)};
+    }
 
     // Load the wallet but only in the context of this function.
     // No signals should be connected nor should anything else be aware of this wallet

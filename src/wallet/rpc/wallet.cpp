@@ -750,14 +750,7 @@ static RPCHelpMan migratewallet()
             wallet_pass = request.params[1].isNull() ? "" : request.params[1].get_str().c_str();
 
             WalletContext& context = EnsureWalletContext(request.context);
-            std::shared_ptr<CWallet> wallet = GetWallet(context, wallet_name);
-            util::Result<MigrationResult> res;
-            if (wallet) {
-                res = MigrateLegacyToDescriptor(std::move(wallet), wallet_pass, context);
-            } else {
-                res = MigrateLegacyToDescriptor(wallet_name, wallet_pass, context);
-            }
-
+            util::Result<MigrationResult> res = MigrateLegacyToDescriptor(wallet_name, wallet_pass, context);
             if (!res) {
                 throw JSONRPCError(RPC_WALLET_ERROR, util::ErrorString(res).original);
             }
