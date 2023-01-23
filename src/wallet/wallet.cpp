@@ -1711,8 +1711,9 @@ bool CWallet::DummySignTx(CMutableTransaction &txNew, const std::vector<CTxOut> 
     {
         CTxIn& txin = txNew.vin[nIn];
         // If weight was provided, fill the input to that weight
-        if (coin_control && coin_control->HasInputWeight(txin.prevout)) {
-            if (!FillInputToWeight(txin, coin_control->GetInputWeight(txin.prevout))) {
+        std::optional<int32_t> weight;
+        if (coin_control && (weight = coin_control->GetInputWeight(txin.prevout))) {
+            if (!FillInputToWeight(txin, weight.value())) {
                 return false;
             }
             nIn++;

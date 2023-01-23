@@ -43,12 +43,10 @@ public:
     bool HasTxOut() const { return m_txout.has_value(); }
 
     void SetInputWeight(int64_t weight) { m_weight = weight; }
-    int64_t GetInputWeight() const
+    std::optional<int64_t> GetInputWeight() const
     {
-        assert(m_weight.has_value());
-        return m_weight.value();
+        return m_weight;
     }
-    bool HasInputWeight() const { return m_weight.has_value(); }
 };
 
 /** Coin Control Features. */
@@ -151,18 +149,13 @@ public:
         m_selected[outpoint].SetInputWeight(weight);
     }
 
-    bool HasInputWeight(const COutPoint& outpoint) const
+    std::optional<int64_t> GetInputWeight(const COutPoint& outpoint) const
     {
         const auto it = m_selected.find(outpoint);
         if (it == m_selected.end()) {
-            return false;
+            return std::nullopt;
         }
-        return it->second.HasInputWeight();
-    }
-
-    int64_t GetInputWeight(const COutPoint& outpoint) const
-    {
-        return m_selected.at(outpoint).GetInputWeight();
+        return it->second.GetInputWeight();
     }
 
 private:

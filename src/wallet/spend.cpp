@@ -165,7 +165,7 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const
     coin_control.ListSelected(vPresetInputs);
     const bool can_grind_r = wallet.CanGrindR();
     for (const COutPoint& outpoint : vPresetInputs) {
-        int input_bytes = -1;
+        int32_t input_bytes = coin_control.GetInputWeight(outpoint).value_or(-1);
         CTxOut txout;
         if (auto ptr_wtx = wallet.GetWalletTx(outpoint.hash)) {
             // Clearly invalid input, fail
@@ -173,7 +173,9 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const
                 return util::Error{strprintf(_("Invalid pre-selected input %s"), outpoint.ToString())};
             }
             txout = ptr_wtx->tx->vout.at(outpoint.n);
-            input_bytes = CalculateMaximumSignedInputSize(txout, &wallet, &coin_control);
+            if (input_bytes == -1) {
+                input_bytes = CalculateMaximumSignedInputSize(txout, &wallet, &coin_control);
+            }
         } else {
             // The input is external. We did not find the tx in mapWallet.
             if (!coin_control.GetExternalOutput(outpoint, txout)) {
@@ -183,11 +185,6 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const
 
         if (input_bytes == -1) {
             input_bytes = CalculateMaximumSignedInputSize(txout, outpoint, &coin_control.m_external_provider, can_grind_r, &coin_control);
-        }
-
-        // If available, override calculated size with coin control specified size
-        if (coin_control.HasInputWeight(outpoint)) {
-            input_bytes = GetVirtualTransactionSize(coin_control.GetInputWeight(outpoint), 0, 0);
         }
 
         if (input_bytes == -1) {
