@@ -17,6 +17,9 @@ static const char* const DEFAULT_BLOCKFILTERINDEX = "0";
 /** Interval between compact filter checkpoints. See BIP 157. */
 static constexpr int CFCHECKPT_INTERVAL = 1000;
 
+/** Number of concurrent jobs during the initial sync process */
+const uint16_t BLOCKINDEX_WORKERS_COUNT = 4;
+
 /**
  * BlockFilterIndex is used to store and retrieve block filters, hashes, and headers for a range of
  * blocks by height. An index is constructed for each supported filter type with its own database
@@ -32,6 +35,8 @@ private:
 
     FlatFilePos m_next_filter_pos;
     std::unique_ptr<FlatFileSeq> m_filter_fileseq;
+
+    uint16_t m_workers_count{0};
 
     bool ReadFilterFromDisk(const FlatFilePos& pos, const uint256& hash, BlockFilter& filter) const;
     size_t WriteFilterToDisk(FlatFilePos& pos, const BlockFilter& filter);
@@ -65,6 +70,8 @@ public:
                               size_t n_cache_size, bool f_memory = false, bool f_wipe = false);
 
     BlockFilterType GetFilterType() const { return m_filter_type; }
+
+    void SetWorkersCount(uint16_t workers_num) { m_workers_count = workers_num; }
 
     /** Get a single filter by block. */
     bool LookupFilter(const CBlockIndex* block_index, BlockFilter& filter_out) const;

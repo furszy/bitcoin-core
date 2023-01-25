@@ -376,16 +376,15 @@ void BlockFilterIndex::ThreadSync()
     std::chrono::steady_clock::time_point last_locator_write_time{0s};
 
     const uint16_t FILTERS_PER_WORKER = 1000;
-    const uint16_t WORKERS_COUNT = 4;
 
     auto& chain_params = Params();
     const CBlockIndex* pindex = WITH_LOCK(::cs_main, return NextSyncBlock(m_best_block_index.load(), m_chainstate->m_chain));
     int chain_height_at_startup = m_chainstate->m_chain.Height();
-    bool from_genesis = !pindex && chain_height_at_startup > FILTERS_PER_WORKER * WORKERS_COUNT;
+    bool from_genesis = !pindex && chain_height_at_startup > FILTERS_PER_WORKER * m_workers_count;
     uint256 last_header;
 
-    std::unique_ptr<CScheduler> workers[WORKERS_COUNT];
-    for (int i = 0; i < WORKERS_COUNT; i++) {
+    auto workers = new std::unique_ptr<CScheduler>[m_workers_count];
+    for (int i = 0; i < m_workers_count; i++) {
         workers[i] = std::make_unique<CScheduler>();
         auto& worker = workers[i];
         worker->m_service_thread = std::thread(util::TraceThread, "index_blockfilter_worker" + std::to_string(i), [&] { worker->serviceQueue(); });
@@ -403,13 +402,13 @@ void BlockFilterIndex::ThreadSync()
 
         // If we are far from the tip, let's process a batch of blocks
         // Either we sync from scratch or we are far enough from the tip to perform parallel indexing
-        if (from_genesis || (pindex && chain_height_at_startup > pindex->nHeight + FILTERS_PER_WORKER * WORKERS_COUNT)) {
+        if (m_workers_count > 0 && (from_genesis || (pindex && chain_height_at_startup > pindex->nHeight + FILTERS_PER_WORKER * m_workers_count))) {
             // Round result container
             std::map<int, std::promise<std::vector<std::pair<BlockFilter, uint32_t>>>> map_filters;
 
             // Parallelize work
             const CBlockIndex* it_start = pindex;
-            for (int worker_pos = 0; worker_pos < WORKERS_COUNT; worker_pos++) {
+            for (int worker_pos = 0; worker_pos < m_workers_count; worker_pos++) {
                 const CBlockIndex* it_end =  WITH_LOCK(::cs_main, return m_chainstate->m_chain[it_start->nHeight + FILTERS_PER_WORKER]);
 
                 // Process
@@ -425,7 +424,7 @@ void BlockFilterIndex::ThreadSync()
             // todo: add active-wait: keep processing filters until all the workers finish
             // Wait until workers finish processing (could continue processing filters here too..)
             // And process them in order.
-            for (int worker_pos = 0; worker_pos < WORKERS_COUNT; worker_pos++) {
+            for (int worker_pos = 0; worker_pos < m_workers_count; worker_pos++) {
                 auto& promise = map_filters[worker_pos];
                 auto future = promise.get_future();
                 future.wait();
@@ -468,11 +467,12 @@ void BlockFilterIndex::ThreadSync()
     }
 
     // Shutdown workers
-    for (int worker_pos = 0; worker_pos < WORKERS_COUNT; worker_pos++) {
+    for (int worker_pos = 0; worker_pos < m_workers_count; worker_pos++) {
         auto& worker = workers[worker_pos];
         worker->StopWhenDrained();
         worker.reset(nullptr);
     }
+    delete[] workers;
 }
 
 static bool LookupOne(const CDBWrapper& db, const CBlockIndex* block_index, DBVal& result)
