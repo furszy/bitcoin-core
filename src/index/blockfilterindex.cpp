@@ -436,12 +436,12 @@ void BlockFilterIndex::ThreadSync()
 
             // commit changes
             auto current_time{std::chrono::steady_clock::now()};
-            if (last_log_time + SYNC_LOG_INTERVAL < current_time) {
+            if (last_log_time + SYNC_LOG_INTERVAL < current_time && pindex->pprev) {
                 LogPrintf("Syncing %s with block chain from height %d\n", GetName(), pindex->pprev->nHeight);
                 last_log_time = current_time;
             }
 
-            if (last_locator_write_time + SYNC_LOCATOR_WRITE_INTERVAL < current_time) {
+            if (last_locator_write_time + SYNC_LOCATOR_WRITE_INTERVAL < current_time && pindex->pprev) {
                 SetBestBlockIndex(pindex->pprev);
                 last_locator_write_time = current_time;
                 // No need to handle errors in Commit. See rationale above.
