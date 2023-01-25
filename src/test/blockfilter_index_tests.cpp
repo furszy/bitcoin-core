@@ -273,6 +273,43 @@ BOOST_FIXTURE_TEST_CASE(blockfilter_index_initial_sync, BuildChainTestingSetup)
     filter_index.Stop();
 }
 
+BOOST_FIXTURE_TEST_CASE(blockfilter_index_parallel_initial_sync, BuildChainTestingSetup)
+{
+    BlockFilterIndex filter_index(interfaces::MakeChain(m_node), BlockFilterType::BASIC, 1 << 20, true);
+
+    const CBlockIndex* tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
+    for (size_t i = 0; i < 5000; i++) {
+        CreateAndProcessBlock({}, GetScriptForDestination(PKHash(coinbaseKey.GetPubKey())));
+    }
+
+    tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
+    BOOST_REQUIRE(tip->nHeight == 5100);
+
+    // Index filters
+    BOOST_CHECK(!filter_index.BlockUntilSyncedToCurrentChain());
+    BOOST_REQUIRE(filter_index.Start());
+
+    // Allow filter index to catch up with the block index.
+    constexpr int64_t timeout_ms = 10 * 1000;
+    int64_t time_start = GetTimeMillis();
+    while (!filter_index.BlockUntilSyncedToCurrentChain()) {
+        BOOST_REQUIRE(time_start + timeout_ms > GetTimeMillis());
+        UninterruptibleSleep(std::chrono::milliseconds{200});
+    }
+
+    // Check that filter index has all blocks that were in the chain before it started.
+    {
+        uint256 last_header;
+        LOCK(cs_main);
+        const CBlockIndex* block_index;
+        for (block_index = m_node.chainman->ActiveChain().Genesis();
+             block_index != nullptr;
+             block_index = m_node.chainman->ActiveChain().Next(block_index)) {
+            CheckFilterLookups(filter_index, block_index, last_header);
+        }
+    }
+}
+
 BOOST_FIXTURE_TEST_CASE(blockfilter_index_init_destroy, BasicTestingSetup)
 {
     BlockFilterIndex* filter_index;

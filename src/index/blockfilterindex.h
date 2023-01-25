@@ -44,6 +44,10 @@ private:
 
     bool Write(const BlockFilter& filter, uint32_t block_height, const uint256& header);
 
+    bool ProcessFilters(const std::vector<std::pair<BlockFilter, uint32_t>>& filters, uint256& last_header);
+
+    void ThreadSync() override;
+
 protected:
     bool CustomInit(const std::optional<interfaces::BlockKey>& block) override;
 

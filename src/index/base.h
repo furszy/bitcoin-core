@@ -14,6 +14,7 @@
 
 class CBlock;
 class CBlockIndex;
+class CChain;
 class Chainstate;
 namespace interfaces {
 class Chain;
@@ -63,9 +64,6 @@ private:
     /// with an empty datadir if, e.g., `-txindex=1` is specified.
     std::atomic<bool> m_synced{false};
 
-    /// The last block in the chain that the index is in sync with.
-    std::atomic<const CBlockIndex*> m_best_block_index{nullptr};
-
     std::thread m_thread_sync;
     CThreadInterrupt m_interrupt;
 
@@ -77,7 +75,7 @@ private:
     /// interrupted with m_interrupt. Once the index gets in sync, the m_synced
     /// flag is set and the BlockConnected ValidationInterface callback takes
     /// over and the sync thread exits.
-    void ThreadSync();
+    virtual void ThreadSync();
 
     /// Write the current index state (eg. chain block locator and subclass-specific items) to disk.
     ///
@@ -98,6 +96,9 @@ protected:
     std::unique_ptr<interfaces::Chain> m_chain;
     Chainstate* m_chainstate{nullptr};
     const std::string m_name;
+
+    /// The last block in the chain that the index is in sync with.
+    std::atomic<const CBlockIndex*> m_best_block_index{nullptr};
 
     void BlockConnected(const std::shared_ptr<const CBlock>& block, const CBlockIndex* pindex) override;
 
@@ -125,6 +126,12 @@ protected:
     /// Update the internal best block index as well as the prune lock.
     void SetBestBlockIndex(const CBlockIndex* block);
 
+    bool WasInterrupted() { return m_interrupt.operator bool(); }
+
+    bool InnerCommit() { return Commit(); }
+
+    void SetSynced() { m_synced = true; }
+
 public:
     BaseIndex(std::unique_ptr<interfaces::Chain> chain, std::string name);
     /// Destructor interrupts sync thread if running and blocks until it exits.
@@ -149,5 +156,7 @@ public:
     /// Get a summary of the index and its state.
     IndexSummary GetSummary() const;
 };
+
+const CBlockIndex* NextSyncBlock(const CBlockIndex* pindex_prev, CChain& chain) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
 #endif // BITCOIN_INDEX_BASE_H

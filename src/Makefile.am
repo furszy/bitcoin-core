@@ -162,6 +162,7 @@ BITCOIN_CORE_H = \
   index/coinstatsindex.h \
   index/disktxpos.h \
   index/txindex.h \
+  index/util.h \
   indirectmap.h \
   init.h \
   init/common.h \

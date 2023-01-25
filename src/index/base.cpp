@@ -4,19 +4,17 @@
 
 #include <chainparams.h>
 #include <index/base.h>
+#include <index/util.h>
 #include <interfaces/chain.h>
 #include <kernel/chain.h>
 #include <node/blockstorage.h>
 #include <node/context.h>
-#include <node/interface_ui.h>
-#include <shutdown.h>
 #include <tinyformat.h>
 #include <util/syscall_sandbox.h>
 #include <util/system.h>
 #include <util/thread.h>
 #include <util/translation.h>
 #include <validation.h> // For g_chainman
-#include <warnings.h>
 
 #include <string>
 #include <utility>
@@ -24,19 +22,6 @@
 using node::ReadBlockFromDisk;
 
 constexpr uint8_t DB_BEST_BLOCK{'B'};
-
-constexpr auto SYNC_LOG_INTERVAL{30s};
-constexpr auto SYNC_LOCATOR_WRITE_INTERVAL{30s};
-
-template <typename... Args>
-static void FatalError(const char* fmt, const Args&... args)
-{
-    std::string strMessage = tfm::format(fmt, args...);
-    SetMiscWarning(Untranslated(strMessage));
-    LogPrintf("*** %s\n", strMessage);
-    AbortError(_("A fatal internal error occurred, see debug.log for details"));
-    StartShutdown();
-}
 
 CBlockLocator GetLocator(interfaces::Chain& chain, const uint256& block_hash)
 {
@@ -130,7 +115,7 @@ bool BaseIndex::Init()
     return true;
 }
 
-static const CBlockIndex* NextSyncBlock(const CBlockIndex* pindex_prev, CChain& chain) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
+const CBlockIndex* NextSyncBlock(const CBlockIndex* pindex_prev, CChain& chain) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     AssertLockHeld(cs_main);
 

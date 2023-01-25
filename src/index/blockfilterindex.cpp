@@ -7,9 +7,15 @@
 #include <dbwrapper.h>
 #include <hash.h>
 #include <index/blockfilterindex.h>
+#include <index/util.h>
 #include <node/blockstorage.h>
+#include <util/syscall_sandbox.h>
 #include <util/system.h>
+#include <util/thread.h>
 #include <validation.h>
+#include <scheduler.h>
+
+#include <future>
 
 using node::UndoReadFromDisk;
 
@@ -266,6 +272,19 @@ bool BlockFilterIndex::Write(const BlockFilter& filter, uint32_t block_height, c
     return true;
 }
 
+bool BlockFilterIndex::ProcessFilters(const std::vector<std::pair<BlockFilter, uint32_t>>& filters, uint256& last_header)
+{
+    auto it = filters.rbegin();
+    while (it != filters.rend()) {
+        const auto& [filter, height] = *it;
+        uint256 header = filter.ComputeHeader(last_header);
+        if (!Write(filter, height, header)) return error("%s: error writings filters, shutting down block filters index", __func__);
+        last_header = header;
+        it++;
+    }
+    return true;
+}
+
 static bool CopyHeightIndexToHashIndex(CDBIterator& db_it, CDBBatch& batch,
                                        const std::string& index_name,
                                        int start_height, int stop_height)
@@ -311,6 +330,149 @@ bool BlockFilterIndex::CustomRewind(const interfaces::BlockKey& current_tip, con
     if (!m_db->WriteBatch(batch)) return false;
 
     return true;
+}
+
+static std::optional<BlockFilter> CreateBlockFilter(const CBlockIndex* pindex, const CChainParams& params)
+{
+    CBlock block;
+    if (pindex->nHeight == 0) {
+        block = params.GenesisBlock();
+    } else if (!node::ReadBlockFromDisk(block, pindex, params.GetConsensus())) {
+        FatalError("%s: Failed to read block %s from disk",
+                   __func__, pindex->GetBlockHash().ToString());
+        return std::nullopt;
+    }
+
+    CBlockUndo block_undo;
+    if (pindex->nHeight > 0 && !node::UndoReadFromDisk(block_undo, pindex)) {
+        FatalError("%s: Failed to read block %s from disk",
+                   __func__, pindex->GetBlockHash().ToString());
+        return std::nullopt;
+    }
+
+    return BlockFilter(BlockFilterType::BASIC, block, block_undo);
+}
+
+static std::vector<std::pair<BlockFilter, uint32_t>> CreateFilters(const CBlockIndex* it_start, const CBlockIndex* it_end, const CChainParams& params)
+{
+    const CBlockIndex* end = it_end;
+    std::vector<std::pair<BlockFilter, uint32_t>> filters;
+    do {
+        auto op_filter = CreateBlockFilter(end, params);
+        if (!op_filter) throw std::runtime_error("Error creating block filter"); // throw error..
+        filters.emplace_back(std::make_pair(*op_filter, end->nHeight));
+        end = end->pprev;
+    } while (end && it_start->pprev != end);
+
+    return filters;
+}
+
+void BlockFilterIndex::ThreadSync()
+{
+    SetSyscallSandboxPolicy(SyscallSandboxPolicy::TX_INDEX);
+    if (GetSummary().synced) return;
+
+    std::chrono::steady_clock::time_point last_log_time{0s};
+    std::chrono::steady_clock::time_point last_locator_write_time{0s};
+
+    const uint16_t FILTERS_PER_WORKER = 1000;
+    const uint16_t WORKERS_COUNT = 4;
+
+    auto& chain_params = Params();
+    const CBlockIndex* pindex = WITH_LOCK(::cs_main, return NextSyncBlock(m_best_block_index.load(), m_chainstate->m_chain));
+    int chain_height_at_startup = m_chainstate->m_chain.Height();
+    bool from_genesis = !pindex && chain_height_at_startup > FILTERS_PER_WORKER * WORKERS_COUNT;
+    uint256 last_header;
+
+    std::unique_ptr<CScheduler> workers[WORKERS_COUNT];
+    for (int i = 0; i < WORKERS_COUNT; i++) {
+        workers[i] = std::make_unique<CScheduler>();
+        auto& worker = workers[i];
+        worker->m_service_thread = std::thread(util::TraceThread, "index_blockfilter_worker" + std::to_string(i), [&] { worker->serviceQueue(); });
+    }
+
+    while (true) {
+        if (WasInterrupted()) {
+            SetBestBlockIndex(pindex);
+            // No need to handle errors in Commit. If it fails, the error will be already be
+            // logged. The best way to recover is to continue, as index cannot be corrupted by
+            // a missed commit to disk for an advanced index state.
+            InnerCommit();
+            return;
+        }
+
+        // If we are far from the tip, let's process a batch of blocks
+        // Either we sync from scratch or we are far enough from the tip to perform parallel indexing
+        if (from_genesis || (pindex && chain_height_at_startup > pindex->nHeight + FILTERS_PER_WORKER * WORKERS_COUNT)) {
+            // Round result container
+            std::map<int, std::promise<std::vector<std::pair<BlockFilter, uint32_t>>>> map_filters;
+
+            // Parallelize work
+            const CBlockIndex* it_start = pindex;
+            for (int worker_pos = 0; worker_pos < WORKERS_COUNT; worker_pos++) {
+                const CBlockIndex* it_end =  WITH_LOCK(::cs_main, return m_chainstate->m_chain[it_start->nHeight + FILTERS_PER_WORKER]);
+
+                // Process
+                auto& promise = map_filters[worker_pos];
+                workers[worker_pos]->scheduleFromNow([it_start, it_end, &chain_params, &promise](){
+                    promise.set_value(CreateFilters(it_start, it_end, chain_params));
+                }, std::chrono::milliseconds{0});
+
+                // Update iterator
+                it_start = WITH_LOCK(::cs_main, return NextSyncBlock(it_end, m_chainstate->m_chain));
+            }
+
+            // todo: add active-wait: keep processing filters until all the workers finish
+            // Wait until workers finish processing (could continue processing filters here too..)
+            // And process them in order.
+            for (int worker_pos = 0; worker_pos < WORKERS_COUNT; worker_pos++) {
+                auto& promise = map_filters[worker_pos];
+                auto future = promise.get_future();
+                future.wait();
+                if (!ProcessFilters(future.get(), last_header)) return;
+            }
+
+            // Keep moving
+            pindex = it_start;
+
+            // commit changes
+            auto current_time{std::chrono::steady_clock::now()};
+            if (last_log_time + SYNC_LOG_INTERVAL < current_time) {
+                LogPrintf("Syncing %s with block chain from height %d\n", GetName(), pindex->pprev->nHeight);
+                last_log_time = current_time;
+            }
+
+            if (last_locator_write_time + SYNC_LOCATOR_WRITE_INTERVAL < current_time) {
+                SetBestBlockIndex(pindex->pprev);
+                last_locator_write_time = current_time;
+                // No need to handle errors in Commit. See rationale above.
+                InnerCommit();
+            }
+
+        } else {
+            // The chain isn't long enough to parallelize work
+            // Process single filters and move forward
+            if (!ProcessFilters(CreateFilters(pindex, pindex, chain_params), last_header)) return;
+            const CBlockIndex* next = WITH_LOCK(::cs_main, return NextSyncBlock(pindex, m_chainstate->m_chain));
+            if (!next) {
+                SetBestBlockIndex(pindex);
+                SetSynced();
+                // No need to handle errors in Commit. See rationale above.
+                InnerCommit();
+                break;
+            }
+
+            // Move forward
+            pindex = next;
+        }
+    }
+
+    // Shutdown workers
+    for (int worker_pos = 0; worker_pos < WORKERS_COUNT; worker_pos++) {
+        auto& worker = workers[worker_pos];
+        worker->StopWhenDrained();
+        worker.reset(nullptr);
+    }
 }
 
 static bool LookupOne(const CDBWrapper& db, const CBlockIndex* block_index, DBVal& result)
