@@ -18,6 +18,14 @@ std::string CBlockIndex::ToString() const
                      pprev, nHeight, hashMerkleRoot.ToString(), GetBlockHash().ToString());
 }
 
+void CBlockIndex::SetFileData(int file_num, int data_pos, int undo_pos)
+{
+    LOCK(*cs_data);
+    nFile = file_num;
+    nDataPos = data_pos;
+    nUndoPos = undo_pos;
+}
+
 void CChain::SetTip(CBlockIndex& block)
 {
     CBlockIndex* pindex = &block;

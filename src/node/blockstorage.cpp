@@ -124,12 +124,10 @@ void BlockManager::PruneOneBlockFile(const int fileNumber)
 
     for (auto& entry : m_block_index) {
         CBlockIndex* pindex = &entry.second;
-        if (pindex->nFile == fileNumber) {
+        if (pindex->GetFileNum() == fileNumber) {
             pindex->nStatus &= ~BLOCK_HAVE_DATA;
             pindex->nStatus &= ~BLOCK_HAVE_UNDO;
-            pindex->nFile = 0;
-            pindex->nDataPos = 0;
-            pindex->nUndoPos = 0;
+            pindex->SetFileData(/*file_num=*/-1, /*data_pos=*/0, /*undo_pos=*/0);
             m_dirty_blockindex.insert(pindex);
 
             // Prune from m_blocks_unlinked -- any block we prune would have
@@ -345,9 +343,15 @@ bool BlockManager::LoadBlockIndexDB(const Consensus::Params& consensus_params)
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
     std::set<int> setBlkDataFiles;
-    for (const auto& [_, block_index] : m_block_index) {
+    for (auto& [_, block_index] : m_block_index) {
         if (block_index.nStatus & BLOCK_HAVE_DATA) {
-            setBlkDataFiles.insert(block_index.nFile);
+            setBlkDataFiles.insert(block_index.GetFileNum());
+        } else {
+            // In case we don't have the block, the position must be -1.
+            // (applies to older clients that set 'nFile=0' during pruning)
+            if (block_index.GetFileNum() == 0) {
+                block_index.SetFileData(/*file_num=*/-1, /*data_pos=*/0, /*undo_pos=*/0);
+            }
         }
     }
     for (std::set<int>::iterator it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); it++) {
@@ -482,8 +486,10 @@ static bool UndoWriteToDisk(const CBlockUndo& blockundo, FlatFilePos& pos, const
 
 bool UndoReadFromDisk(CBlockUndo& blockundo, const CBlockIndex* pindex)
 {
-    const FlatFilePos pos{WITH_LOCK(::cs_main, return pindex->GetUndoPos())};
+    if (pindex->nHeight == 0) return false; // nothing to do
 
+    LOCK(*pindex->cs_data); // keep lock until we finish reading data from disk
+    const FlatFilePos pos = pindex->GetFilePos(/*is_undo=*/true);
     if (pos.IsNull()) {
         return error("%s: no undo data available", __func__);
     }
@@ -696,7 +702,7 @@ bool BlockManager::WriteUndoDataForBlock(const CBlockUndo& blockundo, BlockValid
     // Write undo information to disk
     if (pindex->GetUndoPos().IsNull()) {
         FlatFilePos _pos;
-        if (!FindUndoPos(state, pindex->nFile, _pos, ::GetSerializeSize(blockundo, CLIENT_VERSION) + 40)) {
+        if (!FindUndoPos(state, pindex->GetFileNum(), _pos, ::GetSerializeSize(blockundo, CLIENT_VERSION) + 40)) {
             return error("ConnectBlock(): FindUndoPos failed");
         }
         if (!UndoWriteToDisk(blockundo, _pos, pindex->pprev->GetBlockHash(), chainparams.MessageStart())) {
@@ -712,7 +718,7 @@ bool BlockManager::WriteUndoDataForBlock(const CBlockUndo& blockundo, BlockValid
         }
 
         // update nUndoPos in block index
-        pindex->nUndoPos = _pos.nPos;
+        pindex->SetUndoPos(_pos.nPos);
         pindex->nStatus |= BLOCK_HAVE_UNDO;
         m_dirty_blockindex.insert(pindex);
     }
@@ -752,10 +758,13 @@ bool ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::P
 
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams)
 {
-    const FlatFilePos block_pos{WITH_LOCK(cs_main, return pindex->GetBlockPos())};
-
-    if (!ReadBlockFromDisk(block, block_pos, consensusParams)) {
-        return false;
+    FlatFilePos block_pos;
+    {
+        LOCK(*pindex->cs_data); // keep lock until we finish reading the block from disk
+        block_pos = pindex->GetFilePos(/*is_undo=*/false);
+        if (!ReadBlockFromDisk(block, block_pos, consensusParams)) {
+            return false;
+        }
     }
     if (block.GetHash() != pindex->GetBlockHash()) {
         return error("ReadBlockFromDisk(CBlock&, CBlockIndex*): GetHash() doesn't match index for %s at %s",
