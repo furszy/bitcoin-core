@@ -6,18 +6,19 @@
 
 #include <chainparams.h>
 #include <node/blockstorage.h>
-#include <validation.h>
 
 using node::ReadBlockFromDisk;
 using node::UndoReadFromDisk;
 
 bool ComputeFilter(BlockFilterType filter_type, const CBlockIndex* block_index, BlockFilter& filter)
 {
-    LOCK(::cs_main);
-
     CBlock block;
-    if (!ReadBlockFromDisk(block, block_index->GetBlockPos(), Params().GetConsensus())) {
-        return false;
+
+    {
+        LOCK_SHARED(g_cs_blockindex_data); // keep lock until we finish reading the block from disk
+        if (!ReadBlockFromDisk(block, block_index->GetFilePos(/*is_undo=*/false), Params().GetConsensus())) {
+            return false;
+        }
     }
 
     CBlockUndo block_undo;
