@@ -162,14 +162,16 @@ public:
     //! height of the entry in the chain. The genesis block has height 0
     int nHeight{0};
 
+    const std::shared_ptr<Mutex> cs_data = std::make_shared<Mutex>();
+
     //! Which # file this block is stored in (blk?????.dat)
-    int nFile GUARDED_BY(::cs_main){-1};
+    int nFile GUARDED_BY(*cs_data){-1};
 
     //! Byte offset within blk?????.dat where this block's data is stored
-    unsigned int nDataPos GUARDED_BY(::cs_main){0};
+    unsigned int nDataPos GUARDED_BY(*cs_data){0};
 
     //! Byte offset within rev?????.dat where this block's undo data is stored
-    unsigned int nUndoPos GUARDED_BY(::cs_main){0};
+    unsigned int nUndoPos GUARDED_BY(*cs_data){0};
 
     //! (memory only) Total amount of work (expected number of hashes) in the chain up to and including this block
     arith_uint256 nChainWork{};
@@ -221,26 +223,35 @@ public:
     {
     }
 
-    FlatFilePos GetBlockPos() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+    void SetFileData(int file_num, int data_pos, int undo_pos) EXCLUSIVE_LOCKS_REQUIRED(!*cs_data);
+    void SetUndoPos(int undo_pos) EXCLUSIVE_LOCKS_REQUIRED(!*cs_data) { WITH_LOCK(*cs_data, nUndoPos = undo_pos); }
+
+    int GetFileNum() const EXCLUSIVE_LOCKS_REQUIRED(!*cs_data) { return WITH_LOCK(*cs_data, return nFile); }
+    int GetDataPos() const EXCLUSIVE_LOCKS_REQUIRED(!*cs_data) { return WITH_LOCK(*cs_data, return nDataPos); }
+
+    FlatFilePos GetFilePos(bool is_undo) const EXCLUSIVE_LOCKS_REQUIRED(*cs_data)
     {
-        AssertLockHeld(::cs_main);
+        AssertLockHeld(*cs_data);
         FlatFilePos ret;
-        if (nStatus & BLOCK_HAVE_DATA) {
+        if (nFile >= 0) {
             ret.nFile = nFile;
-            ret.nPos = nDataPos;
+            ret.nPos = is_undo ? nUndoPos : nDataPos;
         }
         return ret;
     }
 
-    FlatFilePos GetUndoPos() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+    FlatFilePos GetBlockPos() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main, !*cs_data)
     {
         AssertLockHeld(::cs_main);
-        FlatFilePos ret;
-        if (nStatus & BLOCK_HAVE_UNDO) {
-            ret.nFile = nFile;
-            ret.nPos = nUndoPos;
-        }
-        return ret;
+        LOCK(*cs_data);
+        return nStatus & BLOCK_HAVE_DATA ? GetFilePos(/*is_undo=*/false) : FlatFilePos{};
+    }
+
+    FlatFilePos GetUndoPos() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main, !*cs_data)
+    {
+        AssertLockHeld(::cs_main);
+        LOCK(*cs_data);
+        return nStatus & BLOCK_HAVE_UNDO ? GetFilePos(/*is_undo=*/true) : FlatFilePos{};
     }
 
     CBlockHeader GetBlockHeader() const
@@ -402,6 +413,7 @@ public:
         READWRITE(VARINT_MODE(obj.nHeight, VarIntMode::NONNEGATIVE_SIGNED));
         READWRITE(VARINT(obj.nStatus));
         READWRITE(VARINT(obj.nTx));
+        LOCK(*obj.cs_data);
         if (obj.nStatus & (BLOCK_HAVE_DATA | BLOCK_HAVE_UNDO)) READWRITE(VARINT_MODE(obj.nFile, VarIntMode::NONNEGATIVE_SIGNED));
         if (obj.nStatus & BLOCK_HAVE_DATA) READWRITE(VARINT(obj.nDataPos));
         if (obj.nStatus & BLOCK_HAVE_UNDO) READWRITE(VARINT(obj.nUndoPos));
