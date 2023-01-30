@@ -213,6 +213,22 @@ size_t BlockFilterIndex::WriteFilterToDisk(FlatFilePos& pos, const BlockFilter& 
     return data_size;
 }
 
+std::optional<uint256> BlockFilterIndex::ReadHeader(int height, const uint256& expected_block_hash)
+{
+    std::pair<uint256, DBVal> read_out;
+    if (!m_db->Read(DBHeightKey(height), read_out)) {
+        return std::nullopt;
+    }
+
+    if (read_out.first != expected_block_hash) {
+        error("%s: previous block header belongs to unexpected block %s; expected %s",
+              __func__, read_out.first.ToString(), expected_block_hash.ToString());
+        return std::nullopt;
+    }
+
+    return read_out.second.header;
+}
+
 bool BlockFilterIndex::CustomAppend(const interfaces::BlockInfo& block)
 {
     CBlockUndo block_undo;
@@ -226,18 +242,9 @@ bool BlockFilterIndex::CustomAppend(const interfaces::BlockInfo& block)
             return false;
         }
 
-        std::pair<uint256, DBVal> read_out;
-        if (!m_db->Read(DBHeightKey(block.height - 1), read_out)) {
-            return false;
-        }
-
-        uint256 expected_block_hash = *Assert(block.prev_hash);
-        if (read_out.first != expected_block_hash) {
-            return error("%s: previous block header belongs to unexpected block %s; expected %s",
-                         __func__, read_out.first.ToString(), expected_block_hash.ToString());
-        }
-
-        prev_header = read_out.second.header;
+        auto op_prev_header = ReadHeader(block.height - 1, *Assert(block.prev_hash));
+        if (!op_prev_header) return false;
+        prev_header = *op_prev_header;
     }
 
     BlockFilter filter(m_filter_type, *Assert(block.data), block_undo);
