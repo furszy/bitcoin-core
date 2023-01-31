@@ -127,7 +127,7 @@ void BlockManager::PruneOneBlockFile(const int fileNumber)
         if (pindex->nFile == fileNumber) {
             pindex->nStatus &= ~BLOCK_HAVE_DATA;
             pindex->nStatus &= ~BLOCK_HAVE_UNDO;
-            pindex->nFile = 0;
+            pindex->nFile = -1;
             pindex->nDataPos = 0;
             pindex->nUndoPos = 0;
             m_dirty_blockindex.insert(pindex);
@@ -345,9 +345,15 @@ bool BlockManager::LoadBlockIndexDB(const Consensus::Params& consensus_params)
     // Check presence of blk files
     LogPrintf("Checking all blk files are present...\n");
     std::set<int> setBlkDataFiles;
-    for (const auto& [_, block_index] : m_block_index) {
+    for (auto& [_, block_index] : m_block_index) {
         if (block_index.nStatus & BLOCK_HAVE_DATA) {
             setBlkDataFiles.insert(block_index.nFile);
+        } else {
+            // In case we don't have the block, the position must be -1.
+            // (applies to older clients that set 'nFile=0' during pruning)
+            if (block_index.nFile == 0) {
+                block_index.nFile = -1;
+            }
         }
     }
     for (std::set<int>::iterator it = setBlkDataFiles.begin(); it != setBlkDataFiles.end(); it++) {
