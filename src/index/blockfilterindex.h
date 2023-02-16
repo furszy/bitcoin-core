@@ -40,6 +40,9 @@ private:
     /** cache of block hash to filter header, to avoid disk access when responding to getcfcheckpt. */
     std::unordered_map<uint256, uint256, FilterHeaderHasher> m_headers_cache GUARDED_BY(m_cs_headers_cache);
 
+    // Last computed header to avoid disk reads at every new block.
+    uint256 last_header{};
+
     bool AllowPrune() const override { return true; }
 
     bool Write(const BlockFilter& filter, uint32_t block_height, const uint256& header);
