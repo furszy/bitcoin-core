@@ -240,19 +240,8 @@ std::optional<uint256> BlockFilterIndex::ReadHeader(int height, const uint256& e
 
 bool BlockFilterIndex::CustomAppend(const interfaces::BlockInfo& block)
 {
-    CBlockUndo block_undo;
-
-    if (block.height > 0) {
-        // pindex variable gives indexing code access to node internals. It
-        // will be removed in upcoming commit
-        const CBlockIndex* pindex = WITH_LOCK(cs_main, return m_chainstate->m_blockman.LookupBlockIndex(block.hash));
-        if (!m_chainstate->m_blockman.UndoReadFromDisk(block_undo, *pindex)) {
-            return false;
-        }
-    }
-
+    const CBlockUndo& block_undo = block.height > 0 ? *Assert(block.undo_data) : CBlockUndo();
     BlockFilter filter(m_filter_type, *Assert(block.data), block_undo);
-
     const uint256& header = filter.ComputeHeader(last_header);
     bool res = Write(filter, block.height, header);
     if (res) last_header = header; // update last header
