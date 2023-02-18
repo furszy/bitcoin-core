@@ -29,13 +29,14 @@ constexpr auto SYNC_LOG_INTERVAL{30s};
 constexpr auto SYNC_LOCATOR_WRITE_INTERVAL{30s};
 
 template <typename... Args>
-static void FatalError(const char* fmt, const Args&... args)
+static bool FatalError(const char* fmt, const Args&... args)
 {
     std::string strMessage = tfm::format(fmt, args...);
     SetMiscWarning(Untranslated(strMessage));
     LogPrintf("*** %s\n", strMessage);
     AbortError(_("A fatal internal error occurred, see debug.log for details"));
     StartShutdown();
+    return false;
 }
 
 CBlockLocator GetLocator(interfaces::Chain& chain, const uint256& block_hash)
@@ -146,6 +147,36 @@ static const CBlockIndex* NextSyncBlock(const CBlockIndex* pindex_prev, CChain& 
     return chain.Next(chain.FindFork(pindex_prev));
 }
 
+bool BaseIndex::ProcessBlock(const CBlockIndex* pindex, const Consensus::Params& consensus_params, const CBlock* block_data)
+{
+    interfaces::BlockInfo block_info = kernel::MakeBlockInfo(pindex, block_data);
+
+    CBlock block;
+    if (!block_data) { // disk lookup if block data wasn't provided
+        if (!ReadBlockFromDisk(block, pindex, consensus_params)) {
+            return FatalError("%s: Failed to read block %s from disk",
+                              __func__, pindex->GetBlockHash().ToString());
+        }
+        block_info.data = &block;
+    }
+
+    CBlockUndo block_undo;
+    if (RequiresBlockUndoData()) {
+        if (pindex->nHeight > 0 && !node::UndoReadFromDisk(block_undo, pindex)) {
+            return FatalError("%s: Failed to read undo block data %s from disk",
+                              __func__, pindex->GetBlockHash().ToString());
+        }
+        block_info.undo_data = &block_undo;
+    }
+
+    if (!CustomAppend(block_info)) {
+        return FatalError("%s: Failed to write block %s to index database",
+                   __func__, pindex->GetBlockHash().ToString());
+    }
+
+    return true;
+}
+
 void BaseIndex::ThreadSync()
 {
     SetSyscallSandboxPolicy(SyscallSandboxPolicy::TX_INDEX);
@@ -195,20 +226,7 @@ void BaseIndex::ThreadSync()
                 Commit();
             }
 
-            CBlock block;
-            interfaces::BlockInfo block_info = kernel::MakeBlockInfo(pindex);
-            if (!ReadBlockFromDisk(block, pindex, consensus_params)) {
-                FatalError("%s: Failed to read block %s from disk",
-                           __func__, pindex->GetBlockHash().ToString());
-                return;
-            } else {
-                block_info.data = &block;
-            }
-            if (!CustomAppend(block_info)) {
-                FatalError("%s: Failed to write block %s to index database",
-                           __func__, pindex->GetBlockHash().ToString());
-                return;
-            }
+            if (!ProcessBlock(pindex, consensus_params)) break; // error logged internally
         }
     }
 
@@ -294,17 +312,13 @@ void BaseIndex::BlockConnected(const std::shared_ptr<const CBlock>& block, const
             return;
         }
     }
-    interfaces::BlockInfo block_info = kernel::MakeBlockInfo(pindex, block.get());
-    if (CustomAppend(block_info)) {
+
+    if (ProcessBlock(pindex, Params().GetConsensus())) {
         // Setting the best block index is intentionally the last step of this
         // function, so BlockUntilSyncedToCurrentChain callers waiting for the
         // best block index to be updated can rely on the block being fully
         // processed, and the index object being safe to delete.
         SetBestBlockIndex(pindex);
-    } else {
-        FatalError("%s: Failed to write block %s to index",
-                   __func__, pindex->GetBlockHash().ToString());
-        return;
     }
 }
 

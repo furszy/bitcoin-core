@@ -11,8 +11,6 @@
 #include <util/system.h>
 #include <validation.h>
 
-using node::UndoReadFromDisk;
-
 /* The index database stores three items for each block: the disk location of the encoded filter,
  * its dSHA256 hash, and the header. Those belonging to blocks on the active chain are indexed by
  * height, and those belonging to blocks that have been reorganized out of the active chain are
@@ -240,19 +238,8 @@ std::optional<uint256> BlockFilterIndex::ReadHeader(int height, const uint256& e
 
 bool BlockFilterIndex::CustomAppend(const interfaces::BlockInfo& block)
 {
-    CBlockUndo block_undo;
-
-    if (block.height > 0) {
-        // pindex variable gives indexing code access to node internals. It
-        // will be removed in upcoming commit
-        const CBlockIndex* pindex = WITH_LOCK(cs_main, return m_chainstate->m_blockman.LookupBlockIndex(block.hash));
-        if (!UndoReadFromDisk(block_undo, pindex)) {
-            return false;
-        }
-    }
-
+    const CBlockUndo& block_undo = block.height > 0 ? *Assert(block.undo_data) : CBlockUndo();
     BlockFilter filter(m_filter_type, *Assert(block.data), block_undo);
-
     const uint256& header = filter.ComputeHeader(last_header);
     bool res = Write(filter, block.height, header);
     if (res) last_header = header; // update last header
