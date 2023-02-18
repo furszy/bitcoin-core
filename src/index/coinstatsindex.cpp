@@ -120,12 +120,7 @@ bool CoinStatsIndex::CustomAppend(const interfaces::BlockInfo& block)
 
     // Ignore genesis block
     if (block.height > 0) {
-        // pindex variable gives indexing code access to node internals. It
-        // will be removed in upcoming commit
-        const CBlockIndex* pindex = WITH_LOCK(cs_main, return m_chainstate->m_blockman.LookupBlockIndex(block.hash));
-        if (!m_chainstate->m_blockman.ReadBlockUndo(block_undo, *pindex)) {
-            return false;
-        }
+        block_undo = *Assert(block.undo_data);
 
         std::pair<uint256, DBVal> read_out;
         if (!m_db->Read(DBHeightKey(block.height - 1), read_out)) {
@@ -389,6 +384,7 @@ bool CoinStatsIndex::CustomCommit(CDBBatch& batch)
 interfaces::Chain::NotifyOptions CoinStatsIndex::CustomOptions()
 {
     interfaces::Chain::NotifyOptions options;
+    options.connect_undo_data = true;
     options.disconnect_data = true;
     options.disconnect_undo_data = true;
     return options;
