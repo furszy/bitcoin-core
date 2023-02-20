@@ -228,10 +228,10 @@ void BaseIndex::ThreadSync()
             const CBlockIndex* it_start = pindex_next;
 
             if (parallel_sync_enabled) {
-                int max_blocks_to_sync = INDEX_WORK_PER_CHUNK * m_thread_pool->WorkersCount() + INDEX_WORK_PER_CHUNK; // extra 'INDEX_WORK_PER_CHUNK' due the active-wait.
+                int max_blocks_to_sync = m_tasks_per_worker * m_thread_pool->WorkersCount() + m_tasks_per_worker; // extra 'm_tasks_per_worker' due the active-wait.
                 int tip_height = WITH_LOCK(cs_main, return m_chainstate->m_chain.Height());
                 int remaining_blocks = tip_height - pindex_next->nHeight;
-                work_chunk = remaining_blocks > max_blocks_to_sync ? INDEX_WORK_PER_CHUNK : remaining_blocks / (m_thread_pool->WorkersCount() + 1);
+                work_chunk = remaining_blocks > max_blocks_to_sync ? m_tasks_per_worker : remaining_blocks / (m_thread_pool->WorkersCount() + 1);
                 workers_count = m_thread_pool->WorkersCount();
                 if (work_chunk == 0) { // disable parallel sync if we are close to the tip
                     workers_count = 0;

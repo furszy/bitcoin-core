@@ -26,7 +26,8 @@ namespace Consensus {
 
 /** Number of concurrent jobs during the initial sync process */
 const uint16_t INDEX_WORKERS_COUNT = 3;
-const uint16_t INDEX_WORK_PER_CHUNK = 200;
+/** Number of filters created by each worker */
+const uint16_t INDEX_WORK_PER_CHUNK = 1000;
 
 struct IndexSummary {
     std::string name;
@@ -79,6 +80,7 @@ private:
     CThreadInterrupt m_interrupt;
 
     std::shared_ptr<ThreadPool> m_thread_pool;
+    uint16_t m_tasks_per_worker{INDEX_WORK_PER_CHUNK};
 
     /// Read best block locator and check that data needed to sync has not been pruned.
     bool Init();
@@ -187,6 +189,8 @@ public:
 
     /// Stops the instance from staying in sync with blockchain updates.
     void Stop();
+
+    void SetTasksPerWorker(int16_t count) { m_tasks_per_worker = count; }
 
     /// Get a summary of the index and its state.
     IndexSummary GetSummary() const;
