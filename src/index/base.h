@@ -24,7 +24,7 @@ namespace Consensus {
     struct Params;
 }
 
-// TODO: Make this customizable..
+/** Number of concurrent jobs during the initial sync process */
 const uint16_t INDEX_WORKERS_COUNT = 3;
 const uint16_t INDEX_WORK_PER_CHUNK = 200;
 
