@@ -1949,8 +1949,7 @@ bool StartIndexBackgroundSync(NodeContext& node)
 
     // Start threads
     for (auto index : node.indexes) {
-        // todo: Only provide thread pool to indexes that supports parallel sync
-        index->SetThreadPool(thread_pool);
+        if (index->AllowParallelSync()) index->SetThreadPool(thread_pool);
 
         if (!index->StartBackgroundSync()) return false;
     }
