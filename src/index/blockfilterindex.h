@@ -62,6 +62,11 @@ protected:
 
     BaseIndex::DB& GetDB() const LIFETIMEBOUND override { return *m_db; }
 
+    bool AllowParallelSyncEnabled() override { return true; }
+
+    std::any CustomProcessBlock(const interfaces::BlockInfo& block) override;
+    bool CustomPostProcessBlocks(const std::any& obj) override;
+
 public:
     /** Constructs the index, which becomes available to be queried. */
     explicit BlockFilterIndex(std::unique_ptr<interfaces::Chain> chain, BlockFilterType filter_type,
