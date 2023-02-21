@@ -77,6 +77,7 @@
 #include <util/system.h>
 #include <util/thread.h>
 #include <util/threadnames.h>
+#include <util/threadpool.h>
 #include <util/translation.h>
 #include <validation.h>
 #include <validationinterface.h>
@@ -464,6 +465,7 @@ void SetupServerArgs(ArgsManager& argsman)
                  strprintf("Maintain an index of compact filters by block (default: %s, values: %s).", DEFAULT_BLOCKFILTERINDEX, ListBlockFilterTypes()) +
                  " If <type> is not supplied or if <type> = 1, indexes for all known types are enabled.",
                  ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    argsman.AddArg("-indexworkers=<n>", strprintf("Number of worker threads spawned for the initial sync process (default: %d).", 0), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
 
     argsman.AddArg("-addnode=<ip>", strprintf("Add a node to connect to and attempt to keep the connection open (see the addnode RPC help for more info). This option can be specified multiple times to add multiple nodes; connections are limited to %u at a time and are counted separately from the -maxconnections limit.", MAX_ADDNODE_CONNECTIONS), ArgsManager::ALLOW_ANY | ArgsManager::NETWORK_ONLY, OptionsCategory::CONNECTION);
     argsman.AddArg("-asmap=<file>", strprintf("Specify asn mapping used for bucketing of the peers (default: %s). Relative paths will be prefixed by the net-specific datadir location.", DEFAULT_ASMAP_FILENAME), ArgsManager::ALLOW_ANY, OptionsCategory::CONNECTION);
@@ -1577,7 +1579,18 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
     for (const auto& filter_type : g_enabled_filter_types) {
         InitBlockFilterIndex([&]{ return interfaces::MakeChain(node); }, filter_type, cache_sizes.filter_index, false, fReindex);
-        if (!GetBlockFilterIndex(filter_type)->Start()) {
+        BlockFilterIndex* block_filter_index = GetBlockFilterIndex(filter_type);
+
+        if (args.IsArgSet("-indexworkers")) {
+            int index_workers = args.GetIntArg("-indexworkers", 0);
+            if (index_workers < 0 || index_workers > 100) return InitError(_("Invalid -indexworkers arg"));
+
+            std::shared_ptr<ThreadPool> thread_pool = std::make_shared<ThreadPool>(); // TODO: share thread pool across indexes.
+            thread_pool->Start(index_workers);
+            block_filter_index->SetThreadPool(thread_pool);
+        }
+
+        if (!block_filter_index->Start()) {
             return false;
         }
     }
