@@ -15,6 +15,7 @@
 class CBlock;
 class CBlockIndex;
 class Chainstate;
+class ThreadPool;
 namespace interfaces {
 class Chain;
 } // namespace interfaces
@@ -71,6 +72,8 @@ private:
 
     std::thread m_thread_sync;
     CThreadInterrupt m_interrupt;
+
+    std::shared_ptr<ThreadPool> m_thread_pool;
 
     /// Read best block locator and check that data needed to sync has not been pruned.
     bool Init();
@@ -137,6 +140,8 @@ public:
     BaseIndex(std::unique_ptr<interfaces::Chain> chain, std::string name);
     /// Destructor interrupts sync thread if running and blocks until it exits.
     virtual ~BaseIndex();
+
+    void SetThreadPool(const std::shared_ptr<ThreadPool>& thread_pool) { m_thread_pool = thread_pool; }
 
     /// Blocks the current thread until the index is caught up to the current
     /// state of the block chain. This only blocks if the index has gotten in
