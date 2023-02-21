@@ -15,12 +15,16 @@
 class CBlock;
 class CBlockIndex;
 class Chainstate;
+class ThreadPool;
 namespace interfaces {
 class Chain;
 } // namespace interfaces
 namespace Consensus {
     struct Params;
 }
+
+/** Number of concurrent jobs during the initial sync process */
+const int16_t INDEX_WORKERS_COUNT = 0;
 
 struct IndexSummary {
     std::string name;
@@ -74,6 +78,8 @@ private:
 
     std::thread m_thread_sync;
     CThreadInterrupt m_interrupt;
+
+    std::shared_ptr<ThreadPool> m_thread_pool;
 
     /// Sync the index with the block index starting from the current best block.
     /// Intended to be run in its own thread, m_thread_sync, and can be
@@ -140,6 +146,8 @@ public:
     BaseIndex(std::unique_ptr<interfaces::Chain> chain, std::string name);
     /// Destructor interrupts sync thread if running and blocks until it exits.
     virtual ~BaseIndex();
+
+    void SetThreadPool(const std::shared_ptr<ThreadPool>& thread_pool) { m_thread_pool = thread_pool; }
 
     /// Blocks the current thread until the index is caught up to the current
     /// state of the block chain. This only blocks if the index has gotten in
