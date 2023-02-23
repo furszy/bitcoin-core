@@ -488,7 +488,7 @@ static bool UndoWriteToDisk(const CBlockUndo& blockundo, FlatFilePos& pos, const
 
 bool UndoReadFromDisk(CBlockUndo& blockundo, const CBlockIndex* pindex)
 {
-    const FlatFilePos pos{WITH_LOCK(::cs_main, return pindex->GetUndoPos())};
+    const FlatFilePos pos{pindex->GetUndoPos()};
 
     if (pos.IsNull()) {
         return error("%s: no undo data available", __func__);
@@ -758,7 +758,7 @@ bool ReadBlockFromDisk(CBlock& block, const FlatFilePos& pos, const Consensus::P
 
 bool ReadBlockFromDisk(CBlock& block, const CBlockIndex* pindex, const Consensus::Params& consensusParams)
 {
-    const FlatFilePos block_pos{WITH_LOCK(cs_main, return pindex->GetBlockPos())};
+    const FlatFilePos block_pos{pindex->GetBlockPos()};
 
     if (!ReadBlockFromDisk(block, block_pos, consensusParams)) {
         return false;

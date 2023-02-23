@@ -163,13 +163,13 @@ public:
     int nHeight{0};
 
     //! Which # file this block is stored in (blk?????.dat)
-    int nFile GUARDED_BY(::cs_main){-1};
+    std::atomic<int> nFile{-1};
 
     //! Byte offset within blk?????.dat where this block's data is stored
-    unsigned int nDataPos GUARDED_BY(::cs_main){0};
+    unsigned int nDataPos{0};
 
     //! Byte offset within rev?????.dat where this block's undo data is stored
-    unsigned int nUndoPos GUARDED_BY(::cs_main){0};
+    unsigned int nUndoPos{0};
 
     //! (memory only) Total amount of work (expected number of hashes) in the chain up to and including this block
     arith_uint256 nChainWork{};
@@ -221,25 +221,19 @@ public:
     {
     }
 
-    FlatFilePos GetBlockPos() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+    FlatFilePos GetBlockPos() const
     {
-        AssertLockHeld(::cs_main);
         FlatFilePos ret;
-        if (nStatus & BLOCK_HAVE_DATA) {
-            ret.nFile = nFile;
-            ret.nPos = nDataPos;
-        }
+        ret.nFile = nFile;
+        ret.nPos = nDataPos;
         return ret;
     }
 
-    FlatFilePos GetUndoPos() const EXCLUSIVE_LOCKS_REQUIRED(::cs_main)
+    FlatFilePos GetUndoPos() const
     {
-        AssertLockHeld(::cs_main);
         FlatFilePos ret;
-        if (nStatus & BLOCK_HAVE_UNDO) {
-            ret.nFile = nFile;
-            ret.nPos = nUndoPos;
-        }
+        ret.nFile = nFile;
+        ret.nPos = nUndoPos;
         return ret;
     }
 
