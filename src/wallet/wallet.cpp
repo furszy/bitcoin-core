@@ -3967,73 +3967,37 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
 
     // Check the address book data in the same way we did for transactions
     std::vector<CTxDestination> dests_to_delete;
-    for (const auto& addr_pair : m_address_book) {
-        // Labels applied to receiving addresses should go based on IsMine
-        if (addr_pair.second.purpose == "receive") {
-            if (!IsMine(addr_pair.first)) {
-                // Check the address book data is the watchonly wallet's
-                if (data.watchonly_wallet) {
-                    LOCK(data.watchonly_wallet->cs_wallet);
-                    if (data.watchonly_wallet->IsMine(addr_pair.first)) {
-                        // Add to the watchonly. Preserve the labels, purpose, and change-ness
-                        std::string label = addr_pair.second.GetLabel();
-                        std::string purpose = addr_pair.second.purpose;
-                        if (!purpose.empty()) {
-                            data.watchonly_wallet->m_address_book[addr_pair.first].purpose = purpose;
-                        }
-                        if (!addr_pair.second.IsChange()) {
-                            data.watchonly_wallet->m_address_book[addr_pair.first].SetLabel(label);
-                        }
-                        dests_to_delete.push_back(addr_pair.first);
-                        continue;
-                    }
-                }
-                if (data.solvable_wallet) {
-                    LOCK(data.solvable_wallet->cs_wallet);
-                    if (data.solvable_wallet->IsMine(addr_pair.first)) {
-                        // Add to the solvable. Preserve the labels, purpose, and change-ness
-                        std::string label = addr_pair.second.GetLabel();
-                        std::string purpose = addr_pair.second.purpose;
-                        if (!purpose.empty()) {
-                            data.solvable_wallet->m_address_book[addr_pair.first].purpose = purpose;
-                        }
-                        if (!addr_pair.second.IsChange()) {
-                            data.solvable_wallet->m_address_book[addr_pair.first].SetLabel(label);
-                        }
-                        dests_to_delete.push_back(addr_pair.first);
-                        continue;
-                    }
-                }
-                // Not ours, not in watchonly wallet, and not in solvable
-                error = _("Error: Address book data in wallet cannot be identified to belong to migrated wallets");
-                return false;
+    for (const auto& [dest, record] : m_address_book) {
+        // Append "receive" data to other wallets only if not mine.
+        // Labels for everything else ("send") should be cloned to all.
+        bool require_is_mine = record.purpose == "receive" && !IsMine(dest);
+        bool copied = false;
+        for (auto& wallet : {data.watchonly_wallet, data.solvable_wallet}) {
+            if (!wallet) continue;
+
+            LOCK(wallet->cs_wallet);
+            if (require_is_mine && !wallet->IsMine(dest)) continue;
+
+            // Preserve labels, purpose, and change-ness
+            if (!record.purpose.empty()) {
+                wallet->m_address_book[dest].purpose = record.purpose;
             }
-        } else {
-            // Labels for everything else ("send") should be cloned to all
-            if (data.watchonly_wallet) {
-                LOCK(data.watchonly_wallet->cs_wallet);
-                // Add to the watchonly. Preserve the labels, purpose, and change-ness
-                std::string label = addr_pair.second.GetLabel();
-                std::string purpose = addr_pair.second.purpose;
-                if (!purpose.empty()) {
-                    data.watchonly_wallet->m_address_book[addr_pair.first].purpose = purpose;
-                }
-                if (!addr_pair.second.IsChange()) {
-                    data.watchonly_wallet->m_address_book[addr_pair.first].SetLabel(label);
-                }
+            if (!record.IsChange()) {
+                wallet->m_address_book[dest].SetLabel(record.GetLabel());
             }
-            if (data.solvable_wallet) {
-                LOCK(data.solvable_wallet->cs_wallet);
-                // Add to the solvable. Preserve the labels, purpose, and change-ness
-                std::string label = addr_pair.second.GetLabel();
-                std::string purpose = addr_pair.second.purpose;
-                if (!purpose.empty()) {
-                    data.solvable_wallet->m_address_book[addr_pair.first].purpose = purpose;
-                }
-                if (!addr_pair.second.IsChange()) {
-                    data.solvable_wallet->m_address_book[addr_pair.first].SetLabel(label);
-                }
+
+            copied = true;
+            // Only delete destinations that aren't mine and are from another wallet.
+            if (require_is_mine) {
+                dests_to_delete.push_back(dest);
+                break;
             }
+        }
+
+        // Not ours, not in watchonly wallet, and not in solvable
+        if (require_is_mine && !copied) {
+            error = _("Error: Address book data in wallet cannot be identified to belong to migrated wallets");
+            return false;
         }
     }
 
