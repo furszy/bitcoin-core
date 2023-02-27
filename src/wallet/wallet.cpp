@@ -2366,33 +2366,38 @@ DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn, std::vector<uint256
     return DBErrors::LOAD_OK;
 }
 
-bool CWallet::SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& address, const std::string& strName, const std::string& strPurpose)
+bool CWallet::SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& address, const std::optional<std::string>& op_label, const std::string& strPurpose)
 {
+    // Nothing to do if no purpose nor label was provided
+    if (strPurpose.empty() && !op_label) return true;
+
     bool fUpdated = false;
     bool is_mine;
+    std::string record_label;
     {
         LOCK(cs_wallet);
         std::map<CTxDestination, CAddressBookData>::iterator mi = m_address_book.find(address);
         fUpdated = mi != m_address_book.end() && !mi->second.IsChange();
 
         CAddressBookData& record = mi != m_address_book.end() ? mi->second : m_address_book[address];
-        record.SetLabel(strName);
+        if (op_label) record.SetLabel(*op_label); /* set label only if was provided */
         if (!strPurpose.empty()) /* update purpose only if requested */
             record.purpose = strPurpose;
         is_mine = IsMine(address) != ISMINE_NO;
+        record_label = record.GetLabel();
     }
 
     if (!strPurpose.empty() && !batch.WritePurpose(EncodeDestination(address), strPurpose)) {
         WalletLogPrintf("%s error writing purpose\n", __func__);
         return false;
     }
-    if (!batch.WriteName(EncodeDestination(address), strName)) {
+    if (op_label && !batch.WriteName(EncodeDestination(address), *op_label)) {
         WalletLogPrintf("%s error writing name\n", __func__);
         return false;
     }
 
     // Only notify if db writes succeeded
-    NotifyAddressBookChanged(address, strName, is_mine,
+    NotifyAddressBookChanged(address, record_label, is_mine,
                              strPurpose, (fUpdated ? CT_UPDATED : CT_NEW));
     return true;
 }
@@ -3965,6 +3970,24 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
         }
     }
 
+    // Batch db handlers
+    std::unique_ptr<WalletBatch> batch_watch_only;
+    std::unique_ptr<WalletBatch> batch_solvable;
+    if (data.watchonly_wallet) {
+        batch_watch_only = std::make_unique<WalletBatch>(data.watchonly_wallet->GetDatabase());
+        batch_watch_only->TxnBegin();
+    }
+    if (data.solvable_wallet) {
+        batch_solvable = std::make_unique<WalletBatch>(data.solvable_wallet->GetDatabase());
+        batch_solvable->TxnBegin();
+    }
+
+    // Helper vector to pair wallet with db handler
+    std::vector<std::pair<std::shared_ptr<CWallet>, WalletBatch*>> wallets_vec = {
+            {data.watchonly_wallet, batch_watch_only.get()},
+            {data.solvable_wallet, batch_solvable.get()}
+    };
+
     // Check the address book data in the same way we did for transactions
     std::vector<CTxDestination> dests_to_delete;
     for (const auto& [dest, record] : m_address_book) {
@@ -3972,25 +3995,21 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
         // Labels for everything else ("send") should be cloned to all.
         bool require_is_mine = record.purpose == "receive" && !IsMine(dest);
         bool copied = false;
-        for (auto& wallet : {data.watchonly_wallet, data.solvable_wallet}) {
+        for (auto& [wallet, batch] : wallets_vec) {
             if (!wallet) continue;
 
             LOCK(wallet->cs_wallet);
             if (require_is_mine && !wallet->IsMine(dest)) continue;
 
             // Preserve labels, purpose, and change-ness
-            if (!record.purpose.empty()) {
-                wallet->m_address_book[dest].purpose = record.purpose;
-            }
-            if (!record.IsChange()) {
-                wallet->m_address_book[dest].SetLabel(record.GetLabel());
-            }
-
-            copied = true;
-            // Only delete destinations that aren't mine and are from another wallet.
-            if (require_is_mine) {
-                dests_to_delete.push_back(dest);
-                break;
+            const auto& op_label = !record.IsChange() ? std::make_optional(record.GetLabel()) : std::nullopt;
+            if (wallet->SetAddressBookWithDB(*batch, dest, op_label, record.purpose)) {
+                copied = true;
+                // Only delete destinations that aren't mine and are from another wallet.
+                if (require_is_mine) {
+                    dests_to_delete.push_back(dest);
+                    break;
+                }
             }
         }
 
@@ -4001,21 +4020,13 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
         }
     }
 
-    // Persist added address book entries (labels, purpose) for watchonly and solvable wallets
-    auto persist_address_book = [](const CWallet& wallet) {
-        LOCK(wallet.cs_wallet);
-        WalletBatch batch{wallet.GetDatabase()};
-        for (const auto& [destination, addr_book_data] : wallet.m_address_book) {
-            auto address{EncodeDestination(destination)};
-            auto purpose{addr_book_data.purpose};
-            auto label{addr_book_data.GetLabel()};
-            // don't bother writing default values (unknown purpose, empty label)
-            if (purpose != "unknown") batch.WritePurpose(address, purpose);
-            if (!label.empty()) batch.WriteName(address, label);
+    // Persist added address book entries
+    for (auto& [wallet, batch] : wallets_vec) {
+        if (wallet && !batch->TxnCommit()) {
+            error = strprintf(_("Error: address book copy failed for wallet %s"), wallet->GetName());
+            return false;
         }
-    };
-    if (data.watchonly_wallet) persist_address_book(*data.watchonly_wallet);
-    if (data.solvable_wallet) persist_address_book(*data.solvable_wallet);
+    }
 
     // Remove the things to delete
     if (dests_to_delete.size() > 0) {
