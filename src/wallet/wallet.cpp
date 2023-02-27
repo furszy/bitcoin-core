@@ -2812,7 +2812,7 @@ void CWallet::LoadAddrBookEntryLabel(const CTxDestination& dest, const std::stri
     m_address_book[dest].SetLabel(label);
 }
 
-void CWallet::LoadAddrbookEntryPurpose(const CTxDestination& dest, const std::string& purpose)
+void CWallet::LoadAddrBookEntryPurpose(const CTxDestination& dest, const std::string& purpose)
 {
     m_address_book[dest].purpose = purpose;
 }

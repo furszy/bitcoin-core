@@ -349,7 +349,7 @@ ReadKeyValue(CWallet* pwallet, CDataStream& ssKey, CDataStream& ssValue,
             ssKey >> strAddress;
             std::string purpose;
             ssValue >> purpose;
-            pwallet->LoadAddrbookEntryPurpose(DecodeDestination(strAddress), purpose);
+            pwallet->LoadAddrBookEntryPurpose(DecodeDestination(strAddress), purpose);
         } else if (strType == DBKeys::TX) {
             uint256 hash;
             ssKey >> hash;
