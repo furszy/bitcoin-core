@@ -299,7 +299,14 @@ private:
     /** WalletFlags set on this wallet. */
     std::atomic<uint64_t> m_wallet_flags{0};
 
-    bool SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& address, const std::string& strName, const std::string& strPurpose);
+    /**
+     * If the destination doesn't exist, saves the 'address' into the addressbook.
+     * Otherwise, if the destination exists, updates the record label and purpose.
+     *
+     * The 'label' arg is optional to enable empty label strings for destinations.
+     * The 'purpose' will only be updated if the string arg is not empty.
+    **/
+    bool SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& address, const std::optional<std::string>& op_label, const std::string& strPurpose);
 
     //! Unsets a wallet flag and saves it to disk
     void UnsetWalletFlagWithDB(WalletBatch& batch, uint64_t flag);
