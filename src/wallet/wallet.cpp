@@ -1468,8 +1468,36 @@ void CWallet::blockDisconnected(const interfaces::BlockInfo& block)
     // future with a stickier abandoned state or even removing abandontransaction call.
     m_last_block_processed_height = block.height - 1;
     m_last_block_processed = *Assert(block.prev_hash);
+
+    int disconnect_height = block.height;
+
     for (const CTransactionRef& ptx : Assert(block.data)->vtx) {
         SyncTransaction(ptx, TxStateInactive{});
+
+        for (const CTxIn& tx_in : ptx->vin) {
+            // No other wallet transactions conflicted with this transaction
+            if (mapTxSpends.count(tx_in.prevout) <= 1) continue;
+
+            std::pair<TxSpends::const_iterator, TxSpends::const_iterator> range = mapTxSpends.equal_range(tx_in.prevout);
+
+            // For all of the spends that conflict with this transaction
+            for (TxSpends::const_iterator _it = range.first; _it != range.second; ++_it) {
+                CWalletTx& wtx = mapWallet.find(_it->second)->second;
+
+                if (!wtx.isConflicted()) continue;
+
+                auto should_update = [&](CWalletTx& wtx) {
+                    if (!wtx.isConflicted()) return false;
+                    if (wtx.state<TxStateConflicted>()->conflicting_block_height >= disconnect_height) {
+                        wtx.m_state = TxStateInactive{};
+                        return true;
+                    }
+                    return false;
+                };
+
+                RecursiveUpdateTxState(wtx.tx->GetHash(), should_update);
+            }
+        }
     }
 }
 
