@@ -651,7 +651,7 @@ util::Result<SelectionResult> AutomaticCoinSelection(const CWallet& wallet, Coin
     // Coin Selection attempts to select inputs from a pool of eligible UTXOs to fund the
     // transaction at a target feerate. If an attempt fails, more attempts may be made using a more
     // permissive CoinEligibilityFilter.
-    util::Result<SelectionResult> res = [&] {
+    const auto& perform_selection = [&] (const CoinSelectionParams& params) {
         // Place coins eligibility filters on a scope increasing order.
         std::vector<SelectionFilter> ordered_filters{
                 // If possible, fund the transaction with confirmed UTXOs only. Prefer at least six
@@ -685,7 +685,7 @@ util::Result<SelectionResult> AutomaticCoinSelection(const CWallet& wallet, Coin
         }
 
         // Group outputs and map them by coin eligibility filter
-        FilteredOutputGroups filtered_groups = GroupOutputs(wallet, available_coins, coin_selection_params, ordered_filters);
+        FilteredOutputGroups filtered_groups = GroupOutputs(wallet, available_coins, params, ordered_filters);
 
         // Walk-through the filters until the solution gets found.
         // If no solution is found, return the first detailed error (if any).
@@ -695,7 +695,7 @@ util::Result<SelectionResult> AutomaticCoinSelection(const CWallet& wallet, Coin
             auto it = filtered_groups.find(select_filter.filter);
             if (it == filtered_groups.end()) continue;
             if (auto res{AttemptSelection(value_to_select, it->second,
-                                          coin_selection_params, select_filter.allow_mixed_output_types)}) {
+                                          params, select_filter.allow_mixed_output_types)}) {
                 return res; // result found
             } else {
                 // If any specific error message appears here, then something particularly wrong might have happened.
@@ -706,8 +706,27 @@ util::Result<SelectionResult> AutomaticCoinSelection(const CWallet& wallet, Coin
         }
         // Coin Selection failed.
         return res_detailed_errors.empty() ? util::Result<SelectionResult>(util::Error()) : res_detailed_errors.front();
-    }();
+    };
 
+    // Run the selection algorithms twice, one without APS and one with APS. Then compare results.
+    util::Result<SelectionResult> res = perform_selection(coin_selection_params);
+    if (res && !coin_selection_params.m_avoid_partial_spends) {
+        CoinSelectionParams grouped_params = coin_selection_params;
+        grouped_params.m_avoid_partial_spends = true;
+        util::Result<SelectionResult> res_grouped = perform_selection(grouped_params);
+
+        // If the APS result is in-between the accepted window, return it.
+        if (res_grouped) {
+            CAmount ungrouped_fee_needed = coin_selection_params.m_effective_feerate.GetFee(res->GetWeight());
+            CAmount grouped_fee_needed = coin_selection_params.m_effective_feerate.GetFee(res_grouped->GetWeight());
+
+            // if fee of this alternative one is within the range of the max fee, we use this one.
+            const bool use_aps = res_grouped->GetWaste() <= res->GetWaste() + wallet.m_max_aps_fee;
+            wallet.WalletLogPrintf("Fee non-grouped = %lld, grouped = %lld, using %s\n",
+                                   ungrouped_fee_needed, grouped_fee_needed, use_aps ? "grouped" : "non-grouped");
+            if (use_aps) return res_grouped;
+        }
+    }
     return res;
 }
 
@@ -1109,31 +1128,6 @@ util::Result<CreatedTransactionResult> CreateTransaction(
     auto res = CreateTransactionInternal(wallet, vecSend, change_pos, coin_control, sign);
     TRACE4(coin_selection, normal_create_tx_internal, wallet.GetName().c_str(), bool(res),
            res ? res->fee : 0, res ? res->change_pos : 0);
-    if (!res) return res;
-    const auto& txr_ungrouped = *res;
-    // try with avoidpartialspends unless it's enabled already
-    if (txr_ungrouped.fee > 0 /* 0 means non-functional fee rate estimation */ && wallet.m_max_aps_fee > -1 && !coin_control.m_avoid_partial_spends) {
-        TRACE1(coin_selection, attempting_aps_create_tx, wallet.GetName().c_str());
-        CCoinControl tmp_cc = coin_control;
-        tmp_cc.m_avoid_partial_spends = true;
-
-        // Re-use the change destination from the first creation attempt to avoid skipping BIP44 indexes
-        const int ungrouped_change_pos = txr_ungrouped.change_pos;
-        if (ungrouped_change_pos != -1) {
-            ExtractDestination(txr_ungrouped.tx->vout[ungrouped_change_pos].scriptPubKey, tmp_cc.destChange);
-        }
-
-        auto txr_grouped = CreateTransactionInternal(wallet, vecSend, change_pos, tmp_cc, sign);
-        // if fee of this alternative one is within the range of the max fee, we use this one
-        const bool use_aps{txr_grouped.has_value() ? (txr_grouped->fee <= txr_ungrouped.fee + wallet.m_max_aps_fee) : false};
-        TRACE5(coin_selection, aps_create_tx_internal, wallet.GetName().c_str(), use_aps, txr_grouped.has_value(),
-               txr_grouped.has_value() ? txr_grouped->fee : 0, txr_grouped.has_value() ? txr_grouped->change_pos : 0);
-        if (txr_grouped) {
-            wallet.WalletLogPrintf("Fee non-grouped = %lld, grouped = %lld, using %s\n",
-                txr_ungrouped.fee, txr_grouped->fee, use_aps ? "grouped" : "non-grouped");
-            if (use_aps) return txr_grouped;
-        }
-    }
     return res;
 }
 
