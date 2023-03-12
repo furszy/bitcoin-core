@@ -45,17 +45,12 @@ static void addCoin(CoinsResult& coins,
     assert(ret.second);
     CWalletTx& wtx = (*ret.first).second;
     const auto& txout = wtx.tx->vout.at(0);
-    coins.Add(*Assert(OutputTypeFromDestination(dest)),
-              {COutPoint(wtx.GetHash(), 0),
-                   txout,
-                   depth,
-                   CalculateMaximumSignedInputSize(txout, &wallet, /*coin_control=*/nullptr),
-                   /*spendable=*/ true,
-                   /*solvable=*/ true,
-                   /*safe=*/ true,
-                   wtx.GetTxTime(),
-                   is_from_me,
-                   fee_rate});
+    COutput out{COutPoint(wtx.GetHash(), 0), txout, depth,
+                CalculateMaximumSignedInputSize(txout, &wallet, /*coin_control=*/nullptr),
+                /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true,
+                wtx.GetTxTime(), is_from_me};
+    out.SetEffectiveFeerate(fee_rate);
+    coins.Add(*Assert(OutputTypeFromDestination(dest)), out);
 }
 
  CoinSelectionParams makeSelectionParams(FastRandomContext& rand, bool avoid_partial_spends)

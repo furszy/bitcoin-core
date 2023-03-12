@@ -70,7 +70,7 @@ public:
     /** The fee required to spend this output at the consolidation feerate. */
     CAmount long_term_fee{0};
 
-    COutput(const COutPoint& outpoint, const CTxOut& txout, int depth, int input_bytes, bool spendable, bool solvable, bool safe, int64_t time, bool from_me, const std::optional<CFeeRate> feerate = std::nullopt)
+    COutput(const COutPoint& outpoint, const CTxOut& txout, int depth, int input_bytes, bool spendable, bool solvable, bool safe, int64_t time, bool from_me)
         : outpoint{outpoint},
           txout{txout},
           depth{depth},
@@ -79,13 +79,7 @@ public:
           solvable{solvable},
           safe{safe},
           time{time},
-          from_me{from_me}
-    {
-        if (feerate) {
-            fee = input_bytes < 0 ? 0 : feerate.value().GetFee(input_bytes);
-            effective_value = txout.nValue - fee.value();
-        }
-    }
+          from_me{from_me} {}
 
     COutput(const COutPoint& outpoint, const CTxOut& txout, int depth, int input_bytes, bool spendable, bool solvable, bool safe, int64_t time, bool from_me, const CAmount fees)
         : COutput(outpoint, txout, depth, input_bytes, spendable, solvable, safe, time, from_me)

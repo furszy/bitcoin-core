@@ -84,7 +84,9 @@ static void add_coin(CoinsResult& available_coins, CWallet& wallet, const CAmoun
     assert(ret.second);
     CWalletTx& wtx = (*ret.first).second;
     const auto& txout = wtx.tx->vout.at(nInput);
-    available_coins.Add(OutputType::BECH32, {COutPoint(wtx.GetHash(), nInput), txout, nAge, CalculateMaximumSignedInputSize(txout, &wallet, /*coin_control=*/nullptr), /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, wtx.GetTxTime(), fIsFromMe, feerate});
+    COutput out{COutPoint(wtx.GetHash(), nInput), txout, nAge, CalculateMaximumSignedInputSize(txout, &wallet, /*coin_control=*/nullptr), /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, wtx.GetTxTime(), fIsFromMe};
+    out.SetEffectiveFeerate(feerate);
+    available_coins.Add(OutputType::BECH32, out);
 }
 
 /** Check if SelectionResult a is equivalent to SelectionResult b.
@@ -897,17 +899,20 @@ BOOST_AUTO_TEST_CASE(effective_value_test)
     tx.vout.resize(1);
     tx.vout[nInput].nValue = nValue;
 
-    // standard case, pass feerate in constructor
-    COutput output1(COutPoint(tx.GetHash(), nInput), tx.vout.at(nInput), /*depth=*/ 1, input_bytes, /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, /*time=*/ 0, /*from_me=*/ false, feerate);
+    // standard case, pass feerate
+    COutput output1(COutPoint(tx.GetHash(), nInput), tx.vout.at(nInput), /*depth=*/ 1, input_bytes, /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, /*time=*/ 0, /*from_me=*/ false);
+    output1.SetEffectiveFeerate(feerate);
     const CAmount expected_ev1 = 9852; // 10000 - 148
     BOOST_CHECK_EQUAL(output1.GetEffectiveValue(), expected_ev1);
 
     // input bytes unknown (input_bytes = -1), pass feerate in constructor
-    COutput output2(COutPoint(tx.GetHash(), nInput), tx.vout.at(nInput), /*depth=*/ 1, /*input_bytes=*/ -1, /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, /*time=*/ 0, /*from_me=*/ false, feerate);
+    COutput output2(COutPoint(tx.GetHash(), nInput), tx.vout.at(nInput), /*depth=*/ 1, /*input_bytes=*/ -1, /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, /*time=*/ 0, /*from_me=*/ false);
+    output2.SetEffectiveFeerate(feerate);
     BOOST_CHECK_EQUAL(output2.GetEffectiveValue(), nValue); // The effective value should be equal to the absolute value if input_bytes is -1
 
     // negative effective value, pass feerate in constructor
-    COutput output3(COutPoint(tx.GetHash(), nInput), tx.vout.at(nInput), /*depth=*/ 1, input_bytes, /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, /*time=*/ 0, /*from_me=*/ false, CFeeRate(100000));
+    COutput output3(COutPoint(tx.GetHash(), nInput), tx.vout.at(nInput), /*depth=*/ 1, input_bytes, /*spendable=*/ true, /*solvable=*/ true, /*safe=*/ true, /*time=*/ 0, /*from_me=*/ false);
+    output3.SetEffectiveFeerate(CFeeRate(100000));
     const CAmount expected_ev3 = -4800; // 10000 - 14800
     BOOST_CHECK_EQUAL(output3.GetEffectiveValue(), expected_ev3);
 

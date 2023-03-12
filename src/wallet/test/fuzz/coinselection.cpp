@@ -20,7 +20,9 @@ static void AddCoin(const CAmount& value, int n_input, int n_input_bytes, int lo
     tx.vout.resize(n_input + 1);
     tx.vout[n_input].nValue = value;
     tx.nLockTime = locktime; // all transactions get different hashes
-    coins.emplace_back(COutPoint(tx.GetHash(), n_input), tx.vout.at(n_input), /*depth=*/0, n_input_bytes, /*spendable=*/true, /*solvable=*/true, /*safe=*/true, /*time=*/0, /*from_me=*/true, fee_rate);
+    COutput out{COutPoint(tx.GetHash(), n_input), tx.vout.at(n_input), /*depth=*/0, n_input_bytes, /*spendable=*/true, /*solvable=*/true, /*safe=*/true, /*time=*/0, /*from_me=*/true};
+    out.SetEffectiveFeerate(fee_rate);
+    coins.emplace_back(out);
 }
 
 // Randomly distribute coins to instances of OutputGroup
