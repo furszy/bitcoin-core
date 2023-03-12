@@ -338,9 +338,7 @@ void OutputGroup::Insert(const std::shared_ptr<COutput>& output, size_t ancestor
     auto& coin = *m_outputs.back();
 
     fee += coin.GetFee();
-
-    coin.long_term_fee = coin.input_bytes < 0 ? 0 : m_long_term_feerate.GetFee(coin.input_bytes);
-    long_term_fee += coin.long_term_fee;
+    long_term_fee += coin.GetLongTermFee();
 
     effective_value += coin.GetEffectiveValue();
 
@@ -397,7 +395,7 @@ CAmount GetSelectionWaste(const std::set<std::shared_ptr<COutput>>& inputs, CAmo
     CAmount selected_effective_value = 0;
     for (const auto& coin_ptr : inputs) {
         const COutput& coin = *coin_ptr;
-        waste += coin.GetFee() - coin.long_term_fee;
+        waste += coin.GetFee() - coin.GetLongTermFee();
         selected_effective_value += use_effective_value ? coin.GetEffectiveValue() : coin.txout.nValue;
     }
 

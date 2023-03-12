@@ -31,6 +31,9 @@ private:
     /** The fee required to spend this output at the transaction's target feerate. */
     std::optional<CAmount> fee;
 
+    /** The fee required to spend this output at the consolidation feerate. */
+    std::optional<CAmount> m_long_term_fee{0};
+
 public:
     /** The outpoint identifying this UTXO */
     COutPoint outpoint;
@@ -67,9 +70,6 @@ public:
     /** Whether the transaction containing this output is sent from the owning wallet */
     bool from_me;
 
-    /** The fee required to spend this output at the consolidation feerate. */
-    CAmount long_term_fee{0};
-
     COutput(const COutPoint& outpoint, const CTxOut& txout, int depth, int input_bytes, bool spendable, bool solvable, bool safe, int64_t time, bool from_me)
         : outpoint{outpoint},
           txout{txout},
@@ -81,12 +81,13 @@ public:
           time{time},
           from_me{from_me} {}
 
-    COutput(const COutPoint& outpoint, const CTxOut& txout, int depth, int input_bytes, bool spendable, bool solvable, bool safe, int64_t time, bool from_me, const CAmount fees)
+    COutput(const COutPoint& outpoint, const CTxOut& txout, int depth, int input_bytes, bool spendable, bool solvable, bool safe, int64_t time, bool from_me, const CAmount fees, const CAmount long_term_fee)
         : COutput(outpoint, txout, depth, input_bytes, spendable, solvable, safe, time, from_me)
     {
         // if input_bytes is unknown, then fees should be 0, if input_bytes is known, then the fees should be a positive integer or 0 (input_bytes known and fees = 0 only happens in the tests)
         assert((input_bytes < 0 && fees == 0) || (input_bytes > 0 && fees >= 0));
         fee = fees;
+        m_long_term_fee = long_term_fee;
         effective_value = txout.nValue - fee.value();
     }
 
@@ -103,6 +104,12 @@ public:
         return fee.value();
     }
 
+    CAmount GetLongTermFee() const
+    {
+        assert(m_long_term_fee.has_value());
+        return m_long_term_fee.value();
+    }
+
     CAmount GetEffectiveValue() const
     {
         assert(effective_value.has_value());
@@ -115,6 +122,11 @@ public:
     {
         fee = input_bytes < 0 ? 0 : feerate.GetFee(input_bytes);
         effective_value = txout.nValue - fee.value();
+    }
+
+    void SetLongTermFee(const CFeeRate& feerate)
+    {
+        m_long_term_fee = input_bytes < 0 ? 0 : feerate.GetFee(input_bytes);
     }
 };
 

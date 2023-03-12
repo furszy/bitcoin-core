@@ -14,7 +14,7 @@
 
 namespace wallet {
 
-static void AddCoin(const CAmount& value, int n_input, int n_input_bytes, int locktime, std::vector<COutput>& coins, CFeeRate fee_rate)
+static void AddCoin(const CAmount& value, int n_input, int n_input_bytes, int locktime, std::vector<COutput>& coins, CFeeRate fee_rate, CFeeRate long_term_feerate)
 {
     CMutableTransaction tx;
     tx.vout.resize(n_input + 1);
@@ -22,6 +22,7 @@ static void AddCoin(const CAmount& value, int n_input, int n_input_bytes, int lo
     tx.nLockTime = locktime; // all transactions get different hashes
     COutput out{COutPoint(tx.GetHash(), n_input), tx.vout.at(n_input), /*depth=*/0, n_input_bytes, /*spendable=*/true, /*solvable=*/true, /*safe=*/true, /*time=*/0, /*from_me=*/true};
     out.SetEffectiveFeerate(fee_rate);
+    out.SetLongTermFee(long_term_feerate);
     coins.emplace_back(out);
 }
 
@@ -76,7 +77,7 @@ FUZZ_TARGET(coinselection)
         if (total_balance + amount >= MAX_MONEY) {
             break;
         }
-        AddCoin(amount, n_input, n_input_bytes, ++next_locktime, utxo_pool, coin_params.m_effective_feerate);
+        AddCoin(amount, n_input, n_input_bytes, ++next_locktime, utxo_pool, coin_params.m_effective_feerate, coin_params.m_long_term_feerate);
         total_balance += amount;
     }
 
