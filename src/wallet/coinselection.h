@@ -241,10 +241,6 @@ struct OutputGroup
     CAmount fee{0};
     /** The fee to spend these UTXOs at the long term feerate. */
     CAmount long_term_fee{0};
-    /** The feerate for spending a created change output eventually (i.e. not urgently, and thus at
-     * a lower feerate). Calculated using long term fee estimate. This is used to decide whether
-     * it could be economical to create a change output. */
-    CFeeRate m_long_term_feerate{0};
     /** Indicate that we are subtracting the fee from outputs.
      * When true, the value that is used for coin selection is the UTXO's real value rather than effective value */
     bool m_subtract_fee_outputs{false};
@@ -253,7 +249,6 @@ struct OutputGroup
 
     OutputGroup() {}
     OutputGroup(const CoinSelectionParams& params) :
-        m_long_term_feerate(params.m_long_term_feerate),
         m_subtract_fee_outputs(params.m_subtract_fee_outputs)
     {}
 
