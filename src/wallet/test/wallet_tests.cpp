@@ -630,7 +630,7 @@ void TestCoinsResult(ListCoinsTest& context, OutputType out_type, CAmount amount
     CWalletTx& wtx = context.AddTx(CRecipient{{GetScriptForDestination(*dest)}, amount, /*fSubtractFeeFromAmount=*/true});
     CoinFilterParams filter;
     filter.skip_locked = false;
-    CoinsResult available_coins = AvailableCoins(*context.wallet, nullptr, std::nullopt, filter);
+    CoinsResult available_coins = AvailableCoins(*context.wallet, nullptr, filter);
     // Lock outputs so they are not spent in follow-up transactions
     for (uint32_t i = 0; i < wtx.tx->vout.size(); i++) context.wallet->LockCoin({wtx.GetHash(), i});
     for (const auto& [type, size] : expected_coins_sizes) BOOST_CHECK_EQUAL(size, available_coins.coins[type].size());

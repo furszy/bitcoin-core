@@ -201,10 +201,10 @@ util::Result<PreSelectedInputs> FetchSelectedInputs(const CWallet& wallet, const
     return result;
 }
 
-CoinsResult AvailableCoins(const CWallet& wallet,
+static CoinsResult AvailableCoins(const CWallet& wallet,
                            const CCoinControl* coinControl,
-                           std::optional<CFeeRate> feerate,
-                           const CoinFilterParams& params)
+                           const CoinFilterParams& params,
+                           const std::function<void(COutput&)> func_fill_out) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet)
 {
     AssertLockHeld(wallet.cs_wallet);
 
@@ -330,8 +330,10 @@ CoinsResult AvailableCoins(const CWallet& wallet,
                 is_from_p2sh = true;
             }
 
-            result.Add(GetOutputType(type, is_from_p2sh),
-                       COutput(outpoint, output, nDepth, input_bytes, spendable, solvable, safeTx, wtx.GetTxTime(), tx_from_me, feerate));
+            COutput out(outpoint, output, nDepth, input_bytes, spendable, solvable, safeTx, wtx.GetTxTime(), tx_from_me);
+            if (func_fill_out) func_fill_out(out); // fills any member that require external data to be calculated. E.g. fee, long term fee and effective value require fee rates.
+
+            result.Add(GetOutputType(type, is_from_p2sh), out);
 
             // Checks the sum amount of all UTXO's.
             if (params.min_sum_amount != MAX_MONEY) {
@@ -350,10 +352,17 @@ CoinsResult AvailableCoins(const CWallet& wallet,
     return result;
 }
 
+CoinsResult AvailableCoins(const CWallet& wallet,
+                           const CCoinControl* coinControl,
+                           const CoinFilterParams& params)
+{
+    return AvailableCoins(wallet, coinControl, params, /*func_fill_out=*/{});
+}
+
 CoinsResult AvailableCoinsListUnspent(const CWallet& wallet, const CCoinControl* coinControl, CoinFilterParams params)
 {
     params.only_spendable = false;
-    return AvailableCoins(wallet, coinControl, /*feerate=*/ std::nullopt, params);
+    return AvailableCoins(wallet, coinControl, params);
 }
 
 CAmount GetAvailableBalance(const CWallet& wallet, const CCoinControl* coinControl)
@@ -394,7 +403,7 @@ std::map<CTxDestination, std::vector<COutput>> ListCoins(const CWallet& wallet)
     CoinFilterParams coins_params;
     coins_params.only_spendable = false;
     coins_params.skip_locked = false;
-    for (const COutput& coin : AvailableCoins(wallet, &coin_control, /*feerate=*/std::nullopt, coins_params).All()) {
+    for (const COutput& coin : AvailableCoins(wallet, &coin_control, coins_params).All()) {
         CTxDestination address;
         if ((coin.spendable || (wallet.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS) && coin.solvable)) &&
             ExtractDestination(FindNonChangeParentOutput(wallet, coin.outpoint).scriptPubKey, address)) {
@@ -929,7 +938,9 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     // allowed (coins automatically selected by the wallet)
     CoinsResult available_coins;
     if (coin_control.m_allow_other_inputs) {
-        available_coins = AvailableCoins(wallet, &coin_control, coin_selection_params.m_effective_feerate);
+        available_coins = AvailableCoins(wallet, &coin_control, /*params=*/{}, [&coin_selection_params](COutput& ref){
+            ref.SetEffectiveFeerate(coin_selection_params.m_effective_feerate);
+        });
     }
 
     // Choose coins to use

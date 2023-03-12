@@ -116,6 +116,12 @@ public:
     }
 
     bool HasEffectiveValue() const { return effective_value.has_value(); }
+
+    void SetEffectiveFeerate(const CFeeRate& feerate)
+    {
+        fee = input_bytes < 0 ? 0 : feerate.GetFee(input_bytes);
+        effective_value = txout.nValue - fee.value();
+    }
 };
 
 /** Parameters for one iteration of Coin Selection. */

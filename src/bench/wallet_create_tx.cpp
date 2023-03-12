@@ -114,7 +114,7 @@ static void WalletCreateTx(benchmark::Bench& bench, const OutputType output_type
         wallet::CoinFilterParams filter_coins;
         filter_coins.max_count = preset_inputs->num_of_internal_inputs;
         const auto& res = WITH_LOCK(wallet.cs_wallet,
-                                    return wallet::AvailableCoins(wallet, /*coinControl=*/nullptr, /*feerate=*/std::nullopt, filter_coins));
+                                    return wallet::AvailableCoins(wallet, /*coinControl=*/nullptr, filter_coins));
         for (int i=0; i < preset_inputs->num_of_internal_inputs; i++) {
             const auto& coin{res.coins.at(output_type)[i]};
             target += coin.txout.nValue;
