@@ -426,13 +426,9 @@ FilteredOutputGroups GroupOutputs(const CWallet& wallet,
         // Allowing partial spends means no grouping. Each COutput gets its own OutputGroup
         for (const auto& [type, outputs] : coins.coins) {
             for (const COutput& output : outputs) {
-                // Get mempool info
-                size_t ancestors, descendants;
-                wallet.chain().getTransactionAncestry(output.outpoint.hash, ancestors, descendants);
-
                 // Create a new group per output and add it to the all groups vector
                 OutputGroup group(coin_sel_params);
-                group.Insert(std::make_shared<COutput>(output), ancestors, descendants);
+                group.Insert(std::make_shared<COutput>(output), output.GetAncestors(), output.GetDescendants());
 
                 // Each filter maps to a different set of groups
                 for (const auto& sel_filter : filters) {
@@ -481,17 +477,14 @@ FilteredOutputGroups GroupOutputs(const CWallet& wallet,
     ScriptPubKeyToOutgroup spk_to_positive_groups_map;
     for (const auto& [type, outs] : coins.coins) {
         for (const COutput& output : outs) {
-            size_t ancestors, descendants;
-            wallet.chain().getTransactionAncestry(output.outpoint.hash, ancestors, descendants);
-
             const auto& shared_output = std::make_shared<COutput>(output);
             // Filter for positive only before adding the output
             if (output.GetEffectiveValue() > 0) {
-                insert_output(shared_output, type, ancestors, descendants, spk_to_positive_groups_map);
+                insert_output(shared_output, type, output.GetAncestors(), output.GetDescendants(), spk_to_positive_groups_map);
             }
 
             // 'All' groups
-            insert_output(shared_output, type, ancestors, descendants, spk_to_groups_map);
+            insert_output(shared_output, type, output.GetAncestors(), output.GetDescendants(), spk_to_groups_map);
         }
     }
 
@@ -940,9 +933,15 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     // allowed (coins automatically selected by the wallet)
     CoinsResult available_coins;
     if (coin_control.m_allow_other_inputs) {
-        available_coins = AvailableCoins(wallet, &coin_control, /*params=*/{}, [&coin_selection_params](COutput& ref){
+        available_coins = AvailableCoins(wallet, &coin_control, /*params=*/{}, [&wallet, &coin_selection_params](COutput& ref){
             ref.SetEffectiveFeerate(coin_selection_params.m_effective_feerate);
             ref.SetLongTermFee(coin_selection_params.m_long_term_feerate);
+
+            if (ref.depth == 0) { // Get mempool info
+                size_t ancestors, descendants;
+                wallet.chain().getTransactionAncestry(ref.outpoint.hash, ancestors, descendants);
+                ref.SetMempoolInfo(ancestors, descendants);
+            }
         });
     }
 

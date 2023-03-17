@@ -34,6 +34,12 @@ private:
     /** The fee required to spend this output at the consolidation feerate. */
     std::optional<CAmount> m_long_term_fee{0};
 
+    /** The count of unconfirmed ancestors, only available for in-mempool outputs. */
+    size_t m_ancestors{0};
+
+    /** The count of unconfirmed descendants, only available for in-mempool outputs. */
+    size_t m_descendants{0};
+
 public:
     /** The outpoint identifying this UTXO */
     COutPoint outpoint;
@@ -128,6 +134,15 @@ public:
     {
         m_long_term_fee = input_bytes < 0 ? 0 : feerate.GetFee(input_bytes);
     }
+
+    void SetMempoolInfo(size_t ancestors, size_t descendants)
+    {
+        m_ancestors = ancestors;
+        m_descendants = descendants;
+    }
+
+    size_t GetAncestors() const { return m_ancestors; }
+    size_t GetDescendants() const { return m_descendants; }
 };
 
 /** Parameters for one iteration of Coin Selection. */
