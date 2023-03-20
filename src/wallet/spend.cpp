@@ -919,7 +919,7 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
 
     // This can only happen if feerate is 0, and requested destinations are value of 0 (e.g. OP_RETURN)
     // and no pre-selected inputs. This will result in 0-input transaction, which is consensus-invalid anyways
-    if (selection_target == 0 && !coin_control.HasSelected()) {
+    if (selection_target == 0 && !coin_control.m_allow_other_inputs && !coin_control.HasSelected()) {
         return util::Error{_("Transaction requires one destination of non-0 value, a non-0 feerate, or a pre-selected input")};
     }
 
