@@ -463,8 +463,6 @@ RPCHelpMan getbalances()
     // the user could have gotten from another RPC command prior to now
     wallet.BlockUntilSyncedToCurrentChain();
 
-    LOCK(wallet.cs_wallet);
-
     const auto bal = GetBalance(wallet);
     UniValue balances{UniValue::VOBJ};
     {
