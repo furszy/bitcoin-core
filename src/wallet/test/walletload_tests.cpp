@@ -85,8 +85,8 @@ BOOST_FIXTURE_TEST_CASE(wallet_load_verif_crypted_key_checksum, TestingSetup)
     {   // Context setup.
         // Create and encrypt legacy wallet
         std::shared_ptr<CWallet> wallet(new CWallet(m_node.chain.get(), "", CreateMockWalletDatabase()));
-        LOCK(wallet->cs_wallet);
         auto legacy_spkm = wallet->GetOrCreateLegacyScriptPubKeyMan();
+        LOCK(wallet->cs_wallet);
         BOOST_CHECK(legacy_spkm->SetupGeneration(true));
 
         // Get the first key in the wallet
