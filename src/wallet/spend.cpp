@@ -555,10 +555,13 @@ util::Result<SelectionResult> ChooseSelectionResult(const CAmount& nTargetValue,
     // Vector of results. We will choose the best one based on waste.
     std::vector<SelectionResult> results;
     std::vector<util::Result<SelectionResult>> errors;
-    auto append_error = [&] (const util::Result<SelectionResult>& result) {
-        // If any specific error message appears here, then something different from a simple "no selection found" happened.
-        // Let's save it, so it can be retrieved to the user if no other selection algorithm succeeded.
-        if (HasErrorMsg(result)) {
+    auto append_result = [&] (util::Result<SelectionResult>&& result, bool compute_waste) {
+        if (result) {
+            if (compute_waste) result->ComputeAndSetWaste(coin_selection_params.min_viable_change, coin_selection_params.m_cost_of_change, coin_selection_params.m_change_fee);
+            results.push_back(*result);
+        } else if (HasErrorMsg(result)) {
+            // If any specific error message appears here, then something different from a simple "no selection found" happened.
+            // Let's save it, so it can be retrieved to the user if no other selection algorithm succeeded.
             errors.emplace_back(result);
         }
     };
@@ -566,20 +569,15 @@ util::Result<SelectionResult> ChooseSelectionResult(const CAmount& nTargetValue,
     // Maximum allowed transaction weight
     int max_weight = MAX_STANDARD_TX_WEIGHT - (coin_selection_params.tx_noinputs_size * WITNESS_SCALE_FACTOR);
 
-    if (auto bnb_result{SelectCoinsBnB(groups.positive_group, nTargetValue, coin_selection_params.m_cost_of_change, max_weight)}) {
-        results.push_back(*bnb_result);
-    } else append_error(bnb_result);
+    append_result(SelectCoinsBnB(groups.positive_group, nTargetValue, coin_selection_params.m_cost_of_change, max_weight),
+                  /*compute_waste=*/false);
 
     // The knapsack solver has some legacy behavior where it will spend dust outputs. We retain this behavior, so don't filter for positive only here.
-    if (auto knapsack_result{KnapsackSolver(groups.mixed_group, nTargetValue, coin_selection_params.m_min_change_target, coin_selection_params.rng_fast, max_weight)}) {
-        knapsack_result->ComputeAndSetWaste(coin_selection_params.min_viable_change, coin_selection_params.m_cost_of_change, coin_selection_params.m_change_fee);
-        results.push_back(*knapsack_result);
-    } else append_error(knapsack_result);
+    append_result(KnapsackSolver(groups.mixed_group, nTargetValue, coin_selection_params.m_min_change_target, coin_selection_params.rng_fast, max_weight),
+                  /*compute_waste=*/true);
 
-    if (auto srd_result{SelectCoinsSRD(groups.positive_group, nTargetValue, coin_selection_params.rng_fast, max_weight)}) {
-        srd_result->ComputeAndSetWaste(coin_selection_params.min_viable_change, coin_selection_params.m_cost_of_change, coin_selection_params.m_change_fee);
-        results.push_back(*srd_result);
-    } else append_error(srd_result);
+    append_result(SelectCoinsSRD(groups.positive_group, nTargetValue, coin_selection_params.rng_fast, max_weight),
+                  /*compute_waste=*/true);
 
     if (results.empty()) {
         // No solution found, retrieve the first explicit error (if any).
