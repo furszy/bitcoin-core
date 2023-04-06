@@ -221,6 +221,7 @@ class CoinStatsIndexTest(BitcoinTestFramework):
 
         res8 = index_node.gettxoutsetinfo('muhash')
         self.restart_node(1, extra_args=self.extra_args[1])
+        self.sync_index_node()
         res9 = index_node.gettxoutsetinfo('muhash')
         assert_equal(res8, res9)
 
