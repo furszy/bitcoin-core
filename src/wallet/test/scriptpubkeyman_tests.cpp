@@ -6,6 +6,7 @@
 #include <script/standard.h>
 #include <test/util/setup_common.h>
 #include <wallet/scriptpubkeyman.h>
+#include <wallet/test/util.h>
 #include <wallet/wallet.h>
 
 #include <boost/test/unit_test.hpp>
@@ -37,6 +38,35 @@ BOOST_AUTO_TEST_CASE(CanProvide)
     BOOST_CHECK(!keyman.CanProvide(p2sh_script, data));
     keyman.AddCScript(multisig_script);
     BOOST_CHECK(keyman.CanProvide(p2sh_script, data));
+}
+
+BOOST_AUTO_TEST_CASE(wallet_register_spkm_signals_test)
+{
+    // Tests that the wallet is registers to the spkm events
+    CWallet wallet(m_node.chain.get(), "", CreateDummyWalletDatabase());
+    wallet.m_keypool_size = 1;
+
+    // Register to events
+    int events_count{0};
+    wallet.NotifyCanGetAddressesChanged.connect([&](){
+        events_count++;
+    });
+
+    wallet.SetMinVersion(FEATURE_LATEST);
+    wallet.SetWalletFlag(WALLET_FLAG_DESCRIPTORS);
+    LOCK(wallet.cs_wallet);
+    wallet.SetupDescriptorScriptPubKeyMans();
+
+    // For each of the created spkm (internal, external), we should have received 1 event
+    int expected_events_count = 2 * OUTPUT_TYPES.size();
+    BOOST_CHECK_EQUAL(expected_events_count, events_count);
+    events_count = 0;
+
+    // Now import a new descriptor
+    import_descriptor(wallet, "wpkh(xprv9s21ZrQH143K2LE7W4Xf3jATf9jECxSb7wj91ZnmY4qEJrS66Qru9RFqq8xbkgT32ya6HqYJweFdJUEDf5Q6JFV7jMiUws7kQfe6Tv4RbfN/0h/0h/*h)",
+                      /*range_start=*/0, /*range_end=*/1, /*next_index=*/0);
+    // After the import TopUp, 'NotifyCanGetAddressesChanged' should be triggered.
+    BOOST_CHECK_EQUAL(1, events_count);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

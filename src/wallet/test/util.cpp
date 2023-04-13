@@ -79,4 +79,15 @@ CTxDestination getNewDestination(CWallet& w, OutputType output_type)
     return *Assert(w.GetNewDestination(output_type, ""));
 }
 
+void import_descriptor(CWallet& wallet, const std::string& descriptor, int range_start, int range_end, int next_index) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet)
+{
+    AssertLockHeld(wallet.cs_wallet);
+    FlatSigningProvider provider;
+    std::string error;
+    std::unique_ptr<Descriptor> desc = Parse(descriptor, provider, error, /* require_checksum=*/ false);
+    assert(desc);
+    WalletDescriptor w_desc(std::move(desc), 0, range_start, range_end, next_index);
+    wallet.AddWalletDescriptor(w_desc, provider, "", false);
+}
+
 } // namespace wallet

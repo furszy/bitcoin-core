@@ -5,6 +5,7 @@
 #include <key_io.h>
 #include <util/bip32.h>
 #include <util/strencodings.h>
+#include <wallet/test/util.h>
 #include <wallet/wallet.h>
 
 #include <boost/test/unit_test.hpp>
@@ -14,16 +15,9 @@
 namespace wallet {
 BOOST_FIXTURE_TEST_SUITE(psbt_wallet_tests, WalletTestingSetup)
 
-static void import_descriptor(CWallet& wallet, const std::string& descriptor)
-    EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet)
+static void import_descriptor(CWallet& wallet, const std::string& descriptor) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet)
 {
-    AssertLockHeld(wallet.cs_wallet);
-    FlatSigningProvider provider;
-    std::string error;
-    std::unique_ptr<Descriptor> desc = Parse(descriptor, provider, error, /* require_checksum=*/ false);
-    assert(desc);
-    WalletDescriptor w_desc(std::move(desc), 0, 0, 10, 0);
-    wallet.AddWalletDescriptor(w_desc, provider, "", false);
+    return import_descriptor(wallet, descriptor, /*range_start=*/0, /*range_end=*/10, /*next_index=*/0);
 }
 
 BOOST_AUTO_TEST_CASE(psbt_updater_test)

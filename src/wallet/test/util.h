@@ -7,6 +7,7 @@
 
 #include <script/standard.h>
 #include <memory>
+#include <sync.h>
 
 class ArgsManager;
 class CChain;
@@ -30,6 +31,8 @@ std::unique_ptr<WalletDatabase> DuplicateMockDatabase(WalletDatabase& database, 
 std::string getnewaddress(CWallet& w);
 /** Returns a new destination, of an specific type, from the wallet */
 CTxDestination getNewDestination(CWallet& w, OutputType output_type);
+
+void import_descriptor(CWallet& wallet, const std::string& descriptor, int range_start, int range_end, int next_index);
 
 } // namespace wallet
 
