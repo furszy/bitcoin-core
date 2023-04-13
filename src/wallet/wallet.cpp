@@ -3560,11 +3560,16 @@ bool CWallet::HasEncryptionKeys() const
     return !mapMasterKeys.empty();
 }
 
+void CWallet::ConnectNotifiers(ScriptPubKeyMan* spk_man)
+{
+    spk_man->NotifyWatchonlyChanged.connect(NotifyWatchonlyChanged);
+    spk_man->NotifyCanGetAddressesChanged.connect(NotifyCanGetAddressesChanged);
+}
+
 void CWallet::ConnectScriptPubKeyManNotifiers()
 {
     for (const auto& spk_man : GetActiveScriptPubKeyMans()) {
-        spk_man->NotifyWatchonlyChanged.connect(NotifyWatchonlyChanged);
-        spk_man->NotifyCanGetAddressesChanged.connect(NotifyCanGetAddressesChanged);
+        ConnectNotifiers(spk_man);
     }
 }
 
@@ -3759,6 +3764,9 @@ ScriptPubKeyMan* CWallet::AddWalletDescriptor(WalletDescriptor& desc, const Flat
     } else {
         auto new_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(*this, desc, m_keypool_size));
         spk_man = new_spk_man.get();
+
+        // Connect descriptor's signals
+        ConnectNotifiers(spk_man);
 
         // Save the descriptor to memory
         m_spk_managers[new_spk_man->GetID()] = std::move(new_spk_man);
