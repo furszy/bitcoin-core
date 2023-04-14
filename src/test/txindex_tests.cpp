@@ -29,15 +29,11 @@ BOOST_FIXTURE_TEST_CASE(txindex_initial_sync, TestChain100Setup)
     // BlockUntilSyncedToCurrentChain should return false before txindex is started.
     BOOST_CHECK(!txindex.BlockUntilSyncedToCurrentChain());
 
-    BOOST_REQUIRE(txindex.Start());
+    std::optional<std::future<void>> future = txindex.Start();
+    BOOST_REQUIRE(future != std::nullopt);
 
     // Allow tx index to catch up with the block index.
-    constexpr int64_t timeout_ms = 10 * 1000;
-    int64_t time_start = GetTimeMillis();
-    while (!txindex.BlockUntilSyncedToCurrentChain()) {
-        BOOST_REQUIRE(time_start + timeout_ms > GetTimeMillis());
-        UninterruptibleSleep(std::chrono::milliseconds{100});
-    }
+    future->get();
 
     // Check that txindex excludes genesis block transactions.
     const CBlock& genesis_block = Params().GenesisBlock();

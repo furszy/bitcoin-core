@@ -138,15 +138,11 @@ BOOST_FIXTURE_TEST_CASE(blockfilter_index_initial_sync, BuildChainTestingSetup)
     // BlockUntilSyncedToCurrentChain should return false before index is started.
     BOOST_CHECK(!filter_index.BlockUntilSyncedToCurrentChain());
 
-    BOOST_REQUIRE(filter_index.Start());
+    std::optional<std::future<void>> future = filter_index.Start();
+    BOOST_REQUIRE(future != std::nullopt);
 
     // Allow filter index to catch up with the block index.
-    constexpr int64_t timeout_ms = 10 * 1000;
-    int64_t time_start = GetTimeMillis();
-    while (!filter_index.BlockUntilSyncedToCurrentChain()) {
-        BOOST_REQUIRE(time_start + timeout_ms > GetTimeMillis());
-        UninterruptibleSleep(std::chrono::milliseconds{100});
-    }
+    future->get();
 
     // Check that filter index has all blocks that were in the chain before it started.
     {

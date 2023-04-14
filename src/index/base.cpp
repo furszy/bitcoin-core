@@ -386,7 +386,7 @@ void BaseIndex::Interrupt()
     m_interrupt();
 }
 
-bool BaseIndex::Start()
+std::optional<std::future<void>> BaseIndex::Start()
 {
     // m_chainstate member gives indexing code access to node internals. It is
     // removed in followup https://github.com/bitcoin/bitcoin/pull/24230
@@ -394,15 +394,17 @@ bool BaseIndex::Start()
     // Need to register this ValidationInterface before running Init(), so that
     // callbacks are not missed if Init sets m_synced to true.
     RegisterValidationInterface(this);
-    if (!Init()) return false;
+    if (!Init()) return std::nullopt;
 
     const CBlockIndex* index = m_best_block_index.load();
     if (!CustomInit(index ? std::make_optional(interfaces::BlockKey{index->GetBlockHash(), index->nHeight}) : std::nullopt)) {
-        return false;
+        return std::nullopt;
     }
 
-    m_thread_sync = std::thread(&util::TraceThread, GetName(), [this] { ThreadSync(); });
-    return true;
+    std::promise<void> promise;
+    std::future<void> ret = promise.get_future();
+    m_thread_sync = std::thread(&util::TraceThreadAndTrack, GetName(), [this] { ThreadSync(); }, std::move(promise));
+    return std::move(ret);
 }
 
 void BaseIndex::Stop()

@@ -17,17 +17,6 @@
 
 BOOST_AUTO_TEST_SUITE(coinstatsindex_tests)
 
-static void IndexWaitSynced(BaseIndex& index)
-{
-    // Allow the CoinStatsIndex to catch up with the block index that is syncing
-    // in a background thread.
-    const auto timeout = GetTime<std::chrono::seconds>() + 120s;
-    while (!index.BlockUntilSyncedToCurrentChain()) {
-        BOOST_REQUIRE(timeout > GetTime<std::chrono::milliseconds>());
-        UninterruptibleSleep(100ms);
-    }
-}
-
 BOOST_FIXTURE_TEST_CASE(coinstatsindex_initial_sync, TestChain100Setup)
 {
     CoinStatsIndex coin_stats_index{interfaces::MakeChain(m_node), 1 << 20, true};
@@ -45,9 +34,12 @@ BOOST_FIXTURE_TEST_CASE(coinstatsindex_initial_sync, TestChain100Setup)
     // is started.
     BOOST_CHECK(!coin_stats_index.BlockUntilSyncedToCurrentChain());
 
-    BOOST_REQUIRE(coin_stats_index.Start());
+    std::optional<std::future<void>> future = coin_stats_index.Start();
+    BOOST_REQUIRE(future != std::nullopt);
 
-    IndexWaitSynced(coin_stats_index);
+    // Allow the CoinStatsIndex to catch up with the block index that is syncing
+    // in a background thread.
+    future->get();
 
     // Check that CoinStatsIndex works for genesis block.
     const CBlockIndex* genesis_block_index;
@@ -96,8 +88,10 @@ BOOST_FIXTURE_TEST_CASE(coinstatsindex_unclean_shutdown, TestChain100Setup)
     const CChainParams& params = Params();
     {
         CoinStatsIndex index{interfaces::MakeChain(m_node), 1 << 20};
-        BOOST_REQUIRE(index.Start());
-        IndexWaitSynced(index);
+        std::optional<std::future<void>> future = index.Start();
+        BOOST_REQUIRE(future != std::nullopt);
+        future->get();
+
         std::shared_ptr<const CBlock> new_block;
         CBlockIndex* new_block_index = nullptr;
         {

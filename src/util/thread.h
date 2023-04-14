@@ -6,6 +6,7 @@
 #define BITCOIN_UTIL_THREAD_H
 
 #include <functional>
+#include <future>
 #include <string>
 
 namespace util {
@@ -13,6 +14,10 @@ namespace util {
  * A wrapper for do-something-once thread functions.
  */
 void TraceThread(std::string_view thread_name, std::function<void()> thread_func);
+/**
+ * A wrapper for do-something-once thread functions with promise to track it.
+ */
+void TraceThreadAndTrack(std::string_view thread_name, std::function<void()> thread_func, std::promise<void> promise);
 
 } // namespace util
 

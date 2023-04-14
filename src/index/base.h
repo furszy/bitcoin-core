@@ -10,6 +10,7 @@
 #include <util/threadinterrupt.h>
 #include <validationinterface.h>
 
+#include <future>
 #include <string>
 
 class CBlock;
@@ -141,7 +142,7 @@ public:
 
     /// Start initializes the sync state and registers the instance as a
     /// ValidationInterface so that it stays in sync with blockchain updates.
-    [[nodiscard]] bool Start();
+    [[nodiscard]] std::optional<std::future<void>> Start();
 
     /// Stops the instance from staying in sync with blockchain updates.
     void Stop();
