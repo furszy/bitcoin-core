@@ -693,6 +693,7 @@ def test_feerate_checks_replaced_outputs(self, rbf_node):
 
     # Bumpfee and replace all outputs with a single one using the minimum feerate
     rbf_node.bumpfee(tx_res["txid"], {"fee_rate": min_fee_rate, "outputs": new_outputs})
+    self.clear_mempool()
 
 
 if __name__ == "__main__":
