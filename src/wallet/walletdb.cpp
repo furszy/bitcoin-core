@@ -629,6 +629,14 @@ ReadKeyValue(CWallet* pwallet, DataStream& ssKey, CDataStream& ssValue,
             uint256 id;
             ssValue >> id;
 
+            // Unknown active descriptor types aren't allowed.
+            // The wallet cannot create generate destinations from unsupported types.
+            if (type >= static_cast<uint8_t>(OutputType::UNKNOWN)) {
+                strErr += strprintf("Error: Unrecognized type %d for active descriptor found in wallet %s. ", type, pwallet->GetName());
+                wss.descriptor_unknown = true;
+                return false;
+            }
+
             bool internal = strType == DBKeys::ACTIVEINTERNALSPK;
             auto& spk_mans = internal ? wss.m_active_internal_spks : wss.m_active_external_spks;
             if (spk_mans.count(static_cast<OutputType>(type)) > 0) {
