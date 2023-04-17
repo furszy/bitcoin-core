@@ -34,6 +34,7 @@ public:
 
 BOOST_FIXTURE_TEST_CASE(wallet_load_unknown_descriptor, TestingSetup)
 {
+    // First test, write unsupported descriptor and expect failure due not be able to parse it.
     std::unique_ptr<WalletDatabase> database = CreateMockWalletDatabase();
     {
         // Write unknown active descriptor
@@ -42,6 +43,30 @@ BOOST_FIXTURE_TEST_CASE(wallet_load_unknown_descriptor, TestingSetup)
         WalletDescriptor wallet_descriptor(std::make_shared<DummyDescriptor>(unknown_desc), 0, 0, 0, 0);
         BOOST_CHECK(batch.WriteDescriptor(uint256(), wallet_descriptor));
         BOOST_CHECK(batch.WriteActiveScriptPubKeyMan(static_cast<uint8_t>(OutputType::UNKNOWN), uint256(), false));
+    }
+
+    {
+        // Now try to load the wallet and verify the error.
+        const std::shared_ptr<CWallet> wallet(new CWallet(m_node.chain.get(), "", std::move(database)));
+        BOOST_CHECK_EQUAL(wallet->LoadWallet(), DBErrors::UNKNOWN_DESCRIPTOR);
+    }
+
+
+    // Second test, write valid active descriptor with an unrecognized output type.
+    database = CreateMockWalletDatabase();
+    {
+        // Create valid descriptor
+        WalletBatch batch(*database, false);
+        std::string desc = "pkh(xpub661MyMwAqRbcG8gXUbBbmU9FT2RvBNSwS7GJYnaiqwW1JPKGZyv8BYkAmiBoYAFNQTXLPHdnAvEdkEJH4KbuirHdLQBDC7HVoo5C6eBcG1R/1/1/*)";
+
+        FlatSigningProvider dummy;
+        std::string error;
+        std::shared_ptr<Descriptor> ptr_desc = Parse(desc+"#"+GetDescriptorChecksum(desc), dummy, error, /*require_checksum=*/true);
+
+        // Write active descriptor to DB with an unrecognized output type.
+        WalletDescriptor wallet_descriptor(ptr_desc, 0, 0, 10, 0);
+        BOOST_CHECK(batch.WriteDescriptor(uint256(), wallet_descriptor));
+        BOOST_CHECK(batch.WriteActiveScriptPubKeyMan(static_cast<uint8_t>(64), uint256(), false));
     }
 
     {
