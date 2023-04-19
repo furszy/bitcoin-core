@@ -1022,5 +1022,125 @@ BOOST_FIXTURE_TEST_CASE(wallet_sync_tx_invalid_state_test, TestingSetup)
                           HasReason("DB error adding transaction to wallet, write failed"));
 }
 
+GCSFilter::ElementSet ExpandDescriptor(const WalletDescriptor& wallet_descriptor, FlatSigningProvider key_provider,
+                                      int range_start, int range_end)
+{
+    GCSFilter::ElementSet needle_set;
+    for (int index=range_start; index < range_end; index++) {
+        std::vector<CScript> scripts_out;
+        BOOST_CHECK(wallet_descriptor.descriptor->Expand(index, key_provider, scripts_out, key_provider));
+        for (const CScript& script : scripts_out) needle_set.emplace(script.begin(), script.end());
+    }
+    return needle_set;
+}
+
+void CheckEquality(std::map<uint256, std::pair<WalletDescriptor, FlatSigningProvider>>& descriptors, const uint256& to_test_id,
+                   const GCSFilter::ElementSet& to_test_needle_set, int range_start, int range_end)
+{
+    // Build the element set externally and check that is equal to the wallet one.
+    auto& [wallet_desc, key_provider] = descriptors.at(to_test_id);
+    GCSFilter::ElementSet needle_set = ExpandDescriptor(wallet_desc, key_provider, range_start, range_end);
+    // Check equality
+    assert(to_test_needle_set.size() == needle_set.size());
+    for (const auto& element : needle_set) BOOST_CHECK_EQUAL(to_test_needle_set.count(element), 1);
+    for (const auto& element : to_test_needle_set) BOOST_CHECK_EQUAL(needle_set.count(element), 1);
+}
+
+uint256 DescID(const WalletDescriptor& desc)
+{
+    std::string desc_str = desc.descriptor->ToString();
+    uint256 id;
+    CSHA256().Write((unsigned char*)desc_str.data(), desc_str.size()).Finalize(id.begin());
+    return id;
+}
+
+std::pair<WalletDescriptor, FlatSigningProvider> LoadDescriptorInWallet(const std::shared_ptr<CWallet>& wallet, const std::string& desc, OutputType type,
+                                                                        int range_start, int range_end, int next_index)
+{
+    FlatSigningProvider provider;
+    std::string error;
+    std::vector<std::unique_ptr<Descriptor>> descs = Parse(desc+"#"+GetDescriptorChecksum(desc), provider, error, /*require_checksum=*/true);
+    assert(descs.size() == 1);
+    WalletDescriptor wallet_descriptor(std::move(descs.at(0)), /*creation_time=*/0, range_start, range_end, next_index);
+
+    const uint256& desc_id = DescID(wallet_descriptor);
+    wallet->LoadDescriptorScriptPubKeyMan(desc_id, wallet_descriptor);
+    wallet->LoadActiveScriptPubKeyMan(desc_id, type, /*internal=*/false);
+
+    return std::make_pair(wallet_descriptor, provider);
+}
+
+BOOST_FIXTURE_TEST_CASE(valid_needle_set_test, TestingSetup)
+{
+    // Create a wallet with two active descriptors. Then perform the following tests:
+    // 1) Top up the descriptors keypool and check that the element sets were properly build.
+    // 2) Mark keys as used in both spkm, top up keypools and check that the element set was updated accordantly.
+    // 3) Mark keys as used in one spkm, top up keypools and check that only one was updated and the other one not.
+
+    std::shared_ptr<CWallet> wallet = std::make_shared<CWallet>(m_node.chain.get(), "", CreateMockableWalletDatabase());
+    wallet->SetWalletFlag(WALLET_FLAG_DESCRIPTORS);
+    wallet->m_keypool_size = 100;
+
+    std::map<uint256, std::pair<WalletDescriptor, FlatSigningProvider>> descriptors;
+
+    // Load two ranged descriptors into the wallet
+    std::string desc_1 = "pkh(xprv9s21ZrQH143K2tawnqLoV613D9P8YJ874mgoEbMUPGfmZJAe8L5UAAoFdWkw5GWG6WA4gMPEiVUxanKpuDxYQSJwdHonx6KBEu6QTrTVU8Z/44/0/0/0/*)";
+    auto [wallet_desc_1, key_provider_1] = LoadDescriptorInWallet(wallet, desc_1, OutputType::LEGACY, /*range_start=*/0, /*range_end=*/500, /*next_index=*/0);
+    const uint256& desc_id_1 = DescID(wallet_desc_1);
+    descriptors.emplace(desc_id_1, std::make_pair(wallet_desc_1, key_provider_1));
+
+    std::string desc_2 = "wpkh(xprv9s21ZrQH143K2tawnqLoV613D9P8YJ874mgoEbMUPGfmZJAe8L5UAAoFdWkw5GWG6WA4gMPEiVUxanKpuDxYQSJwdHonx6KBEu6QTrTVU8Z/84/0/0/0/*)";
+    auto [wallet_desc_2, key_provider_2] = LoadDescriptorInWallet(wallet, desc_2, OutputType::BECH32, /*range_start=*/0, /*range_end=*/500, /*next_index=*/0);
+    const uint256& desc_id_2 = DescID(wallet_desc_2);
+    descriptors.emplace(desc_id_2, std::make_pair(wallet_desc_2, key_provider_2));
+
+    // Now expand the wallet descriptors, fill-up the keypool and load the filter element set
+    wallet->TopUpKeyPool();
+    wallet->LoadElementsSet();
+
+    const auto& compare_elements = [&descriptors, &wallet](size_t expected_size) {
+        auto spkm_elements = WITH_LOCK(wallet->cs_wallet, return wallet->GetScriptsFilter());
+        BOOST_CHECK_EQUAL(spkm_elements.size(), 2);
+        for (const auto& [id, pair]: spkm_elements) {
+            size_t last_index = pair.first;
+            GCSFilter::ElementSet wallet_needle_set = pair.second;
+            BOOST_CHECK(last_index == expected_size);
+            BOOST_CHECK(wallet_needle_set.size() == expected_size);
+
+            CheckEquality(descriptors, id, wallet_needle_set, /*range_start=*/0, /*range_end=*/expected_size);
+        }
+    };
+
+    // 1) Check that the wallet has 500 elements on each spkm element set.
+    // And compare it against a manually crafted set.
+    compare_elements(/*expected_size=*/500);
+
+    // 2) Add more elements by marking all the previous keys as used and verify again
+    for (int index=0; index < 501; index++) wallet->GetNewDestination(OutputType::LEGACY, "");
+    for (int index=0; index < 501; index++) wallet->GetNewDestination(OutputType::BECH32, "");
+
+    // The wallet should have expanded the descriptor in 'm_keypool_size'.
+    compare_elements(/*expected_size=*/600);
+
+    // 3) Add more elements to only one of them and verify
+    for (int index=0; index < 100; index++) wallet->GetNewDestination(OutputType::LEGACY, "");
+    auto spkm_elements = WITH_LOCK(wallet->cs_wallet, return wallet->GetScriptsFilter());
+    BOOST_CHECK_EQUAL(spkm_elements.size(), 2);
+
+    // First spkm should have been updated
+    size_t expected_size = 700;
+    auto [last_index, wallet_needle_set] = spkm_elements.at(desc_id_1);
+    BOOST_CHECK(last_index == expected_size);
+    BOOST_CHECK(wallet_needle_set.size() == expected_size);
+    CheckEquality(descriptors, desc_id_1, wallet_needle_set, /*range_start=*/0, /*range_end=*/expected_size);
+
+    // Second spkm should be the same as before
+    expected_size = 600;
+    auto [last_index_2, wallet_needle_set_2] = spkm_elements.at(desc_id_2);
+    BOOST_CHECK(last_index_2 == expected_size);
+    BOOST_CHECK(wallet_needle_set_2.size() == expected_size);
+    CheckEquality(descriptors, desc_id_2, wallet_needle_set_2, /*range_start=*/0, /*range_end=*/expected_size);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 } // namespace wallet
