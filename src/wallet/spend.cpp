@@ -1191,8 +1191,16 @@ bool FundTransaction(CWallet& wallet, CMutableTransaction& tx, CAmount& nFeeRet,
     std::vector<CRecipient> vecSend;
 
     // Turn the txout set into a CRecipient vector.
+    bool custom_change = IsValidDestination(coinControl.destChange);
     for (size_t idx = 0; idx < tx.vout.size(); idx++) {
         const CTxOut& txOut = tx.vout[idx];
+
+        // Don't add change as another recipient if exists
+        CTxDestination dest;
+        if (custom_change && ExtractDestination(txOut.scriptPubKey, dest) && dest == coinControl.destChange) {
+            continue;
+        }
+
         CRecipient recipient = {txOut.scriptPubKey, txOut.nValue, setSubtractFeeFromOutputs.count(idx) == 1};
         vecSend.push_back(recipient);
     }
