@@ -913,8 +913,8 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     coin_selection_params.tx_noinputs_size = 10 + GetSizeOfCompactSize(vecSend.size()); // bytes for output count
 
     // vouts to the payees
-    for (const auto& recipient : vecSend)
-    {
+    std::optional<int> existent_change_out_index = std::nullopt;
+    for (const auto& recipient : vecSend) {
         CTxOut txout(recipient.nAmount, recipient.scriptPubKey);
 
         // Include the fee cost for outputs.
@@ -924,6 +924,8 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
             return util::Error{_("Transaction amount too small")};
         }
         txNew.vout.push_back(txout);
+
+        if (recipient.scriptPubKey == scriptChange) existent_change_out_index = txNew.vout.size() - 1;
     }
 
     // Include the fees for things that aren't inputs, excluding the change output
@@ -957,14 +959,29 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
 
     const CAmount change_amount = result.GetChange(coin_selection_params.min_viable_change, coin_selection_params.m_change_fee);
     if (change_amount > 0) {
-        CTxOut newTxOut(change_amount, scriptChange);
+        CTxOut change_out;
+        if (existent_change_out_index) {
+            // If there is an output with this change address already, increase that one amount instead of creating a new output
+            auto it_change_out = txNew.vout.begin();
+            std::advance(it_change_out, *existent_change_out_index);
+
+            change_out = *it_change_out;
+            change_out.nValue += change_amount;
+
+            // Erase element so it can be re-inserted on the selected position or a new one
+            txNew.vout.erase(it_change_out);
+        } else {
+            // New change output
+            change_out = CTxOut(change_amount, scriptChange);
+        }
+
         if (!change_pos) {
             // Insert change txn at random position:
             change_pos = rng_fast.randrange(txNew.vout.size() + 1);
-        } else if ((unsigned int)*change_pos > txNew.vout.size()) {
+        } else if ((unsigned int) *change_pos > txNew.vout.size()) {
             return util::Error{_("Transaction change output index out of range")};
         }
-        txNew.vout.insert(txNew.vout.begin() + *change_pos, newTxOut);
+        txNew.vout.insert(txNew.vout.begin() + *change_pos, change_out);
     } else {
         change_pos = std::nullopt;
     }
