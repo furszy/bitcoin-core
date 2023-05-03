@@ -6,6 +6,8 @@
 #include <clientversion.h>
 #include <streams.h>
 #include <uint256.h>
+#include <wallet/test/util.h>
+#include <wallet/walletdb.h>
 
 #include <boost/test/unit_test.hpp>
 
@@ -25,6 +27,28 @@ BOOST_AUTO_TEST_CASE(walletdb_readkeyvalue)
     CDataStream ssValue(SER_DISK, CLIENT_VERSION);
     uint256 dummy;
     BOOST_CHECK_THROW(ssValue >> dummy, std::ios_base::failure);
+}
+
+BOOST_AUTO_TEST_CASE(mock_db_erase_prefix)
+{
+    // Test mock db erase prefix function
+    std::unique_ptr<WalletDatabase> db = CreateMockableWalletDatabase();
+    WalletBatch batch(*db);
+
+    CTxDestination dest1 = PKHash();
+    CTxDestination dest2 = ScriptHash();
+
+    BOOST_CHECK(batch.WriteAddressPreviouslySpent(dest1, true));
+    BOOST_CHECK(batch.WriteAddressPreviouslySpent(dest2, true));
+    BOOST_CHECK(batch.WriteAddressReceiveRequest(dest1, "0", "val_rr00"));
+
+    // Check that we have the data stored
+    MockableDatabase* mock_db = dynamic_cast<MockableDatabase*>(db.get());
+    BOOST_CHECK_EQUAL(mock_db->m_records.size(), 3);
+
+    // Erase dest1 data
+    BOOST_CHECK(batch.EraseAddressData(dest1));
+    BOOST_CHECK_EQUAL(mock_db->m_records.size(), 1);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
