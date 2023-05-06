@@ -1236,6 +1236,7 @@ util::Result<CreatedTransactionResult> FundTransaction(CWallet& wallet, const CM
     wallet.chain().findCoins(coins);
 
     bool is_replacement = false;
+    const uint32_t default_sequence{coinControl.m_signal_bip125_rbf.value_or(wallet.m_signal_rbf) ? MAX_BIP125_RBF_SEQUENCE : CTxIn::MAX_SEQUENCE_NONFINAL};
     for (const CTxIn& txin : tx.vin) {
         const auto& outPoint = txin.prevout;
         PreselectedInput& preset_txin = coinControl.Select(outPoint);
@@ -1247,7 +1248,9 @@ util::Result<CreatedTransactionResult> FundTransaction(CWallet& wallet, const CM
             // The input was not in the wallet, but is in the UTXO set, so select as external
             preset_txin.SetTxOut(coins[outPoint].out);
         }
-        preset_txin.SetSequence(txin.nSequence);
+
+        // if rbf was explicitly disabled by the user, don't use the sequence
+        preset_txin.SetSequence(default_sequence == CTxIn::MAX_SEQUENCE_NONFINAL ? default_sequence : txin.nSequence);
         preset_txin.SetScriptSig(txin.scriptSig);
         preset_txin.SetScriptWitness(txin.scriptWitness);
 
