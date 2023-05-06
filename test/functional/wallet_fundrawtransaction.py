@@ -124,6 +124,7 @@ class RawTransactionsTest(BitcoinTestFramework):
         self.test_invalid_change_address()
         self.test_valid_change_address()
         self.test_change_type()
+        self.test_double_change()
         self.test_coin_selection()
         self.test_two_vin()
         self.test_two_vin_two_vout()
@@ -314,6 +315,67 @@ class RawTransactionsTest(BitcoinTestFramework):
         rawtx = self.nodes[2].fundrawtransaction(rawtx, change_type='bech32')
         dec_tx = self.nodes[2].decoderawtransaction(rawtx['hex'])
         assert_equal('witness_v0_keyhash', dec_tx['vout'][rawtx['changepos']]['scriptPubKey']['type'])
+
+    def test_double_change(self):
+        self.log.info("Test fundrawtxn funding a tx with an existent change output and the same custom change addr")
+        wallet = self.nodes[0]
+
+        # 1) fundrawtxn shouldn't create a second change output if there is one already going to that address
+        change_addr = wallet.getrawchangeaddress()
+        external_addr = wallet.getnewaddress()
+        outputs = {external_addr: Decimal(40.0), change_addr: Decimal(3)}
+        rawtx = wallet.createrawtransaction([], outputs)
+        funded_tx = wallet.fundrawtransaction(hexstring=rawtx, options={'changeAddress': change_addr})
+
+        # Verify change output existence
+        change_pos = funded_tx['changepos']
+        assert change_pos != -1
+
+        # Verify outputs now; the wallet must have increased the existent change out value instead of creating a new one
+        dec_tx = wallet.decoderawtransaction(funded_tx['hex'])
+        assert_equal(wallet.gettransaction(dec_tx['vin'][0]['txid'])['amount'], Decimal(50))  # assert input value
+        assert_equal(len(dec_tx['vout']), 2)
+        for index in range(2):
+            out = dec_tx['vout'][index]
+            if index == change_pos:
+                # Change must have increased its value, change = input - outputs - fee.
+                assert_equal(out['value'], Decimal(50) - outputs[external_addr] - funded_tx['fee'])
+                assert_equal(out['scriptPubKey']['address'], change_addr)
+            else:
+                # Non-change output must remain the same
+                assert_equal(out['value'], outputs[external_addr])
+                assert_equal(out['scriptPubKey']['address'], external_addr)
+
+        # 2) Fund tx and verify that the second output going to the change address is not discarded by the wallet
+        #    changeless txs predilection. Even when the output is "change" under the wallet perspective, the user has
+        #    set it manually, so it must not be discarded.
+        outputs = {external_addr: Decimal("49.998"), change_addr: Decimal(3)}
+        rawtx = wallet.createrawtransaction([], outputs)
+        funded_tx = wallet.fundrawtransaction(hexstring=rawtx, options={'changeAddress': change_addr})
+
+        # Verify change output existence
+        change_pos = funded_tx['changepos']
+        assert change_pos != -1
+
+        # Verify outputs once more; the wallet must have increased the existent change out value instead of removing it
+        # in favor of a changeless solution
+        dec_tx = wallet.decoderawtransaction(funded_tx['hex'])
+        # assert inputs value
+        assert_equal(len(dec_tx['vin']), 2)
+        for input in dec_tx['vin']:
+            assert_equal(wallet.gettransaction(input['txid'])['amount'], Decimal(50))
+
+        assert_equal(len(dec_tx['vout']), 2)
+        for index in range(2):
+            out = dec_tx['vout'][index]
+            if index == change_pos:
+                # Change must have increased its value, change = input - outputs - fee.
+                assert_equal(out['value'], Decimal(100) - outputs[external_addr] - funded_tx['fee'])
+                assert_equal(out['scriptPubKey']['address'], change_addr)
+            else:
+                # Non-change output must remain the same
+                assert_equal(out['value'], outputs[external_addr])
+                assert_equal(out['scriptPubKey']['address'], external_addr)
 
     def test_coin_selection(self):
         self.log.info("Test fundrawtxn with a vin < required amount")
