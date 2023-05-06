@@ -184,10 +184,6 @@ Result CreateRateBumpTransaction(CWallet& wallet, const uint256& txid, const CCo
             errors.push_back(Untranslated(strprintf("%s:%u is already spent", txin.prevout.hash.GetHex(), txin.prevout.n)));
             return Result::MISC_ERROR;
         }
-        PreselectedInput& preset_txin = new_coin_control.Select(txin.prevout);
-        if (!wallet.IsMine(txin.prevout)) {
-            preset_txin.SetTxOut(coin.out);
-        }
         input_value += coin.out.nValue;
         spent_outputs.push_back(coin.out);
     }
@@ -229,18 +225,16 @@ Result CreateRateBumpTransaction(CWallet& wallet, const uint256& txid, const CCo
 
     old_fee = input_value - output_value;
 
-    // Fill in recipients (and preserve a single change key if there
-    // is one). If outputs vector is non-empty, replace original
+    // Preserve single change key if there is one.
+    // If outputs vector is non-empty, replace original
     // outputs with its contents, otherwise use original outputs.
-    std::vector<CRecipient> recipients;
-    for (const auto& output : outputs.empty() ? wtx.tx->vout : outputs) {
-        if (!OutputIsChange(wallet, output)) {
-            CRecipient recipient = {output.scriptPubKey, output.nValue, false};
-            recipients.push_back(recipient);
-        } else {
+    const auto& txouts = outputs.empty() ? wtx.tx->vout : outputs;
+    for (const auto& output : txouts) {
+        if (OutputIsChange(wallet, output)) {
             CTxDestination change_dest;
             ExtractDestination(output.scriptPubKey, change_dest);
             new_coin_control.destChange = change_dest;
+            break;
         }
     }
 
@@ -263,33 +257,25 @@ Result CreateRateBumpTransaction(CWallet& wallet, const uint256& txid, const CCo
         new_coin_control.m_feerate = EstimateFeeRate(wallet, wtx, old_fee, new_coin_control);
     }
 
-    // Fill in required inputs we are double-spending(all of them)
+    // 'FundTransaction' fills in required inputs we are double-spending (all of them)
     // N.B.: bip125 doesn't require all the inputs in the replaced transaction to be
     // used in the replacement transaction, but it's very important for wallets to make
     // sure that happens. If not, it would be possible to bump a transaction A twice to
     // A2 and A3 where A2 and A3 don't conflict (or alternatively bump A to A2 and A2
     // to A3 where A and A3 don't conflict). If both later get confirmed then the sender
     // has accidentally double paid.
-    for (const auto& inputs : wtx.tx->vin) {
-        new_coin_control.Select(COutPoint(inputs.prevout));
-    }
-    new_coin_control.m_allow_other_inputs = true;
-
-    // We cannot source new unconfirmed inputs(bip125 rule 2)
-    new_coin_control.m_min_depth = 1;
-
-    auto res = CreateTransaction(wallet, recipients, std::nullopt, new_coin_control, false);
+    CMutableTransaction temp_mtx{*wtx.tx};
+    temp_mtx.vout = txouts;
+    const auto& res = FundTransaction(wallet, temp_mtx, /*change_pos=*/std::nullopt, /*lockUnspents=*/false,
+                                      /*setSubtractFeeFromOutputs=*/{}, new_coin_control);
     if (!res) {
         errors.push_back(Untranslated("Unable to create transaction.") + Untranslated(" ") + util::ErrorString(res));
         return Result::WALLET_ERROR;
     }
 
-    const auto& txr = *res;
-    // Write back new fee if successful
-    new_fee = txr.fee;
-
     // Write back transaction
-    mtx = CMutableTransaction(*txr.tx);
+    mtx = CMutableTransaction(*res->tx);
+    new_fee = res->fee;
 
     return Result::OK;
 }
