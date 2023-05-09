@@ -101,11 +101,6 @@ bool BaseIndex::Init()
     // datadir and an index enabled. If this is the case, indexation will happen solely
     // via `BlockConnected` signals until, possibly, the next restart.
     m_synced = m_best_block_index.load() == active_chain.Tip();
-    if (!m_synced) {
-        if (!m_chain->hasDataFromTipDown(m_best_block_index.load())) {
-            return InitError(strprintf(Untranslated("%s best block of the index goes beyond pruned data. Please disable the index or reindex (which will download the whole blockchain again)"), GetName()));
-        }
-    }
     return true;
 }
 
@@ -390,7 +385,11 @@ IndexSummary BaseIndex::GetSummary() const
     IndexSummary summary{};
     summary.name = GetName();
     summary.synced = m_synced;
-    summary.best_block_height = m_best_block_index ? m_best_block_index.load()->nHeight : 0;
+    if (m_best_block_index) {
+        const CBlockIndex* pindex = m_best_block_index.load();
+        summary.best_block_height = pindex->nHeight;
+        summary.best_block_hash = pindex->GetBlockHash();
+    }
     return summary;
 }
 

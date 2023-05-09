@@ -1562,31 +1562,54 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                                      chainman, *node.mempool, ignores_incoming_txs);
     RegisterValidationInterface(node.peerman.get());
 
-    // ********************************************************* Step 8: start indexers
+    // ********************************************************* Step 8: init indexers
+
+    // Cache the first block required by the indexes
+    const CBlockIndex* indexes_start_block{nullptr};
+    std::string older_index_name;
+    const auto& update_indexes_start_block = [&](const BaseIndex* index){
+        const IndexSummary& summary = index->GetSummary();
+        if (summary.synced) return;
+        const CBlockIndex* pindex = WITH_LOCK(::cs_main, return chainman.ActiveChain()[summary.best_block_height]);
+        // indexes are always initialized to the active chain last common block
+        assert(pindex->GetBlockHash() == summary.best_block_hash);
+        // Update start block
+        if (!indexes_start_block || pindex->nHeight < indexes_start_block->nHeight) {
+            indexes_start_block = pindex;
+            older_index_name = summary.name;
+        }
+    };
+
+    // Init indexes
     if (args.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
         if (const auto error{WITH_LOCK(cs_main, return CheckLegacyTxindex(*Assert(chainman.m_blockman.m_block_tree_db)))}) {
             return InitError(*error);
         }
 
         g_txindex = std::make_unique<TxIndex>(interfaces::MakeChain(node), cache_sizes.tx_index, false, fReindex);
-        if (!g_txindex->Start()) {
-            return false;
-        }
+        update_indexes_start_block(g_txindex.get());
     }
 
     for (const auto& filter_type : g_enabled_filter_types) {
         InitBlockFilterIndex([&]{ return interfaces::MakeChain(node); }, filter_type, cache_sizes.filter_index, false, fReindex);
-        if (!GetBlockFilterIndex(filter_type)->Start()) {
-            return false;
-        }
+        update_indexes_start_block(GetBlockFilterIndex(filter_type));
     }
 
     if (args.GetBoolArg("-coinstatsindex", DEFAULT_COINSTATSINDEX)) {
         g_coin_stats_index = std::make_unique<CoinStatsIndex>(interfaces::MakeChain(node), /*cache_size=*/0, false, fReindex);
-        if (!g_coin_stats_index->Start()) {
-            return false;
-        }
+        update_indexes_start_block(g_coin_stats_index.get());
     }
+
+    // Verify all blocks needed to sync to current tip are present.
+    const auto& chain = interfaces::MakeChain(node);
+    if (indexes_start_block && !chain->hasDataFromTipDown(indexes_start_block)) {
+        return InitError(strprintf(Untranslated("%s best block of the index goes beyond pruned data. Please disable the index or reindex (which will download the whole blockchain again)"), older_index_name));
+    }
+
+    // Start indexers
+    if (g_txindex && !g_txindex->Start()) return false;
+    for (const auto& filter_type : g_enabled_filter_types) if (!GetBlockFilterIndex(filter_type)->Start()) return false;
+    if (g_coin_stats_index && !g_coin_stats_index->Start()) return false;
 
     // ********************************************************* Step 9: load wallet
     for (const auto& client : node.chain_clients) {
