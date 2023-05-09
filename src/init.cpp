@@ -1569,24 +1569,23 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         }
 
         g_txindex = std::make_unique<TxIndex>(interfaces::MakeChain(node), cache_sizes.tx_index, false, fReindex);
-        if (!g_txindex->Start()) {
-            return false;
-        }
     }
 
     for (const auto& filter_type : g_enabled_filter_types) {
         InitBlockFilterIndex([&]{ return interfaces::MakeChain(node); }, filter_type, cache_sizes.filter_index, false, fReindex);
-        if (!GetBlockFilterIndex(filter_type)->Start()) {
-            return false;
-        }
     }
 
     if (args.GetBoolArg("-coinstatsindex", DEFAULT_COINSTATSINDEX)) {
         g_coin_stats_index = std::make_unique<CoinStatsIndex>(interfaces::MakeChain(node), /*cache_size=*/0, false, fReindex);
-        if (!g_coin_stats_index->Start()) {
-            return false;
-        }
     }
+
+    // Function to start all indexers threads
+    const auto& func_start_indexes = []() {
+        if (g_txindex && !g_txindex->Start()) return false;
+        for (const auto& filter_type : g_enabled_filter_types) if (!GetBlockFilterIndex(filter_type)->Start()) return false;
+        if (g_coin_stats_index && !g_coin_stats_index->Start()) return false;
+        return true;
+    };
 
     // ********************************************************* Step 9: load wallet
     for (const auto& client : node.chain_clients) {
@@ -1673,6 +1672,13 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 
     chainman.m_load_block = std::thread(&util::TraceThread, "loadblk", [=, &chainman, &args] {
         ThreadImport(chainman, vImportFiles, args, ShouldPersistMempool(args) ? MempoolPath(args) : fs::path{});
+        // Ensure every listener is sync up to this point and start indexers
+        SyncWithValidationInterfaceQueue();
+        if (!func_start_indexes()) {
+            LogPrintf("Failed to start indexes, shutting down..\n");
+            StartShutdown();
+            return;
+        }
     });
 
     // Wait for genesis block to be processed
