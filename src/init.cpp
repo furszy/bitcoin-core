@@ -1562,25 +1562,52 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
                                      chainman, *node.mempool, ignores_incoming_txs);
     RegisterValidationInterface(node.peerman.get());
 
-    // ********************************************************* Step 8: start indexers
+    // ********************************************************* Step 8: init indexers
+
+    // Cache the first block required by the indexes
+    const CBlockIndex* indexes_start_block{nullptr};
+    std::string older_index_name;
+    const auto& update_indexes_start_block = [&](const BaseIndex* index){
+        const IndexSummary& summary = index->GetSummary();
+        if (summary.synced) return;
+        const CBlockIndex* pindex = WITH_LOCK(::cs_main, return chainman.ActiveChain()[summary.best_block_height]);
+        // indexes are always initialized to the active chain last common block
+        assert(pindex->GetBlockHash() == summary.best_block_hash);
+        // Update start block
+        if (!indexes_start_block || pindex->nHeight < indexes_start_block->nHeight) {
+            indexes_start_block = pindex;
+            older_index_name = summary.name;
+        }
+    };
+
+    // Init indexes
     if (args.GetBoolArg("-txindex", DEFAULT_TXINDEX)) {
         if (const auto error{WITH_LOCK(cs_main, return CheckLegacyTxindex(*Assert(chainman.m_blockman.m_block_tree_db)))}) {
             return InitError(*error);
         }
 
         g_txindex = std::make_unique<TxIndex>(interfaces::MakeChain(node), cache_sizes.tx_index, false, fReindex);
+        update_indexes_start_block(g_txindex.get());
     }
 
     for (const auto& filter_type : g_enabled_filter_types) {
         InitBlockFilterIndex([&]{ return interfaces::MakeChain(node); }, filter_type, cache_sizes.filter_index, false, fReindex);
+        update_indexes_start_block(GetBlockFilterIndex(filter_type));
     }
 
     if (args.GetBoolArg("-coinstatsindex", DEFAULT_COINSTATSINDEX)) {
         g_coin_stats_index = std::make_unique<CoinStatsIndex>(interfaces::MakeChain(node), /*cache_size=*/0, false, fReindex);
+        update_indexes_start_block(g_coin_stats_index.get());
     }
 
     // Function to start all indexers threads
-    const auto& func_start_indexes = []() {
+    const auto& func_start_indexes = [indexes_start_block, older_index_name](std::unique_ptr<interfaces::Chain> chain) {
+        // Verify all blocks needed to sync to current tip are present.
+        if (indexes_start_block && !chain->hasDataFromTipDown(indexes_start_block)) {
+            return InitError(strprintf(Untranslated("%s best block of the index goes beyond pruned data. Please disable the index or reindex (which will download the whole blockchain again)"), older_index_name));
+        }
+
+        // Start threads
         if (g_txindex && !g_txindex->Start()) return false;
         for (const auto& filter_type : g_enabled_filter_types) if (!GetBlockFilterIndex(filter_type)->Start()) return false;
         if (g_coin_stats_index && !g_coin_stats_index->Start()) return false;
@@ -1670,11 +1697,11 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         vImportFiles.push_back(fs::PathFromString(strFile));
     }
 
-    chainman.m_load_block = std::thread(&util::TraceThread, "loadblk", [=, &chainman, &args] {
+    chainman.m_load_block = std::thread(&util::TraceThread, "loadblk", [=, &chainman, &args, &node] {
         ThreadImport(chainman, vImportFiles, args, ShouldPersistMempool(args) ? MempoolPath(args) : fs::path{});
         // Ensure every listener is sync up to this point and start indexers
         SyncWithValidationInterfaceQueue();
-        if (!func_start_indexes()) {
+        if (!func_start_indexes(interfaces::MakeChain(node))) {
             LogPrintf("Failed to start indexes, shutting down..\n");
             StartShutdown();
             return;
