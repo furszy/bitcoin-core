@@ -176,8 +176,11 @@ public:
         auto spk_man = m_wallet->GetLegacyScriptPubKeyMan();
         if (spk_man) {
             return spk_man->HaveWatchOnly();
+        } else {
+            // If private keys are disabled, the wallet is not using an external signer and there is at least one spkm.
+            // Then this wallet is watching something.
+            return privateKeysDisabled() && !hasExternalSigner() && !m_wallet->GetAllScriptPubKeyMans().empty();
         }
-        return false;
     };
     bool setAddressBook(const CTxDestination& dest, const std::string& name, const std::optional<AddressPurpose>& purpose) override
     {
