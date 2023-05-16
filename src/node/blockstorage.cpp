@@ -27,7 +27,6 @@
 
 namespace node {
 std::atomic_bool fReindex(false);
-std::atomic_bool g_indexes_ready_to_sync{false};
 
 bool CBlockIndexWorkComparator::operator()(const CBlockIndex* pa, const CBlockIndex* pb) const
 {
@@ -951,7 +950,5 @@ void ImportBlocks(ChainstateManager& chainman, std::vector<fs::path> vImportFile
             return;
         }
     } // End scope of ImportingNow
-
-    g_indexes_ready_to_sync = true;
 }
 } // namespace node
