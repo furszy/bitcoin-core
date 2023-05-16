@@ -217,6 +217,12 @@ public:
     //! Returns last CBlockIndex* that is a checkpoint
     const CBlockIndex* GetLastCheckpoint(const CCheckpointData& data) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
+    //! Find the oldest block that is not pruned in the [upper_block, lower_block] range.
+    //! If all blocks down to lower_block are available, returns lower_block.
+    //! If 'lower_block=nullptr': the function verifies all blocks down to the genesis block.
+    //! Important note: the caller must ensure that lower_block is part of upper_block chain.
+    const CBlockIndex* CheckBlockDataAvailability(const CBlockIndex& upper_block LIFETIMEBOUND, const CBlockIndex* lower_block=nullptr) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
+
     //! Find the first block that is not pruned
     const CBlockIndex* GetFirstStoredBlock(const CBlockIndex& start_block LIFETIMEBOUND) EXCLUSIVE_LOCKS_REQUIRED(::cs_main);
 
