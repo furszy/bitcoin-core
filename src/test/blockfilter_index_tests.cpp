@@ -113,6 +113,7 @@ bool BuildChainTestingSetup::BuildChain(const CBlockIndex* pindex,
 BOOST_FIXTURE_TEST_CASE(blockfilter_index_initial_sync, BuildChainTestingSetup)
 {
     BlockFilterIndex filter_index(interfaces::MakeChain(m_node), BlockFilterType::BASIC, 1 << 20, true);
+    BOOST_REQUIRE(filter_index.Init());
 
     uint256 last_header;
 

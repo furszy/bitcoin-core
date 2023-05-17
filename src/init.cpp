@@ -1593,6 +1593,9 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
         node.indexes.emplace_back(g_coin_stats_index.get());
     }
 
+    // Init indexes
+    for (auto index : node.indexes) if (!index->Init()) return false;
+
     // Now that all indexes are loaded, start them
     StartIndexes(node);
 
