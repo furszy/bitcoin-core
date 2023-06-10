@@ -8,25 +8,30 @@
 - Stop the node and restart it with -reindex. Verify that the node has reindexed up to block 3.
 - Stop the node and restart it with -reindex-chainstate. Verify that the node has reindexed up to block 3.
 - Verify that out-of-order blocks are correctly processed, see LoadExternalBlockFile()
+- Start a second node, generate blocks, then restart with -reindex after setting blk files to read-only
 """
 
 import os
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.p2p import MAGIC_BYTES
 from test_framework.util import assert_equal
+from test_framework.test_node import FailedToStartError
 
 
 class ReindexTest(BitcoinTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = True
-        self.num_nodes = 1
+        self.num_nodes = 2
+        self.extra_args = [
+            [],
+            ["-fastprune"] # only used in reindex_readonly()
+        ]
 
     def reindex(self, justchainstate=False):
         self.generatetoaddress(self.nodes[0], 3, self.nodes[0].get_deterministic_priv_key().address)
         blockcount = self.nodes[0].getblockcount()
-        self.stop_nodes()
-        extra_args = [["-reindex-chainstate" if justchainstate else "-reindex"]]
-        self.start_nodes(extra_args)
+        self.restart_node(0, extra_args=["-reindex-chainstate" if justchainstate else "-reindex"])
+        self.connect_nodes(0, 1)
         assert_equal(self.nodes[0].getblockcount(), blockcount)  # start_node is blocking on reindex
         self.log.info("Success")
 
@@ -34,7 +39,7 @@ class ReindexTest(BitcoinTestFramework):
     def out_of_order(self):
         # The previous test created 12 blocks
         assert_equal(self.nodes[0].getblockcount(), 12)
-        self.stop_nodes()
+        self.stop_node(0)
 
         # In this test environment, blocks will always be in order (since
         # we're generating them rather than getting them from peers), so to
@@ -68,11 +73,55 @@ class ReindexTest(BitcoinTestFramework):
             'LoadExternalBlockFile: Out of order block',
             'LoadExternalBlockFile: Processing out of order child',
         ]):
-            extra_args = [["-reindex"]]
-            self.start_nodes(extra_args)
+            self.start_node(0, extra_args=["-reindex"])
 
         # All blocks should be accepted and processed.
         assert_equal(self.nodes[0].getblockcount(), 12)
+
+    def reindex_readonly(self):
+        self.connect_nodes(0, 1)
+        addr = self.nodes[1].get_deterministic_priv_key().address
+
+        # generate enough blocks to ensure that the -fastprune node fills up the
+        # first blk00000.dat file and starts another block file
+
+        # How big are empty regtest blocks?
+        block_hash = self.generatetoaddress(self.nodes[1], 1, addr)[0]
+        block_size = self.nodes[1].getblock(block_hash)["size"]
+        block_size += 8 # BLOCK_SERIALIZATION_HEADER_SIZE
+
+        # How many blocks do we need to roll over a new .blk file?
+        block_count = self.nodes[1].getblockcount()
+        fastprune_blockfile_size = 0x10000
+        size_needed = fastprune_blockfile_size - (block_size * block_count)
+        blocks_needed = size_needed // block_size
+
+        self.log.debug("Generate enough blocks to start second block file")
+        self.generatetoaddress(self.nodes[1], blocks_needed, addr)
+        self.stop_node(1)
+
+        assert os.path.exists(self.nodes[1].chain_path / 'blocks' / 'blk00000.dat')
+        assert os.path.exists(self.nodes[1].chain_path / 'blocks' / 'blk00001.dat')
+
+        self.log.debug("Make the first block file read-only")
+        filename = self.nodes[1].chain_path / 'blocks' / 'blk00000.dat'
+        os.chmod(filename, 0o444)
+
+        self.log.debug("Attempt to restart and reindex the node with the read-only block file")
+        with self.nodes[1].assert_debug_log(expected_msgs=['FlushStateToDisk', 'failed to open file'], unexpected_msgs=[]):
+            # Depending on the filesystem, attempted flushing to the read-only file will either happen...
+            try:
+                # ...during initialization...
+                self.start_node(1, extra_args=["-reindex", "-fastprune"])
+                # ...or upon shutdown, if initialization succeeds.
+                self.stop_node(1)
+            except FailedToStartError:
+                # (failure occurred during initialization)
+                pass
+            finally:
+                # Either way, ensure shutdown is complete
+                self.nodes[1].wait_until_stopped(timeout=5)
+
 
     def run_test(self):
         self.reindex(False)
@@ -82,6 +131,7 @@ class ReindexTest(BitcoinTestFramework):
 
         self.out_of_order()
 
+        self.reindex_readonly()
 
 if __name__ == '__main__':
     ReindexTest().main()
