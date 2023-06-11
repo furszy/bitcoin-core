@@ -12,10 +12,14 @@
 """
 
 import os
+import time
+
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.p2p import MAGIC_BYTES
 from test_framework.util import assert_equal
 from test_framework.test_node import FailedToStartError
+
+import subprocess
 
 
 class ReindexTest(BitcoinTestFramework):
@@ -105,7 +109,9 @@ class ReindexTest(BitcoinTestFramework):
 
         self.log.debug("Make the first block file read-only")
         filename = self.nodes[1].chain_path / 'blocks' / 'blk00000.dat'
-        os.chmod(filename, 0o444)
+        subprocess.call(['chmod', '0444', filename])
+
+        time.sleep(2)
 
         self.log.debug("Attempt to restart and reindex the node with the read-only block file")
         with self.nodes[1].assert_debug_log(expected_msgs=['FlushStateToDisk', 'failed to open file'], unexpected_msgs=[]):
