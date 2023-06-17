@@ -855,7 +855,7 @@ void SetSyscallSandboxPolicy(SyscallSandboxPolicy syscall_policy)
         seccomp_policy_builder.AllowFileSystem();
         seccomp_policy_builder.AllowNetwork();
         break;
-    case SyscallSandboxPolicy::INITIALIZATION_LOAD_BLOCKS: // Thread: loadblk
+    case SyscallSandboxPolicy::INITIALIZATION_LOAD_BLOCKS: // Thread: initload
         seccomp_policy_builder.AllowFileSystem();
         break;
     case SyscallSandboxPolicy::INITIALIZATION_MAP_PORT: // Thread: mapport

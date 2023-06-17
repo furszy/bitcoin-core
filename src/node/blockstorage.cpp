@@ -867,7 +867,7 @@ public:
     }
 };
 
-void ThreadImport(ChainstateManager& chainman, std::vector<fs::path> vImportFiles)
+void ImportBlocks(ChainstateManager& chainman, std::vector<fs::path> vImportFiles)
 {
     SetSyscallSandboxPolicy(SyscallSandboxPolicy::INITIALIZATION_LOAD_BLOCKS);
     ScheduleBatchPriority();
