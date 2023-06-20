@@ -191,8 +191,13 @@ public:
     /** Get the size of the generated public key(s) in bytes (33 or 65). */
     virtual size_t GetSize() const = 0;
 
+    enum StringType {
+        PUBLIC,
+        ID
+    };
+
     /** Get the descriptor string form. */
-    virtual std::string ToString() const = 0;
+    virtual std::string ToString(StringType type=PUBLIC) const = 0;
 
     /** Get the descriptor string form including private data (if available in arg). */
     virtual bool ToPrivateString(const SigningProvider& arg, std::string& out) const = 0;
@@ -228,7 +233,7 @@ public:
     }
     bool IsRange() const override { return m_provider->IsRange(); }
     size_t GetSize() const override { return m_provider->GetSize(); }
-    std::string ToString() const override { return "[" + OriginString() + "]" + m_provider->ToString(); }
+    std::string ToString(StringType type=PUBLIC) const override { return "[" + OriginString() + "]" + m_provider->ToString(type); }
     bool ToPrivateString(const SigningProvider& arg, std::string& ret) const override
     {
         std::string sub;
@@ -275,7 +280,7 @@ public:
     }
     bool IsRange() const override { return false; }
     size_t GetSize() const override { return m_pubkey.size(); }
-    std::string ToString() const override { return m_xonly ? HexStr(m_pubkey).substr(2) : HexStr(m_pubkey); }
+    std::string ToString(StringType type=PUBLIC) const override { return m_xonly ? HexStr(m_pubkey).substr(2) : HexStr(m_pubkey); }
     bool ToPrivateString(const SigningProvider& arg, std::string& ret) const override
     {
         CKey key;
@@ -421,9 +426,10 @@ public:
 
         return true;
     }
-    std::string ToString(bool normalized) const
+    std::string ToString(bool normalized, StringType type=PUBLIC) const
     {
-        const bool use_apostrophe = !normalized && m_apostrophe;
+        // If StringType==ID, always use the apostrophe to stay compatible with previous versions
+        bool use_apostrophe = (!normalized && m_apostrophe) || type == ID;
         std::string ret = EncodeExtPubKey(m_root_extkey) + FormatHDKeypath(m_path, /*apostrophe=*/use_apostrophe);
         if (IsRange()) {
             ret += "/*";
@@ -431,10 +437,11 @@ public:
         }
         return ret;
     }
-    std::string ToString() const override
+    std::string ToString(StringType type=PUBLIC) const override
     {
-        return ToString(/*normalized=*/false);
+        return ToString(/*normalized=*/false, type);
     }
+
     bool ToPrivateString(const SigningProvider& arg, std::string& out) const override
     {
         CExtKey key;
@@ -556,6 +563,7 @@ public:
         PUBLIC,
         PRIVATE,
         NORMALIZED,
+        ID,
     };
 
     bool IsSolvable() const override
@@ -607,6 +615,9 @@ public:
                 case StringType::PUBLIC:
                     tmp = pubkey->ToString();
                     break;
+                case StringType::ID:
+                    tmp = pubkey->ToString(/*type*/PubkeyProvider::StringType::ID);
+                    break;
             }
             ret += tmp;
         }
@@ -621,6 +632,13 @@ public:
     {
         std::string ret;
         ToStringHelper(nullptr, ret, StringType::PUBLIC);
+        return AddChecksum(ret);
+    }
+
+    std::string GetID() const final
+    {
+        std::string ret;
+        ToStringHelper(nullptr, ret, StringType::ID);
         return AddChecksum(ret);
     }
 

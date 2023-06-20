@@ -20,6 +20,7 @@ public:
     ~DummyDescriptor() = default;
 
     std::string ToString() const override { return desc; }
+    std::string GetID() const override { return ToString(); }
     std::optional<OutputType> GetOutputType() const override { return OutputType::UNKNOWN; }
 
     bool IsRange() const override { return false; }

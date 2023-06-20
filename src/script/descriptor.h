@@ -108,6 +108,9 @@ struct Descriptor {
     /** Convert the descriptor back to a string, undoing parsing. */
     virtual std::string ToString() const = 0;
 
+    /* Constant descriptor ID. */
+    virtual std::string GetID() const = 0;
+
     /** Whether this descriptor will return one scriptPubKey or multiple (aka is or is not combo) */
     virtual bool IsSingleType() const = 0;
 
