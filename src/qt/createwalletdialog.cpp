@@ -19,7 +19,7 @@ CreateWalletDialog::CreateWalletDialog(QWidget* parent) :
     ui(new Ui::CreateWalletDialog)
 {
     ui->setupUi(this);
-    ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Create"));
+    ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Next"));
     ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(false);
     ui->wallet_name_line_edit->setFocus(Qt::ActiveWindowFocusReason);
 
@@ -27,6 +27,18 @@ CreateWalletDialog::CreateWalletDialog(QWidget* parent) :
         ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(!text.isEmpty());
     });
 
+    // TODO: complete me..
+    connect(ui->radio_button_group, &QButtonGroup::buttonToggled, this, &CreateWalletDialog::btnToggled);
+
+    /**
+     *  [](QAbstractButton* btn, bool checked) {
+        //if (id == ui->radio_btn_ext_signer);
+     */
+    //buttonToggled(QAbstractButton *button, bool checked)
+
+
+
+    /*
     connect(ui->encrypt_wallet_checkbox, &QCheckBox::toggled, [this](bool checked) {
         // Disable the disable_privkeys_checkbox and external_signer_checkbox when isEncryptWalletChecked is
         // set to true, enable it when isEncryptWalletChecked is false.
@@ -106,6 +118,7 @@ CreateWalletDialog::CreateWalletDialog(QWidget* parent) :
         ui->external_signer_checkbox->setChecked(false);
 #endif
 
+     */
 }
 
 CreateWalletDialog::~CreateWalletDialog()
@@ -117,20 +130,22 @@ void CreateWalletDialog::setSigners(const std::vector<std::unique_ptr<interfaces
 {
     m_has_signers = !signers.empty();
     if (m_has_signers) {
-        ui->external_signer_checkbox->setEnabled(true);
-        ui->external_signer_checkbox->setChecked(true);
-        ui->encrypt_wallet_checkbox->setEnabled(false);
-        ui->encrypt_wallet_checkbox->setChecked(false);
+        ui->radio_btn_ext_signer->setEnabled(true);
+        ui->radio_btn_ext_signer->setChecked(true);
+        ui->checkbox_encrypt->setEnabled(false);
+        ui->checkbox_encrypt->setChecked(false);
+        /*
         // The order matters, because connect() is called when toggling a checkbox:
         ui->blank_wallet_checkbox->setEnabled(false);
         ui->blank_wallet_checkbox->setChecked(false);
         ui->disable_privkeys_checkbox->setEnabled(false);
         ui->disable_privkeys_checkbox->setChecked(true);
+         */
         const std::string label = signers[0]->getName();
         ui->wallet_name_line_edit->setText(QString::fromStdString(label));
         ui->buttonBox->button(QDialogButtonBox::Ok)->setEnabled(true);
     } else {
-        ui->external_signer_checkbox->setEnabled(false);
+        ui->radio_btn_ext_signer->setEnabled(false);
     }
 }
 
@@ -141,25 +156,26 @@ QString CreateWalletDialog::walletName() const
 
 bool CreateWalletDialog::isEncryptWalletChecked() const
 {
-    return ui->encrypt_wallet_checkbox->isChecked();
+    return ui->checkbox_encrypt->isChecked();
 }
 
 bool CreateWalletDialog::isDisablePrivateKeysChecked() const
 {
-    return ui->disable_privkeys_checkbox->isChecked();
+    // todo: if this is a blank wallet or a watch only one.
+    return false; //ui->disable_privkeys_checkbox->isChecked();
 }
 
 bool CreateWalletDialog::isMakeBlankWalletChecked() const
 {
-    return ui->blank_wallet_checkbox->isChecked();
+    return ui->radio_btn_blank->isChecked();
 }
 
 bool CreateWalletDialog::isDescriptorWalletChecked() const
 {
-    return ui->descriptor_checkbox->isChecked();
+    return true;
 }
 
 bool CreateWalletDialog::isExternalSignerChecked() const
 {
-    return ui->external_signer_checkbox->isChecked();
+    return ui->radio_btn_ext_signer->isChecked();
 }

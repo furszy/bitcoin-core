@@ -6,6 +6,7 @@
 #define BITCOIN_QT_CREATEWALLETDIALOG_H
 
 #include <QDialog>
+#include <QAbstractButton>
 
 #include <memory>
 
@@ -37,6 +38,9 @@ public:
     bool isMakeBlankWalletChecked() const;
     bool isDescriptorWalletChecked() const;
     bool isExternalSignerChecked() const;
+
+public Q_SLOTS:
+    void btnToggled(QAbstractButton *, bool);
 
 private:
     Ui::CreateWalletDialog *ui;
