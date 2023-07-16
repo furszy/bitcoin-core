@@ -372,6 +372,9 @@ private:
 
     void SyncTransaction(const CTransactionRef& tx, const SyncTxState& state, bool update_tx = true, bool rescanning_old_block = false) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
+    /** Clear transactions from the wallet transactions memory map. They are NOT erased from the database. */
+    void ClearTxns(const std::vector<uint256>& tx_hashes) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+
     /** WalletFlags set on this wallet. */
     std::atomic<uint64_t> m_wallet_flags{0};
 

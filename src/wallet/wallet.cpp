@@ -2311,11 +2311,9 @@ DBErrors CWallet::LoadWallet()
     return nLoadWalletRet;
 }
 
-DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn)
+void CWallet::ClearTxns(const std::vector<uint256>& tx_hashes)
 {
-    AssertLockHeld(cs_wallet);
-    DBErrors nZapSelectTxRet = WalletBatch(GetDatabase()).ZapSelectTx(vHashIn);
-    for (const uint256& hash : vHashIn) {
+    for (const uint256& hash : tx_hashes) {
         const auto& it = mapWallet.find(hash);
         wtxOrdered.erase(it->second.m_it_wtxOrdered);
         for (const auto& txin : it->second.tx->vin)
@@ -2323,6 +2321,14 @@ DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn)
         mapWallet.erase(it);
         NotifyTransactionChanged(hash, CT_DELETED);
     }
+}
+
+DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn)
+{
+    AssertLockHeld(cs_wallet);
+    DBErrors nZapSelectTxRet = WalletBatch(GetDatabase()).ZapSelectTx(vHashIn);
+    // Remove transactions from the memory map
+    ClearTxns(vHashIn);
 
     if (nZapSelectTxRet != DBErrors::LOAD_OK)
         return nZapSelectTxRet;
