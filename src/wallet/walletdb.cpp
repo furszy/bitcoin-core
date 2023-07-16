@@ -1227,88 +1227,18 @@ DBErrors WalletBatch::LoadWallet(CWallet* pwallet)
     return result;
 }
 
-DBErrors WalletBatch::FindWalletTxHashes(std::vector<uint256>& tx_hashes)
+DBErrors WalletBatch::ZapSelectTx(std::vector<uint256>& txs_to_remove, std::vector<uint256>& out_txs_removed)
 {
-    DBErrors result = DBErrors::LOAD_OK;
-
-    try {
-        int nMinVersion = 0;
-        if (m_batch->Read(DBKeys::MINVERSION, nMinVersion)) {
-            if (nMinVersion > FEATURE_LATEST)
-                return DBErrors::TOO_NEW;
+    bool tx_not_found = false;
+    for (const uint256& hash : txs_to_remove) {
+        if (!EraseTx(hash)) {
+            LogPrint(BCLog::WALLETDB, "%s: Cannot remove transaction: %s, not found in db\n", __func__, hash.GetHex());
+            tx_not_found = true;
+            continue;
         }
-
-        // Get cursor
-        std::unique_ptr<DatabaseCursor> cursor = m_batch->GetNewCursor();
-        if (!cursor)
-        {
-            LogPrintf("Error getting wallet database cursor\n");
-            return DBErrors::CORRUPT;
-        }
-
-        while (true)
-        {
-            // Read next record
-            DataStream ssKey{};
-            DataStream ssValue{};
-            DatabaseCursor::Status status = cursor->Next(ssKey, ssValue);
-            if (status == DatabaseCursor::Status::DONE) {
-                break;
-            } else if (status == DatabaseCursor::Status::FAIL) {
-                LogPrintf("Error reading next record from wallet database\n");
-                return DBErrors::CORRUPT;
-            }
-
-            std::string strType;
-            ssKey >> strType;
-            if (strType == DBKeys::TX) {
-                uint256 hash;
-                ssKey >> hash;
-                tx_hashes.push_back(hash);
-            }
-        }
-    } catch (...) {
-        result = DBErrors::CORRUPT;
+        out_txs_removed.emplace_back(hash);
     }
-
-    return result;
-}
-
-DBErrors WalletBatch::ZapSelectTx(std::vector<uint256>& vTxHashIn, std::vector<uint256>& vTxHashOut)
-{
-    // build list of wallet TX hashes
-    std::vector<uint256> vTxHash;
-    DBErrors err = FindWalletTxHashes(vTxHash);
-    if (err != DBErrors::LOAD_OK) {
-        return err;
-    }
-
-    std::sort(vTxHash.begin(), vTxHash.end());
-    std::sort(vTxHashIn.begin(), vTxHashIn.end());
-
-    // erase each matching wallet TX
-    bool delerror = false;
-    std::vector<uint256>::iterator it = vTxHashIn.begin();
-    for (const uint256& hash : vTxHash) {
-        while (it < vTxHashIn.end() && (*it) < hash) {
-            it++;
-        }
-        if (it == vTxHashIn.end()) {
-            break;
-        }
-        else if ((*it) == hash) {
-            if(!EraseTx(hash)) {
-                LogPrint(BCLog::WALLETDB, "Transaction was found for deletion but returned database error: %s\n", hash.GetHex());
-                delerror = true;
-            }
-            vTxHashOut.push_back(hash);
-        }
-    }
-
-    if (delerror) {
-        return DBErrors::CORRUPT;
-    }
-    return DBErrors::LOAD_OK;
+    return tx_not_found ? DBErrors::CORRUPT : DBErrors::LOAD_OK;
 }
 
 void MaybeCompactWalletDB(WalletContext& context)

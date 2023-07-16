@@ -59,6 +59,15 @@ enum class DBErrors : int
     CORRUPT = 9,
 };
 
+/** Error statuses for writing to the wallet database
+ * Values are in order of severity. When multiple errors occur, the most severe (highest value) will be returned.
+ */
+enum class DbWriteErrors : int
+{
+    DB_TXN,     // Error opening or closing a db txn
+    WRITE_FAIL  //
+};
+
 namespace DBKeys {
 extern const std::string ACENTRY;
 extern const std::string ACTIVEEXTERNALSPK;
@@ -276,8 +285,13 @@ public:
     bool EraseActiveScriptPubKeyMan(uint8_t type, bool internal);
 
     DBErrors LoadWallet(CWallet* pwallet);
-    DBErrors FindWalletTxHashes(std::vector<uint256>& tx_hashes);
-    DBErrors ZapSelectTx(std::vector<uint256>& vHashIn, std::vector<uint256>& vHashOut);
+    /**
+     * Erases provided transactions from db.
+     * @param txs_to_remove       transactions to remove from db.
+     * @param out_txs_removed     output arg, transactions removed from db.
+     * @return DBErrors::CORRUPT if at least one of the 'txs_to_remove' was not found in db.
+     */
+    DBErrors ZapSelectTx(std::vector<uint256>& txs_to_remove, std::vector<uint256>& out_txs_removed);
 
     //! write the hdchain model (external chain child index counter)
     bool WriteHDChain(const CHDChain& chain);
