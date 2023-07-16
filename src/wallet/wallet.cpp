@@ -2326,16 +2326,18 @@ void CWallet::ClearTxns(const std::vector<uint256>& tx_hashes)
 DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn)
 {
     AssertLockHeld(cs_wallet);
-    DBErrors nZapSelectTxRet = WalletBatch(GetDatabase()).ZapSelectTx(vHashIn);
-    // Remove transactions from the memory map
+
+    WalletBatch batch(GetDatabase());
+    if (!batch.TxnBegin()) return DBErrors::NONCRITICAL_ERROR;
+    DBErrors db_status = batch.ZapSelectTx(vHashIn);
+    // All deletions should have been added to the db txn, otherwise we abort the process.
+    if (db_status != DBErrors::LOAD_OK) return db_status;
+
+    // Apply db changes and remove transactions from the memory map
+    if (!batch.TxnCommit()) return DBErrors::NONCRITICAL_ERROR;
     ClearTxns(vHashIn);
-
-    if (nZapSelectTxRet != DBErrors::LOAD_OK)
-        return nZapSelectTxRet;
-
     MarkDirty();
-
-    return DBErrors::LOAD_OK;
+    return db_status;
 }
 
 bool CWallet::SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& address, const std::string& strName, const std::optional<AddressPurpose>& new_purpose)
