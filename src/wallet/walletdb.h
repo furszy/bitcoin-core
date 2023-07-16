@@ -275,8 +275,15 @@ public:
     bool EraseActiveScriptPubKeyMan(uint8_t type, bool internal);
 
     DBErrors LoadWallet(CWallet* pwallet);
-    DBErrors FindWalletTxHashes(std::vector<uint256>& tx_hashes);
-    DBErrors ZapSelectTx(std::vector<uint256>& vHashIn, std::vector<uint256>& vHashOut);
+    /**
+     * Erases the provided transactions from the database.
+     * This function is designed to be used within a batch database transaction.
+     * So if the function returns DBErrors::CORRUPT, the transaction can be aborted.
+     *
+     * @param txs_to_remove A vector containing the transaction IDs to be removed from the database.
+     * @return DBErrors::CORRUPT if at least one of the 'txs_to_remove' was not found or not removed from the database.
+     */
+    DBErrors ZapSelectTx(std::vector<uint256>& txs_to_remove);
 
     //! write the hdchain model (external chain child index counter)
     bool WriteHDChain(const CHDChain& chain);

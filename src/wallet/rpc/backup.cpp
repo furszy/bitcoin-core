@@ -392,16 +392,14 @@ RPCHelpMan removeprunedfunds()
     LOCK(pwallet->cs_wallet);
 
     uint256 hash(ParseHashV(request.params[0], "txid"));
+
+    // Return early if the transaction doesn't belong to this wallet
+    if (!pwallet->GetWalletTx(hash)) throw JSONRPCError(RPC_INVALID_PARAMETER, "Transaction does not exist in wallet");
+
     std::vector<uint256> vHash;
     vHash.push_back(hash);
-    std::vector<uint256> vHashOut;
-
-    if (pwallet->ZapSelectTx(vHash, vHashOut) != DBErrors::LOAD_OK) {
-        throw JSONRPCError(RPC_WALLET_ERROR, "Could not properly delete the transaction.");
-    }
-
-    if(vHashOut.empty()) {
-        throw JSONRPCError(RPC_INVALID_PARAMETER, "Transaction does not exist in wallet.");
+    if (pwallet->ZapSelectTx(vHash) != DBErrors::LOAD_OK) {
+        throw JSONRPCError(RPC_WALLET_ERROR, "Could not properly delete the transaction");
     }
 
     return UniValue::VNULL;
