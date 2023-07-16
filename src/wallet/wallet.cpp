@@ -2320,11 +2320,11 @@ DBErrors CWallet::LoadWallet()
     return nLoadWalletRet;
 }
 
-DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn, std::vector<uint256>& vHashOut)
+DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn)
 {
     AssertLockHeld(cs_wallet);
-    DBErrors nZapSelectTxRet = WalletBatch(GetDatabase()).ZapSelectTx(vHashIn, vHashOut);
-    for (const uint256& hash : vHashOut) {
+    DBErrors nZapSelectTxRet = WalletBatch(GetDatabase()).ZapSelectTx(vHashIn);
+    for (const uint256& hash : vHashIn) {
         const auto& it = mapWallet.find(hash);
         wtxOrdered.erase(it->second.m_it_wtxOrdered);
         for (const auto& txin : it->second.tx->vin)
@@ -3954,13 +3954,8 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
     watchonly_batch.reset(); // Flush
     // Do the removes
     if (txids_to_delete.size() > 0) {
-        std::vector<uint256> deleted_txids;
-        if (ZapSelectTx(txids_to_delete, deleted_txids) != DBErrors::LOAD_OK) {
+        if (ZapSelectTx(txids_to_delete) != DBErrors::LOAD_OK) {
             error = _("Error: Could not delete watchonly transactions");
-            return false;
-        }
-        if (deleted_txids != txids_to_delete) {
-            error = _("Error: Not all watchonly txs could be deleted");
             return false;
         }
     }
