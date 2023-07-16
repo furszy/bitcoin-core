@@ -2395,16 +2395,18 @@ void CWallet::EraseTxns(const std::vector<uint256>& tx_hashes)
 DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn, std::vector<uint256>& vHashOut)
 {
     AssertLockHeld(cs_wallet);
-    DBErrors nZapSelectTxRet = WalletBatch(GetDatabase()).ZapSelectTx(vHashIn, vHashOut);
-    // Remove transactions from the memory map
+
+    WalletBatch batch(GetDatabase());
+    if (!batch.TxnBegin()) return DBErrors::NONCRITICAL_ERROR;
+    DBErrors db_status = batch.ZapSelectTx(vHashIn, vHashOut);
+    // All transactions should have been added to the db txn, otherwise we abort the process.
+    if (db_status != DBErrors::LOAD_OK) return db_status;
+
+    // Apply db changes and remove transactions from the memory map
+    if (!batch.TxnCommit()) return DBErrors::NONCRITICAL_ERROR;
     EraseTxns(vHashOut);
-
-    if (nZapSelectTxRet != DBErrors::LOAD_OK)
-        return nZapSelectTxRet;
-
     MarkDirty();
-
-    return DBErrors::LOAD_OK;
+    return db_status;
 }
 
 bool CWallet::SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& address, const std::string& strName, const std::optional<AddressPurpose>& new_purpose)
@@ -3974,8 +3976,14 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
     }
     // Do the removes
     if (txids_to_delete.size() > 0) {
+        WalletBatch batch(GetDatabase());
+        if (!batch.TxnBegin()) {
+            error = _("Error: Could not start db txn to delete watchonly transactions");
+            return false;
+        }
+
         std::vector<uint256> deleted_txids;
-        if (ZapSelectTx(txids_to_delete, deleted_txids) != DBErrors::LOAD_OK) {
+        if (batch.ZapSelectTx(txids_to_delete, deleted_txids) != DBErrors::LOAD_OK) {
             error = _("Error: Could not delete watchonly transactions");
             return false;
         }
@@ -3983,6 +3991,16 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
             error = _("Error: Not all watchonly txs could be deleted");
             return false;
         }
+
+        // Apply db changes
+        if (!batch.TxnCommit()) {
+            error = _("Error: DB commit error, could not delete watchonly transactions");
+            return false;
+        }
+
+        // Now erase txs from the wallet map and mark all transactions dirty
+        EraseTxns(deleted_txids);
+        MarkDirty();
     }
 
     // Check the address book data in the same way we did for transactions
