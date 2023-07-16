@@ -2335,16 +2335,18 @@ void CWallet::EraseTxns(const std::vector<uint256>& tx_hashes)
 DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn)
 {
     AssertLockHeld(cs_wallet);
-    DBErrors nZapSelectTxRet = WalletBatch(GetDatabase()).ZapSelectTx(vHashIn);
-    // Remove transactions from the memory map
+
+    WalletBatch batch(GetDatabase());
+    if (!batch.TxnBegin()) return DBErrors::NONCRITICAL_ERROR;
+    DBErrors db_status = batch.ZapSelectTx(vHashIn);
+    // All transactions should have been added to the db txn, otherwise we abort the process.
+    if (db_status != DBErrors::LOAD_OK) return db_status;
+
+    // Apply db changes and remove transactions from the memory map
+    if (!batch.TxnCommit()) return DBErrors::NONCRITICAL_ERROR;
     EraseTxns(vHashIn);
-
-    if (nZapSelectTxRet != DBErrors::LOAD_OK)
-        return nZapSelectTxRet;
-
     MarkDirty();
-
-    return DBErrors::LOAD_OK;
+    return db_status;
 }
 
 bool CWallet::SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& address, const std::string& strName, const std::optional<AddressPurpose>& new_purpose)
@@ -3960,10 +3962,26 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
     watchonly_batch.reset(); // Flush
     // Do the removes
     if (txids_to_delete.size() > 0) {
-        if (ZapSelectTx(txids_to_delete) != DBErrors::LOAD_OK) {
+        WalletBatch batch(GetDatabase());
+        if (!batch.TxnBegin()) {
+            error = _("Error: Could not start db txn to delete watchonly transactions");
+            return false;
+        }
+
+        if (batch.ZapSelectTx(txids_to_delete) != DBErrors::LOAD_OK) {
             error = _("Error: Could not delete watchonly transactions");
             return false;
         }
+
+        // Apply db changes
+        if (!batch.TxnCommit()) {
+            error = _("Error: DB commit error, could not delete watchonly transactions");
+            return false;
+        }
+
+        // Now erase txs from the wallet map and mark all transactions dirty
+        EraseTxns(txids_to_delete);
+        MarkDirty();
     }
 
     // Check the address book data in the same way we did for transactions
