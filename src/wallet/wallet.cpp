@@ -3927,8 +3927,15 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
         AddScriptPubKeyMan(id, std::move(desc_spkm));
     }
 
+    // Start database transaction
+    WalletBatch batch(GetDatabase());
+    if (!batch.TxnBegin()) {
+        error = _("Error: Could not start db txn to apply migration data");
+        return false;
+    }
+
     // Remove the LegacyScriptPubKeyMan from disk
-    if (!legacy_spkm->DeleteRecords()) {
+    if (!legacy_spkm->DeleteRecords(batch)) {
         return false;
     }
 
@@ -3975,14 +3982,8 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
         }
     }
     // Do the removes
+    std::vector<uint256> deleted_txids;
     if (txids_to_delete.size() > 0) {
-        WalletBatch batch(GetDatabase());
-        if (!batch.TxnBegin()) {
-            error = _("Error: Could not start db txn to delete watchonly transactions");
-            return false;
-        }
-
-        std::vector<uint256> deleted_txids;
         if (batch.ZapSelectTx(txids_to_delete, deleted_txids) != DBErrors::LOAD_OK) {
             error = _("Error: Could not delete watchonly transactions");
             return false;
@@ -3991,16 +3992,6 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
             error = _("Error: Not all watchonly txs could be deleted");
             return false;
         }
-
-        // Apply db changes
-        if (!batch.TxnCommit()) {
-            error = _("Error: DB commit error, could not delete watchonly transactions");
-            return false;
-        }
-
-        // Now erase txs from the wallet map and mark all transactions dirty
-        EraseTxns(deleted_txids);
-        MarkDirty();
     }
 
     // Check the address book data in the same way we did for transactions
@@ -4086,6 +4077,19 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
                 return false;
             }
         }
+    }
+
+    // TODO: add addressbook removal here too..
+    // Apply db changes
+    if (!batch.TxnCommit()) {
+        error = _("Error: DB commit error, could not apply migration changes");
+        return false;
+    }
+
+    if (!deleted_txids.empty()) {
+        // Now erase txs from the wallet map and mark all transactions dirty
+        EraseTxns(deleted_txids);
+        MarkDirty();
     }
 
     // Connect the SPKM signals

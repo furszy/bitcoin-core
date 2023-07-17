@@ -1975,7 +1975,17 @@ bool LegacyScriptPubKeyMan::DeleteRecords()
 {
     LOCK(cs_KeyStore);
     WalletBatch batch(m_storage.GetDatabase());
-    return batch.EraseRecords(DBKeys::LEGACY_TYPES);
+    if (!batch.TxnBegin()) return false;
+    if (!batch.EraseRecords(DBKeys::LEGACY_TYPES)) return false;
+    if (!batch.TxnCommit()) return false;
+    return true;
+}
+
+bool LegacyScriptPubKeyMan::DeleteRecords(WalletBatch& batch)
+{
+    LOCK(cs_KeyStore);
+    if (!batch.EraseRecords(DBKeys::LEGACY_TYPES)) return false;
+    return true;
 }
 
 util::Result<CTxDestination> DescriptorScriptPubKeyMan::GetNewDestination(const OutputType type)

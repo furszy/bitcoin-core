@@ -526,8 +526,11 @@ public:
     /** Get the DescriptorScriptPubKeyMans (with private keys) that have the same scriptPubKeys as this LegacyScriptPubKeyMan.
      * Does not modify this ScriptPubKeyMan. */
     std::optional<MigrationData> MigrateToDescriptor();
-    /** Delete all the records ofthis LegacyScriptPubKeyMan from disk*/
+    /** Delete all the records of this LegacyScriptPubKeyMan from disk */
     bool DeleteRecords();
+    /** Delete all the records of this LegacyScriptPubKeyMan from disk using the provided db handler.
+     *  Useful for batching db transactions and atomically committing all changes at once at the end of the process */
+    bool DeleteRecords(WalletBatch& batch);
 };
 
 /** Wraps a LegacyScriptPubKeyMan so that it can be returned in a new unique_ptr. Does not provide privkeys */
