@@ -202,6 +202,7 @@ BITCOIN_CORE_H = \
   merkleblock.h \
   net.h \
   net_permissions.h \
+  blockrequesttracker.h \
   net_processing.h \
   net_types.h \
   netaddress.h \
@@ -410,6 +411,7 @@ libbitcoin_node_a_SOURCES = \
   kernel/mempool_removal_reason.cpp \
   mapport.cpp \
   net.cpp \
+  blockrequesttracker.cpp \
   net_processing.cpp \
   netgroup.cpp \
   node/abort.cpp \
