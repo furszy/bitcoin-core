@@ -1364,6 +1364,7 @@ void PeerManagerImpl::FindNextBlocksToDownload(const Peer& peer, unsigned int co
     // download that next block if the window were 1 larger.
     int nWindowEnd = state->pindexLastCommonBlock->nHeight + BLOCK_DOWNLOAD_WINDOW;
     int nMaxHeight = std::min<int>(state->pindexBestKnownBlock->nHeight, nWindowEnd + 1);
+    bool is_limited_peer = IsLimitedPeer(peer);
     NodeId waitingfor = -1;
     while (pindexWalk->nHeight < nMaxHeight) {
         // Read up to 128 (or more, if more blocks than that are needed) successors of pindexWalk (towards
@@ -1415,6 +1416,11 @@ void PeerManagerImpl::FindNextBlocksToDownload(const Peer& peer, unsigned int co
                     // We aren't able to fetch anything, but we would be if the download window was one larger.
                     nodeStaller = waitingfor;
                 }
+                return;
+            }
+
+            // Don't request blocks that go further than what limited peers can provide
+            if (is_limited_peer && (state->pindexBestKnownBlock->nHeight - pindex->nHeight > static_cast<int>(NODE_NETWORK_LIMITED_MIN_BLOCKS) + 2 /* add two blocks buffer extension for possible races */)) {
                 return;
             }
 
