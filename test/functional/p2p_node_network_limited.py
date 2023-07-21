@@ -8,6 +8,9 @@ Tests that a node configured with -prune=550 signals NODE_NETWORK_LIMITED correc
 and that it responds to getdata requests for blocks correctly:
     - send a block within 288 + 2 of the tip
     - disconnect peers who request blocks older than that."""
+import time
+
+from test_framework.blocktools import MIN_BLOCKS_TO_KEEP
 from test_framework.messages import CInv, MSG_BLOCK, msg_getdata, msg_verack, NODE_NETWORK_LIMITED, NODE_WITNESS
 from test_framework.p2p import P2PInterface
 from test_framework.test_framework import BitcoinTestFramework
@@ -45,6 +48,44 @@ class NodeNetworkLimitedTest(BitcoinTestFramework):
     def setup_network(self):
         self.add_nodes(self.num_nodes, self.extra_args)
         self.start_nodes()
+
+    def test_avoid_requesting_old_blocks(self):
+        self.log.info("Test node not requesting blocks beyond limited peer threshold")
+        # The request of blocks further than the NETWORK_NODE_LIMITED threshold causes a direct disconnection.
+        pruned_node = self.nodes[0]
+        miner = self.nodes[1]
+        full_node = self.nodes[2]
+
+        # Connect and generate block to ensure IBD=false
+        self.connect_nodes(1, 2)
+        self.connect_nodes(0, 2)
+        self.generate(miner, 1, sync_fun=self.no_op)
+
+        # Verify all peers are at the same height
+        best_block = miner.getbestblockhash()
+        for node in [full_node, pruned_node]:
+            self.wait_until(lambda: node.getbestblockhash() == best_block, timeout=10)
+
+        # Verify that all peers are out of IBD
+        for node in self.nodes:
+            assert not node.getblockchaininfo()['initialblockdownload']
+
+        # Disconnect full_node from the other two peers (the node will remain out of IBD)
+        self.disconnect_nodes(0, 2)
+        self.disconnect_nodes(1, 2)
+        assert_equal(len(full_node.getpeerinfo()), 0)
+
+        # Mine blocks and sync the pruned node. Surpass the NETWORK_NODE_LIMITED threshold.
+        self.generate(miner, MIN_BLOCKS_TO_KEEP + 12, sync_fun=self.no_op)
+        self.sync_blocks([miner, pruned_node])
+
+        # Connect full_node to prune_node and check peers don't disconnect right away.
+        # (they will disconnect if full_node, which is chain-wise behind, request blocks
+        #  older than MIN_BLOCKS_TO_KEEP)
+        self.connect_nodes(0, 2)
+        assert_equal(len(full_node.getpeerinfo()), 1)
+        time.sleep(3)  # Wait for a few seconds to ensure peers remain connected
+        assert_equal(len(full_node.getpeerinfo()), 1)
 
     def run_test(self):
         node = self.nodes[0].add_p2p_connection(P2PIgnoreInv())
@@ -107,6 +148,8 @@ class NodeNetworkLimitedTest(BitcoinTestFramework):
 
         # sync must be possible, node 1 is no longer in IBD and should therefore connect to node 0 (NODE_NETWORK_LIMITED)
         self.sync_blocks([self.nodes[0], self.nodes[1]])
+
+        self.test_avoid_requesting_old_blocks()
 
 if __name__ == '__main__':
     NodeNetworkLimitedTest().main()
