@@ -3920,6 +3920,9 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
         return false;
     }
 
+    // Get all invalid or non-watched scripts that will not be migrated
+    const auto& not_migrated_scripts =  legacy_spkm->GetNotMineScriptPubKeys();
+
     for (auto& desc_spkm : data.desc_spkms) {
         if (m_spk_managers.count(desc_spkm->GetID()) > 0) {
             error = _("Error: Duplicate descriptors created during migration. Your wallet may be corrupted.");
@@ -4026,6 +4029,20 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
                         continue;
                     }
                 }
+
+                // Prior to failing, verify if this record is from an invalid/non-watched script that will not be migrated
+                bool skip_record = false;
+                for (const auto& script : not_migrated_scripts) {
+                    CTxDestination dest;
+                    ExtractDestination(script, dest);
+                    if (IsValidDestination(dest) && dest == addr_pair.first) {
+                        skip_record = true;
+                        dests_to_delete.push_back(addr_pair.first);
+                        break;
+                    }
+                }
+                if (skip_record) continue; // Skip record linked to a script that we will not migrate
+
                 // Not ours, not in watchonly wallet, and not in solvable
                 error = _("Error: Address book data in wallet cannot be identified to belong to migrated wallets");
                 return false;
