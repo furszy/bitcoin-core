@@ -246,6 +246,31 @@ class WalletBackupTest(BitcoinTestFramework):
             assert_equal(self.nodes[1].getbalance(), balance1)
             assert_equal(self.nodes[2].getbalance(), balance2)
 
+            ########################################################
+            # Now perform the same test but on a watch-only wallet #
+            ########################################################
+            self.log.info("Test watch-only dump + import")
+            # First create the address to watch and send coins to it.
+            wo_addr = self.nodes[1].getnewaddress()
+            wo_amount = 2
+            self.nodes[1].sendtoaddress(wo_addr, wo_amount)
+            self.sync_mempools()
+            self.generate(self.nodes[3], 6)
+
+            # Import address into node2 and check balance
+            self.nodes[2].importaddress(wo_addr, rescan=True)
+            assert_equal(self.nodes[2].getbalances()['watchonly']['trusted'], wo_amount)
+
+            # Now dump the wallet and import it on a new wallet
+            wo_dump_path = os.path.join(self.nodes[2].datadir, 'wo_wallet.dump')
+            self.nodes[2].dumpwallet(wo_dump_path)
+            # Create new wallet
+            self.nodes[2].createwallet(wallet_name="wo_wallet", descriptors=False, blank=True)
+            wo_wallet = self.nodes[2].get_wallet_rpc("wo_wallet")
+            wo_wallet.importwallet(wo_dump_path)
+            # The watch-only balance must be the same
+            assert_equal(wo_wallet.getbalances()['watchonly']['trusted'], wo_amount)
+
         # Backup to source wallet file must fail
         sourcePaths = [
             os.path.join(self.nodes[0].wallets_path, self.default_wallet_name, self.wallet_data_filename),
