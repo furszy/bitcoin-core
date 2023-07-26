@@ -724,7 +724,8 @@ private:
     bool RejectIncomingTxs(const CNode& peer) const;
 
     /** Whether we've completed initial sync yet, for determining when to turn
-      * on extra block-relay-only peers. */
+      * on extra block-relay-only peers and the peer connections desirable
+      * services flags. */
     bool m_initial_sync_finished GUARDED_BY(cs_main){false};
 
     /** Protects m_peer_map. This mutex must not be locked while holding a lock
@@ -893,7 +894,7 @@ private:
      */
     bool BlockRequested(NodeId nodeid, const CBlockIndex& block, std::list<QueuedBlock>::iterator** pit = nullptr) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
-    bool TipMayBeStale() EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+    bool TipMayBeStale(bool& super_stale) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
     /** Update pindexLastCommonBlock and add not-in-flight missing successors to vBlocks, until it has
      *  at most count entries.
@@ -1263,14 +1264,21 @@ void PeerManagerImpl::MaybeSetPeerAsAnnouncingHeaderAndIDs(NodeId nodeid)
     });
 }
 
-bool PeerManagerImpl::TipMayBeStale()
+bool PeerManagerImpl::TipMayBeStale(bool& super_stale)
 {
     AssertLockHeld(cs_main);
     const Consensus::Params& consensusParams = m_chainparams.GetConsensus();
     if (m_last_tip_update.load() == 0s) {
         m_last_tip_update = GetTime<std::chrono::seconds>();
     }
-    return m_last_tip_update.load() < GetTime<std::chrono::seconds>() - std::chrono::seconds{consensusParams.nPowTargetSpacing * 3} && mapBlocksInFlight.empty();
+
+    auto last_update_time = m_last_tip_update.load();
+    if (last_update_time < GetTime<std::chrono::seconds>() - std::chrono::seconds{consensusParams.nPowTargetSpacing * 3} && mapBlocksInFlight.empty()) {
+        // If tip is further than NODE_NETWORK_LIMITED_MIN_BLOCKS, we are really behind and shouldn't connect to limited peers anymore.
+        super_stale = last_update_time < GetTime<std::chrono::seconds>() - std::chrono::seconds{consensusParams.nPowTargetSpacing * 290};
+        return true;
+    }
+    return false;
 }
 
 bool PeerManagerImpl::CanDirectFetch()
@@ -5215,10 +5223,11 @@ void PeerManagerImpl::CheckForStaleTipAndEvictPeers()
 
     EvictExtraOutboundPeers(now);
 
+    bool super_stale = false;
     if (now > m_stale_tip_check_time) {
         // Check whether our tip is stale, and if so, allow using an extra
         // outbound peer
-        if (!m_chainman.m_blockman.LoadingBlocks() && m_connman.GetNetworkActive() && m_connman.GetUseAddrmanOutgoing() && TipMayBeStale()) {
+        if (!m_chainman.m_blockman.LoadingBlocks() && m_connman.GetNetworkActive() && m_connman.GetUseAddrmanOutgoing() && TipMayBeStale(super_stale)) {
             LogPrintf("Potential stale tip detected, will try using extra outbound peer (last tip update: %d seconds ago)\n",
                       count_seconds(now - m_last_tip_update.load()));
             m_connman.SetTryNewOutboundPeer(true);
@@ -5231,6 +5240,11 @@ void PeerManagerImpl::CheckForStaleTipAndEvictPeers()
     if (!m_initial_sync_finished && CanDirectFetch()) {
         m_connman.StartExtraBlockRelayPeers();
         m_initial_sync_finished = true;
+    } else if (super_stale) {
+        // Disable extra block relay peers and disallow connection to limited peers.
+        // We need to find a full node that can help us recover.
+        m_connman.StopExtraBlockRelayPeers();
+        m_initial_sync_finished = false;
     }
 }
 

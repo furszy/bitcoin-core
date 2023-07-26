@@ -829,6 +829,7 @@ public:
     bool GetTryNewOutboundPeer() const;
 
     void StartExtraBlockRelayPeers();
+    void StopExtraBlockRelayPeers();
 
     // Return the number of outbound peers we have in excess of our target (eg,
     // if we previously called SetTryNewOutboundPeer(true), and have since set
