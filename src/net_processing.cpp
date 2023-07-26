@@ -503,6 +503,7 @@ public:
     /** Implement NetEventsInterface */
     void InitializeNode(CNode& node, ServiceFlags our_services) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex);
     void FinalizeNode(const CNode& node) override EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex, !m_headers_presync_mutex);
+    bool HasDesirableServiceFlags(ServiceFlags services) override;
     bool ProcessMessages(CNode* pfrom, std::atomic<bool>& interrupt) override
         EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex, !m_recent_confirmed_transactions_mutex, !m_most_recent_block_mutex, !m_headers_presync_mutex, g_msgproc_mutex);
     bool SendMessages(CNode* pto) override
@@ -523,6 +524,7 @@ public:
                         const std::chrono::microseconds time_received, const std::atomic<bool>& interruptMsgProc) override
         EXCLUSIVE_LOCKS_REQUIRED(!m_peer_mutex, !m_recent_confirmed_transactions_mutex, !m_most_recent_block_mutex, !m_headers_presync_mutex, g_msgproc_mutex);
     void UpdateLastBlockAnnounceTime(NodeId node, int64_t time_in_seconds) override;
+    ServiceFlags GetDesirableServiceFlags(ServiceFlags services) override;
 
 private:
     /** Consider evicting an outbound peer based on the amount of time they've been behind our tip */
@@ -1575,6 +1577,20 @@ void PeerManagerImpl::FinalizeNode(const CNode& node)
     LogPrint(BCLog::NET, "Cleared nodestate for peer=%d\n", nodeid);
 }
 
+bool PeerManagerImpl::HasDesirableServiceFlags(ServiceFlags services)
+{
+    return !(GetDesirableServiceFlags(services) & (~services));
+}
+
+ServiceFlags PeerManagerImpl::GetDesirableServiceFlags(ServiceFlags services)
+{
+    if (services & NODE_NETWORK_LIMITED) {
+        LOCK(::cs_main);
+        if (m_initial_sync_finished) return ServiceFlags(NODE_NETWORK_LIMITED | NODE_WITNESS);
+    }
+    return ServiceFlags(NODE_NETWORK | NODE_WITNESS);
+}
+
 PeerRef PeerManagerImpl::GetPeerRef(NodeId id) const
 {
     LOCK(m_peer_mutex);
@@ -1959,7 +1975,6 @@ void PeerManagerImpl::NewPoWValidBlock(const CBlockIndex *pindex, const std::sha
 void PeerManagerImpl::UpdatedBlockTip(const CBlockIndex *pindexNew, const CBlockIndex *pindexFork, bool fInitialDownload)
 {
     SetBestHeight(pindexNew->nHeight);
-    SetServiceFlagsIBDCache(!fInitialDownload);
 
     // Don't relay inventory during initial block download.
     if (fInitialDownload) return;
@@ -3325,7 +3340,7 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
         {
             m_addrman.SetServices(pfrom.addr, nServices);
         }
-        if (pfrom.ExpectServicesFromConn() && !HasAllDesirableServiceFlags(nServices))
+        if (pfrom.ExpectServicesFromConn() && !HasDesirableServiceFlags(nServices))
         {
             LogPrint(BCLog::NET, "peer=%d does not offer the expected services (%08x offered, %08x expected); disconnecting\n", pfrom.GetId(), nServices, GetDesirableServiceFlags(nServices));
             pfrom.fDisconnect = true;
@@ -3396,7 +3411,7 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
             m_connman.PushMessage(&pfrom, msg_maker.Make(NetMsgType::SENDADDRV2));
         }
 
-        pfrom.m_has_all_wanted_services = HasAllDesirableServiceFlags(nServices);
+        pfrom.m_has_all_wanted_services = HasDesirableServiceFlags(nServices);
         peer->m_their_services = nServices;
         pfrom.SetAddrLocal(addrMe);
         {
@@ -3757,7 +3772,7 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
             // We only bother storing full nodes, though this may include
             // things which we would not make an outbound connection to, in
             // part because we may make feeler connections to them.
-            if (!MayHaveUsefulAddressDB(addr.nServices) && !HasAllDesirableServiceFlags(addr.nServices))
+            if (!MayHaveUsefulAddressDB(addr.nServices) && !HasDesirableServiceFlags(addr.nServices))
                 continue;
 
             if (addr.nTime <= NodeSeconds{100000000s} || addr.nTime > current_a_time + 10min) {

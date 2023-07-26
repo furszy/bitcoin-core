@@ -667,6 +667,12 @@ public:
     virtual void FinalizeNode(const CNode& node) = 0;
 
     /**
+     * Callback to determine whether the given set of service flags are sufficient
+     * for a peer to be "relevant".
+     */
+    virtual bool HasDesirableServiceFlags(ServiceFlags services) = 0;
+
+    /**
     * Process protocol messages received from a given node
     *
     * @param[in]   pnode           The node which we have received messages from.
