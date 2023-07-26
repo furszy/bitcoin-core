@@ -134,6 +134,11 @@ ServiceFlags GetDesirableServiceFlags(ServiceFlags services) {
     return ServiceFlags(NODE_NETWORK | NODE_WITNESS);
 }
 
+ServiceFlags StatelessServicesFlags()
+{
+    return ServiceFlags(NODE_NETWORK | NODE_WITNESS);
+}
+
 void SetServiceFlagsIBDCache(bool state) {
     g_initial_block_download_completed = state;
 }
