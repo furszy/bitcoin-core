@@ -600,11 +600,13 @@ class RawTransactionsTest(BitcoinTestFramework):
         # Choose input
         inputs = wallet.listunspent()
         # Deduce fee to produce a changeless transaction
+        # Total size: 110 vbytes, p2wpkh --> p2wpkh. Input 68 vbytes + rest of tx is 42 vbytes.
+        # At a feerate of 20 sat/vb, the entire tx fee should be 2200 sats.
         value = inputs[0]["amount"] - Decimal("0.00002200")
         outputs = {self.nodes[0].getnewaddress():value}
         rawtx = wallet.createrawtransaction(inputs, outputs)
         # fund a transaction that does not require a new key for the change output
-        funded_tx = wallet.fundrawtransaction(rawtx)
+        funded_tx = wallet.fundrawtransaction(rawtx, options={'fee_rate': 20})
         assert_equal(funded_tx["changepos"], -1)
 
         # fund a transaction that requires a new key for the change output
