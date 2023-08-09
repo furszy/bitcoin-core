@@ -277,11 +277,8 @@ BOOST_FIXTURE_TEST_CASE(blockfilter_index_parallel_initial_sync, BuildChainTesti
     BOOST_REQUIRE(filter_index.Init());
     filter_index.SetTasksPerWorker(200);
 
+    mineBlocks(900);
     const CBlockIndex* tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
-    for (size_t i = 0; i < 900; i++) {
-        CreateAndProcessBlock({}, GetScriptForDestination(PKHash(coinbaseKey.GetPubKey())));
-    }
-
     tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
     BOOST_REQUIRE(tip->nHeight == 1000);
 
