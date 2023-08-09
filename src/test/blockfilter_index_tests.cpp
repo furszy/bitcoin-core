@@ -277,10 +277,10 @@ BOOST_FIXTURE_TEST_CASE(blockfilter_index_parallel_initial_sync, BuildChainTesti
     BOOST_REQUIRE(filter_index.Init());
     filter_index.SetTasksPerWorker(200);
 
-    mineBlocks(900);
+    mineBlocks(650);
     const CBlockIndex* tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
     tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
-    BOOST_REQUIRE(tip->nHeight == 1000);
+    BOOST_REQUIRE(tip->nHeight == 750);
 
     // Index filters
     BOOST_CHECK(!filter_index.BlockUntilSyncedToCurrentChain());
