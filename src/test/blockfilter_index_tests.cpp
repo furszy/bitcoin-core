@@ -273,36 +273,45 @@ BOOST_FIXTURE_TEST_CASE(blockfilter_index_initial_sync, BuildChainTestingSetup)
 
 BOOST_FIXTURE_TEST_CASE(blockfilter_index_parallel_initial_sync, BuildChainTestingSetup)
 {
-    BlockFilterIndex filter_index(interfaces::MakeChain(m_node), BlockFilterType::BASIC, 1 << 20, true);
-    BOOST_REQUIRE(filter_index.Init());
-    filter_index.SetTasksPerWorker(200);
+    int tip_height = 100; // pre-mined blocks
+    const uint16_t MINE_BLOCKS = 650;
+    for (int round = 0; round < 2; round++) { // two rounds to test sync from genesis and from a higher block
+        // Generate blocks
+        mineBlocks(MINE_BLOCKS);
+        const CBlockIndex* tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
+        BOOST_REQUIRE(tip->nHeight == MINE_BLOCKS + tip_height);
+        tip_height = tip->nHeight;
 
-    mineBlocks(650);
-    const CBlockIndex* tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
-    tip = WITH_LOCK(::cs_main, return m_node.chainman->ActiveChain().Tip());
-    BOOST_REQUIRE(tip->nHeight == 750);
+        // Init index
+        BlockFilterIndex filter_index(interfaces::MakeChain(m_node), BlockFilterType::BASIC, 1 << 20, /*f_memory=*/false);
+        BOOST_REQUIRE(filter_index.Init());
 
-    // Index filters
-    BOOST_CHECK(!filter_index.BlockUntilSyncedToCurrentChain());
+        std::shared_ptr<ThreadPool> thread_pool = std::make_shared<ThreadPool>();
+        thread_pool->Start(2);
+        filter_index.SetThreadPool(thread_pool);
+        filter_index.SetTasksPerWorker(200);
 
-    std::shared_ptr<ThreadPool> thread_pool = std::make_shared<ThreadPool>();
-    thread_pool->Start(2);
-    filter_index.SetThreadPool(thread_pool);
-    BOOST_REQUIRE(filter_index.StartBackgroundSync());
+        // Start sync
+        BOOST_CHECK(!filter_index.BlockUntilSyncedToCurrentChain());
+        BOOST_REQUIRE(filter_index.StartBackgroundSync());
 
-    // Allow filter index to catch up with the block index.
-    IndexWaitSynced(filter_index);
+        // Allow filter index to catch up with the block index.
+        IndexWaitSynced(filter_index);
 
-    // Check that filter index has all blocks that were in the chain before it started.
-    {
-        uint256 last_header;
-        LOCK(cs_main);
-        const CBlockIndex* block_index;
-        for (block_index = m_node.chainman->ActiveChain().Genesis();
-             block_index != nullptr;
-             block_index = m_node.chainman->ActiveChain().Next(block_index)) {
-            CheckFilterLookups(filter_index, block_index, last_header, m_node.chainman->m_blockman);
+        // Check that filter index has all blocks that were in the chain before it started.
+        {
+            uint256 last_header;
+            LOCK(cs_main);
+            const CBlockIndex* block_index;
+            for (block_index = m_node.chainman->ActiveChain().Genesis();
+                 block_index != nullptr;
+                 block_index = m_node.chainman->ActiveChain().Next(block_index)) {
+                CheckFilterLookups(filter_index, block_index, last_header, m_node.chainman->m_blockman);
+            }
         }
+
+        filter_index.Interrupt();
+        filter_index.Stop();
     }
 }
 
