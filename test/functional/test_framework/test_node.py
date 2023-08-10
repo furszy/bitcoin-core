@@ -232,6 +232,15 @@ class TestNode():
         poll_per_s = 4
         for _ in range(poll_per_s * self.rpc_timeout):
             if self.process.poll() is not None:
+                if self.process.returncode != 0:
+                    # Print any abrupt shutdown error, so it is visible from the console and the
+                    # user doesn't have to go node by node checking which one failed.
+                    with open(self.stderr.name, 'r', encoding='utf-8') as err_file:
+                        print("************************")
+                        print(f"'{self.datadir_path.name}' abruptly aborted with error:\n")
+                        print(''.join(line for line in err_file if line.strip() and line[0] != "*"))
+                        print("************************")
+
                 raise FailedToStartError(self._node_msg(
                     'bitcoind exited with status {} during initialization'.format(self.process.returncode)))
             try:
