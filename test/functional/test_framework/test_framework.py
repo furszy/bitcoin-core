@@ -437,6 +437,11 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
                 n.createwallet(wallet_name=wallet_name, descriptors=self.options.descriptors, load_on_startup=True)
             n.importprivkey(privkey=n.get_deterministic_priv_key().key, label='coinbase', rescan=True)
 
+    # Only enables wallet when the module is available
+    def enable_wallet_if_possible(self):
+        self._requires_wallet = self.is_wallet_compiled() and (self.is_sqlite_compiled() or self.is_bdb_compiled())
+        return self._requires_wallet
+
     def run_test(self):
         """Tests must override this method to define test logic"""
         raise NotImplementedError
