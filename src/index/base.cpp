@@ -90,7 +90,7 @@ bool BaseIndex::Init()
     GetDB().ReadBestBlock(start_block_hash);
 
     LOCK(cs_main);
-    CChain& active_chain = m_chainstate->m_chain;
+    std::optional<interfaces::BlockKey> block_key;
     if (start_block_hash.IsNull()) {
         SetBestBlockIndex(nullptr);
     } else {
@@ -100,18 +100,18 @@ bool BaseIndex::Init()
             return InitError(strprintf(Untranslated("%s: best block of the index not found. Please rebuild the index."), GetName()));
         }
         SetBestBlockIndex(index);
+        block_key = std::make_optional(interfaces::BlockKey{index->GetBlockHash(), index->nHeight});
     }
 
     // Child init
-    const CBlockIndex* start_block = m_best_block_index.load();
-    if (!CustomInit(start_block ? std::make_optional(interfaces::BlockKey{start_block->GetBlockHash(), start_block->nHeight}) : std::nullopt)) {
+    if (!CustomInit(block_key)) {
         return false;
     }
 
     // Note: this will latch to true immediately if the user starts up with an empty
     // datadir and an index enabled. If this is the case, indexation will happen solely
     // via `BlockConnected` signals until, possibly, the next restart.
-    m_synced = start_block == active_chain.Tip();
+    m_synced = m_best_block_index.load() == m_chainstate->m_chain.Tip();
     m_init = true;
     return true;
 }
