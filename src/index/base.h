@@ -48,10 +48,10 @@ protected:
            bool f_memory = false, bool f_wipe = false, bool f_obfuscate = false);
 
         /// Read block locator of the chain that the index is in sync with.
-        bool ReadBestBlock(CBlockLocator& locator) const;
+        bool ReadBestBlock(uint256& block_hash) const;
 
-        /// Write block locator of the chain that the index is in sync with.
-        void WriteBestBlock(CDBBatch& batch, const CBlockLocator& locator);
+        /// Write the hash of the block up to where the index is in sync with.
+        void WriteBestBlock(CDBBatch& batch, const uint256& block_hash);
     };
 
 private:

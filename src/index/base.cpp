@@ -24,6 +24,7 @@
 #include <utility>
 
 constexpr uint8_t DB_BEST_BLOCK{'B'};
+constexpr uint8_t DB_BEST_BLOCK_HASH{'H'};
 
 constexpr auto SYNC_LOG_INTERVAL{30s};
 constexpr auto SYNC_LOCATOR_WRITE_INTERVAL{30s};
@@ -33,15 +34,6 @@ void BaseIndex::FatalErrorf(const char* fmt, const Args&... args)
 {
     auto message = tfm::format(fmt, args...);
     node::AbortNode(m_chain->context()->exit_status, message);
-}
-
-CBlockLocator GetLocator(interfaces::Chain& chain, const uint256& block_hash)
-{
-    CBlockLocator locator;
-    bool found = chain.findBlock(block_hash, interfaces::FoundBlock().locator(locator));
-    assert(found);
-    assert(!locator.IsNull());
-    return locator;
 }
 
 BaseIndex::DB::DB(const fs::path& path, size_t n_cache_size, bool f_memory, bool f_wipe, bool f_obfuscate) :
@@ -54,18 +46,26 @@ BaseIndex::DB::DB(const fs::path& path, size_t n_cache_size, bool f_memory, bool
         .options = [] { DBOptions options; node::ReadDatabaseArgs(gArgs, options); return options; }()}}
 {}
 
-bool BaseIndex::DB::ReadBestBlock(CBlockLocator& locator) const
+bool BaseIndex::DB::ReadBestBlock(uint256& block_hash) const
 {
-    bool success = Read(DB_BEST_BLOCK, locator);
+    bool success = Read(DB_BEST_BLOCK_HASH, block_hash);
     if (!success) {
-        locator.SetNull();
+        // Try to open the old block locator
+        CBlockLocator locator;
+        success = Read(DB_BEST_BLOCK, locator);
+        if (success) {
+            // Upgrade index to use DB_BEST_BLOCK_HASH
+            CDBBatch batch(*this);
+            batch.Write(DB_BEST_BLOCK_HASH, block_hash);
+            block_hash = locator.vHave.at(0);
+        }
     }
     return success;
 }
 
-void BaseIndex::DB::WriteBestBlock(CDBBatch& batch, const CBlockLocator& locator)
+void BaseIndex::DB::WriteBestBlock(CDBBatch& batch, const uint256& block_hash)
 {
-    batch.Write(DB_BEST_BLOCK, locator);
+    batch.Write(DB_BEST_BLOCK_HASH, block_hash);
 }
 
 BaseIndex::BaseIndex(std::unique_ptr<interfaces::Chain> chain, std::string name)
@@ -86,23 +86,20 @@ bool BaseIndex::Init()
     // callbacks are not missed once m_synced is true.
     RegisterValidationInterface(this);
 
-    CBlockLocator locator;
-    if (!GetDB().ReadBestBlock(locator)) {
-        locator.SetNull();
-    }
+    uint256 start_block_hash;
+    GetDB().ReadBestBlock(start_block_hash);
 
     LOCK(cs_main);
     CChain& active_chain = m_chainstate->m_chain;
-    if (locator.IsNull()) {
+    if (start_block_hash.IsNull()) {
         SetBestBlockIndex(nullptr);
     } else {
-        // Setting the best block to the locator's top block. If it is not part of the
-        // best chain, we will rewind to the fork point during index sync
-        const CBlockIndex* locator_index{m_chainstate->m_blockman.LookupBlockIndex(locator.vHave.at(0))};
-        if (!locator_index) {
+        // If best block is not part of the best chain, we will rewind to the fork point during index sync
+        const CBlockIndex* index{m_chainstate->m_blockman.LookupBlockIndex(start_block_hash)};
+        if (!index) {
             return InitError(strprintf(Untranslated("%s: best block of the index not found. Please rebuild the index."), GetName()));
         }
-        SetBestBlockIndex(locator_index);
+        SetBestBlockIndex(index);
     }
 
     // Child init
@@ -216,7 +213,7 @@ bool BaseIndex::Commit()
         CDBBatch batch(GetDB());
         ok = CustomCommit(batch);
         if (ok) {
-            GetDB().WriteBestBlock(batch, GetLocator(*m_chain, m_best_block_index.load()->GetBlockHash()));
+            GetDB().WriteBestBlock(batch, m_best_block_index.load()->GetBlockHash());
             ok = GetDB().WriteBatch(batch);
         }
     }
