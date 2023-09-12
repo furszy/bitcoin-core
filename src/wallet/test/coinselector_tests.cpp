@@ -11,6 +11,7 @@
 #include <util/translation.h>
 #include <wallet/coincontrol.h>
 #include <wallet/coinselection.h>
+#include <wallet/fees.h>
 #include <wallet/spend.h>
 #include <wallet/test/util.h>
 #include <wallet/test/wallet_test_fixture.h>
@@ -81,7 +82,8 @@ static void add_coin(CoinsResult& available_coins, CWallet& wallet, const CAmoun
     uint256 txid = tx.GetHash();
 
     LOCK(wallet.cs_wallet);
-    auto ret = wallet.mapWallet.emplace(std::piecewise_construct, std::forward_as_tuple(txid), std::forward_as_tuple(MakeTransactionRef(std::move(tx)), TxStateInactive{}));
+    TxState state = (nAge > 0) ? TxStateConfirmed{uint256{}, nAge, 0} : TxState{TxStateInactive{}};
+    auto ret = wallet.mapWallet.emplace(std::piecewise_construct, std::forward_as_tuple(txid), std::forward_as_tuple(MakeTransactionRef(std::move(tx)), state));
     assert(ret.second);
     CWalletTx& wtx = (*ret.first).second;
     const auto& txout = wtx.tx->vout.at(nInput);
@@ -445,6 +447,40 @@ BOOST_AUTO_TEST_CASE(bnb_search_test)
         add_coin(3 * CENT, 2, expected_result);
         BOOST_CHECK(EquivalentResult(expected_result, *res));
     }
+}
+
+BOOST_AUTO_TEST_CASE(tx_creation_ensure_bnb_changeless_solution)
+{
+    // The test goal is to exercise a bug causing the transaction creation process to generate a change output for a BnB solution.
+    std::unique_ptr<CWallet> wallet = NewWallet(m_node);
+    WITH_LOCK(wallet->cs_wallet, wallet->SetLastBlockProcessed(300, uint256{})); // set a high block so internal UTXOs are selectable
+
+    CTxDestination change_dest = *Assert(wallet->GetNewChangeDestination(OutputType::BECH32));
+    CTxOut change_out(0, GetScriptForDestination(change_dest));
+    size_t change_output_size = GetSerializeSize(change_out);
+
+    CFeeRate effective_feerate(10000);
+    CFeeRate discard_feerate = GetDiscardRate(*wallet);
+
+    CAmount change_fee = effective_feerate.GetFee(change_output_size);
+    size_t change_spend_size = CalculateMaximumSignedInputSize(change_out, wallet.get(), nullptr);
+    CAmount cost_of_change = discard_feerate.GetFee(change_spend_size) + change_fee;
+
+    // Add spendable coin at the BnB selection upper bound
+    CoinsResult available_coins;
+    add_coin(available_coins, *wallet, COIN + cost_of_change, /*feerate=*/CFeeRate(0), /*nAge=*/6*24, /*fIsFromMe=*/true, /*nInput=*/0, /*spendable=*/true);
+
+    CCoinControl coin_control;
+    coin_control.m_feerate = effective_feerate;
+    coin_control.destChange = change_dest;
+    CAmount target = 1 * COIN;
+    CRecipient recipient{GetScriptForRawPubKey({}), target, /*subtract_fee=*/true};
+    auto tx_res = CreateTransaction(*wallet, {recipient}, /*change_pos=*/-1, coin_control);
+    BOOST_CHECK(tx_res);
+
+    // Now verify that BnB selection did not produce a change output.
+    BOOST_CHECK_EQUAL(tx_res->coin_selection_info.algorithm, SelectionAlgorithm::BNB);
+    BOOST_CHECK_MESSAGE(tx_res->change_pos == -1, "Error: BnB selection produced a change output!");
 }
 
 BOOST_AUTO_TEST_CASE(knapsack_solver_test)
