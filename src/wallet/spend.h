@@ -200,15 +200,22 @@ util::Result<SelectionResult> SelectCoins(const CWallet& wallet, CoinsResult& av
                                           const CAmount& nTargetValue, const CCoinControl& coin_control,
                                           const CoinSelectionParams& coin_selection_params) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet);
 
+struct CoinSelectionInfo
+{
+    SelectionAlgorithm algorithm;
+    CAmount waste;
+};
+
 struct CreatedTransactionResult
 {
     CTransactionRef tx;
     CAmount fee;
     FeeCalculation fee_calc;
     int change_pos;
+    CoinSelectionInfo coin_selection_info;
 
-    CreatedTransactionResult(CTransactionRef _tx, CAmount _fee, int _change_pos, const FeeCalculation& _fee_calc)
-        : tx(_tx), fee(_fee), fee_calc(_fee_calc), change_pos(_change_pos) {}
+    CreatedTransactionResult(CTransactionRef _tx, CAmount _fee, int _change_pos, const FeeCalculation& _fee_calc, const CoinSelectionInfo& selection_info)
+        : tx(_tx), fee(_fee), fee_calc(_fee_calc), change_pos(_change_pos), coin_selection_info(selection_info) {}
 };
 
 /**

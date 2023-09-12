@@ -1227,7 +1227,7 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
               feeCalc.est.fail.start, feeCalc.est.fail.end,
               (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool) > 0.0 ? 100 * feeCalc.est.fail.withinTarget / (feeCalc.est.fail.totalConfirmed + feeCalc.est.fail.inMempool + feeCalc.est.fail.leftMempool) : 0.0,
               feeCalc.est.fail.withinTarget, feeCalc.est.fail.totalConfirmed, feeCalc.est.fail.inMempool, feeCalc.est.fail.leftMempool);
-    return CreatedTransactionResult(tx, current_fee, nChangePosInOut, feeCalc);
+    return CreatedTransactionResult(tx, current_fee, nChangePosInOut, feeCalc, CoinSelectionInfo{result.GetAlgo(), result.GetWaste()});
 }
 
 util::Result<CreatedTransactionResult> CreateTransaction(
