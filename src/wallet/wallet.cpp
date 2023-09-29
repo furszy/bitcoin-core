@@ -3562,14 +3562,9 @@ void CWallet::LoadDescriptorScriptPubKeyMan(uint256 id, WalletDescriptor& desc)
     }
 }
 
-void CWallet::SetupDescriptorScriptPubKeyMans(const CExtKey& master_key)
+void CWallet::SetupDescriptorScriptPubKeyMans(WalletBatch& batch, const CExtKey& master_key)
 {
     AssertLockHeld(cs_wallet);
-
-    // Create single batch txn
-    WalletBatch batch(GetDatabase());
-    if (!batch.TxnBegin()) throw std::runtime_error("Error: cannot create db transaction for descriptors setup");
-
     for (bool internal : {false, true}) {
         for (OutputType t : OUTPUT_TYPES) {
             auto spk_manager = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(*this, m_keypool_size));
@@ -3587,12 +3582,9 @@ void CWallet::SetupDescriptorScriptPubKeyMans(const CExtKey& master_key)
             AddActiveScriptPubKeyManWithDb(batch, id, t, internal);
         }
     }
-
-    // Ensure information is committed to disk
-    if (!batch.TxnCommit()) throw std::runtime_error("Error: cannot commit db transaction for descriptors setup");
 }
 
-void CWallet::SetupOwnDescriptorScriptPubKeyMans()
+void CWallet::SetupOwnDescriptorScriptPubKeyMans(WalletBatch& batch)
 {
     assert(!IsWalletFlagSet(WALLET_FLAG_EXTERNAL_SIGNER));
     // Make a seed
@@ -3604,7 +3596,7 @@ void CWallet::SetupOwnDescriptorScriptPubKeyMans()
     CExtKey master_key;
     master_key.SetSeed(seed_key);
 
-    SetupDescriptorScriptPubKeyMans(master_key);
+    SetupDescriptorScriptPubKeyMans(batch, master_key);
 }
 
 void CWallet::SetupDescriptorScriptPubKeyMans()
@@ -3612,7 +3604,10 @@ void CWallet::SetupDescriptorScriptPubKeyMans()
     AssertLockHeld(cs_wallet);
 
     if (!IsWalletFlagSet(WALLET_FLAG_EXTERNAL_SIGNER)) {
-        SetupOwnDescriptorScriptPubKeyMans();
+        WalletBatch batch(GetDatabase());
+        if (!batch.TxnBegin()) throw std::runtime_error("Error: cannot create db transaction for descriptors setup");
+        SetupOwnDescriptorScriptPubKeyMans(batch);
+        if (!batch.TxnCommit()) throw std::runtime_error("Error: cannot commit db transaction for descriptors setup");
     } else {
         ExternalSigner signer = ExternalSignerScriptPubKeyMan::GetExternalSigner();
 
@@ -3936,13 +3931,17 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
 
     // Setup new descriptors
     SetWalletFlag(WALLET_FLAG_DESCRIPTORS);
+
+    // Create single batch transaction for the entire migration process
+    WalletBatch local_wallet_batch(GetDatabase());
+    if (!local_wallet_batch.TxnBegin()) throw std::runtime_error("Error: cannot create db transaction for descriptors setup");
     if (!IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
         // Use the existing master key if we have it
         if (data.master_key.key.IsValid()) {
-            SetupDescriptorScriptPubKeyMans(data.master_key);
+            SetupDescriptorScriptPubKeyMans(local_wallet_batch, data.master_key);
         } else {
             // Setup with a new seed if we don't.
-            SetupOwnDescriptorScriptPubKeyMans();
+            SetupOwnDescriptorScriptPubKeyMans(local_wallet_batch);
         }
     }
 
@@ -3990,20 +3989,8 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
     watchonly_batch.reset(); // Flush
     // Do the removes
     if (txids_to_delete.size() > 0) {
-        WalletBatch batch(GetDatabase());
-        if (!batch.TxnBegin()) {
-            error = _("Error: Could not start db txn to delete watchonly transactions");
-            return false;
-        }
-
-        if (batch.ZapSelectTx(txids_to_delete) != DBErrors::LOAD_OK) {
+        if (local_wallet_batch.ZapSelectTx(txids_to_delete) != DBErrors::LOAD_OK) {
             error = _("Error: Could not delete watchonly transactions");
-            return false;
-        }
-
-        // Apply db changes
-        if (!batch.TxnCommit()) {
-            error = _("Error: DB commit error, could not delete watchonly transactions");
             return false;
         }
 
@@ -4084,8 +4071,6 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
     }
 
     // Remove the things to delete in this wallet
-    WalletBatch local_wallet_batch(GetDatabase());
-    local_wallet_batch.TxnBegin();
     if (dests_to_delete.size() > 0) {
         for (const auto& dest : dests_to_delete) {
             if (!DelAddressBookWithDb(local_wallet_batch, dest)) {
@@ -4094,7 +4079,9 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
             }
         }
     }
-    local_wallet_batch.TxnCommit();
+
+    // Ensure information is dumped to disk
+    if (!local_wallet_batch.TxnCommit()) throw std::runtime_error("Error: cannot commit migration process database transaction");
 
     // Connect the SPKM signals
     ConnectScriptPubKeyManNotifiers();
