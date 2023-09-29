@@ -3925,14 +3925,14 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
         AddScriptPubKeyMan(id, std::move(desc_spkm));
     }
 
-    // Remove the LegacyScriptPubKeyMan from disk
-    if (!legacy_spkm->DeleteRecords()) {
-        return false;
-    }
-
     // Create single batch transaction for the entire migration process
     WalletBatch local_wallet_batch(GetDatabase());
     if (!local_wallet_batch.TxnBegin()) throw std::runtime_error("Error: cannot create db transaction for descriptors setup");
+
+    // Remove the LegacyScriptPubKeyMan from disk
+    if (!legacy_spkm->DeleteRecords(local_wallet_batch)) {
+        return false;
+    }
 
     // Remove the LegacyScriptPubKeyMan from memory
     m_spk_managers.erase(legacy_spkm->GetID());

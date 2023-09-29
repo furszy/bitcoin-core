@@ -1992,8 +1992,13 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
 
 bool LegacyScriptPubKeyMan::DeleteRecords()
 {
-    LOCK(cs_KeyStore);
     WalletBatch batch(m_storage.GetDatabase());
+    return batch.TxnBegin() && DeleteRecords(batch) && batch.TxnCommit();
+}
+
+bool LegacyScriptPubKeyMan::DeleteRecords(WalletBatch& batch)
+{
+    LOCK(cs_KeyStore);
     return batch.EraseRecords(DBKeys::LEGACY_TYPES);
 }
 
