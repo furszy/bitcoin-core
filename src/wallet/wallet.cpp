@@ -1643,9 +1643,15 @@ bool CWallet::CanGetAddresses(bool internal) const
 
 void CWallet::SetWalletFlag(uint64_t flags)
 {
+    WalletBatch batch(GetDatabase());
+    return SetWalletFlagWithDB(batch, flags);
+}
+
+void CWallet::SetWalletFlagWithDB(WalletBatch& batch, uint64_t flags)
+{
     LOCK(cs_wallet);
     m_wallet_flags |= flags;
-    if (!WalletBatch(GetDatabase()).WriteWalletFlags(m_wallet_flags))
+    if (!batch.WriteWalletFlags(m_wallet_flags))
         throw std::runtime_error(std::string(__func__) + ": writing wallet flags failed");
 }
 
@@ -3924,17 +3930,17 @@ bool CWallet::ApplyMigrationData(MigrationData& data, bilingual_str& error)
         return false;
     }
 
+    // Create single batch transaction for the entire migration process
+    WalletBatch local_wallet_batch(GetDatabase());
+    if (!local_wallet_batch.TxnBegin()) throw std::runtime_error("Error: cannot create db transaction for descriptors setup");
+
     // Remove the LegacyScriptPubKeyMan from memory
     m_spk_managers.erase(legacy_spkm->GetID());
     m_external_spk_managers.clear();
     m_internal_spk_managers.clear();
 
     // Setup new descriptors
-    SetWalletFlag(WALLET_FLAG_DESCRIPTORS);
-
-    // Create single batch transaction for the entire migration process
-    WalletBatch local_wallet_batch(GetDatabase());
-    if (!local_wallet_batch.TxnBegin()) throw std::runtime_error("Error: cannot create db transaction for descriptors setup");
+    SetWalletFlagWithDB(local_wallet_batch, WALLET_FLAG_DESCRIPTORS);
     if (!IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
         // Use the existing master key if we have it
         if (data.master_key.key.IsValid()) {
