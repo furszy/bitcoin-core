@@ -1777,6 +1777,12 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
         keyid_it++;
     }
 
+    WalletBatch batch(m_storage.GetDatabase());
+    if (!batch.TxnBegin()) {
+        error("Error during descriptors migration, cannot initialize db transaction");
+        return std::nullopt;
+    }
+
     // keyids is now all non-HD keys. Each key will have its own combo descriptor
     for (const CKeyID& keyid : keyids) {
         CKey key;
@@ -1806,8 +1812,8 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
 
         // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
         auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(m_storage, w_desc, m_keypool_size));
-        desc_spk_man->AddDescriptorKey(key, key.GetPubKey());
-        desc_spk_man->TopUp();
+        WITH_LOCK(desc_spk_man->cs_desc_man, desc_spk_man->AddDescriptorKeyWithDB(batch, key, key.GetPubKey()));
+        desc_spk_man->TopUpWithDB(batch);
         auto desc_spks = desc_spk_man->GetScriptPubKeys();
 
         // Remove the scriptPubKeys from our current set
@@ -1851,8 +1857,8 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
 
             // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
             auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(m_storage, w_desc, m_keypool_size));
-            desc_spk_man->AddDescriptorKey(master_key.key, master_key.key.GetPubKey());
-            desc_spk_man->TopUp();
+            WITH_LOCK(desc_spk_man->cs_desc_man, desc_spk_man->AddDescriptorKeyWithDB(batch, master_key.key, master_key.key.GetPubKey()));
+            desc_spk_man->TopUpWithDB(batch);
             auto desc_spks = desc_spk_man->GetScriptPubKeys();
 
             // Remove the scriptPubKeys from our current set
@@ -1918,9 +1924,9 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
                 if (!GetKey(keyid, key)) {
                     continue;
                 }
-                desc_spk_man->AddDescriptorKey(key, key.GetPubKey());
+                WITH_LOCK(desc_spk_man->cs_desc_man, desc_spk_man->AddDescriptorKeyWithDB(batch, key, key.GetPubKey()));
             }
-            desc_spk_man->TopUp();
+            desc_spk_man->TopUpWithDB(batch);
             auto desc_spks_set = desc_spk_man->GetScriptPubKeys();
             desc_spks.insert(desc_spks.end(), desc_spks_set.begin(), desc_spks_set.end());
 
@@ -1987,6 +1993,13 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
 
     // Make sure that we have accounted for all scriptPubKeys
     assert(spks.size() == 0);
+
+    // Finalize transaction
+    if (!batch.TxnCommit()) {
+        error("Error during descriptors migration, cannot commit db transaction");
+        return std::nullopt;
+    }
+
     return out;
 }
 
