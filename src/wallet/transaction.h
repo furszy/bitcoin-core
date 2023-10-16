@@ -206,7 +206,6 @@ public:
      */
     bool fFromMe;
     int64_t nOrderPos; //!< position in ordered transaction list
-    std::multimap<int64_t, CWalletTx*>::const_iterator m_it_wtxOrdered;
 
     // memory only
     enum AmountType { DEBIT, CREDIT, IMMATURE_CREDIT, AVAILABLE_CREDIT, AMOUNTTYPE_ENUM_ELEMENTS };

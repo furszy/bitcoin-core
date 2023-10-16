@@ -474,7 +474,7 @@ public:
      * interested in, including received and sent transactions. */
     std::unordered_map<uint256, CWalletTx, SaltedTxidHasher> mapWallet GUARDED_BY(cs_wallet);
 
-    typedef std::multimap<int64_t, CWalletTx*> TxItems;
+    typedef std::map<int64_t, CWalletTx*> TxItems;
     TxItems wtxOrdered;
 
     int64_t nOrderPosNext GUARDED_BY(cs_wallet) = 0;

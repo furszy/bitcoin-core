@@ -1077,7 +1077,8 @@ CWalletTx* CWallet::AddToWallet(CTransactionRef tx, const TxState& state, const 
     if (fInsertedNew) {
         wtx.nTimeReceived = GetTime();
         wtx.nOrderPos = IncOrderPosNext(&batch);
-        wtx.m_it_wtxOrdered = wtxOrdered.insert(std::make_pair(wtx.nOrderPos, &wtx));
+        const auto& [it, inserted] = wtxOrdered.insert(std::make_pair(wtx.nOrderPos, &wtx));
+        if (!inserted) throw std::logic_error("Error: wallet inserted two transaction at the same position");
         wtx.nTimeSmart = ComputeTimeSmart(wtx, rescanning_old_block);
         AddToSpends(wtx, &batch);
     }
@@ -1203,7 +1204,7 @@ bool CWallet::LoadToWallet(const uint256& hash, const UpdateWalletTxFn& fill_wtx
         }
     }
     if (/* insertion took place */ ins.second) {
-        wtx.m_it_wtxOrdered = wtxOrdered.insert(std::make_pair(wtx.nOrderPos, &wtx));
+        wtxOrdered.insert(std::make_pair(wtx.nOrderPos, &wtx));
     }
     AddToSpends(wtx);
     for (const CTxIn& txin : wtx.tx->vin) {
@@ -2333,7 +2334,9 @@ DBErrors CWallet::ZapSelectTx(std::vector<uint256>& vHashIn, std::vector<uint256
     DBErrors nZapSelectTxRet = WalletBatch(GetDatabase()).ZapSelectTx(vHashIn, vHashOut);
     for (const uint256& hash : vHashOut) {
         const auto& it = mapWallet.find(hash);
-        wtxOrdered.erase(it->second.m_it_wtxOrdered);
+        size_t erased_num = wtxOrdered.erase(it->second.nOrderPos);
+        assert(erased_num == 1);
+
         for (const auto& txin : it->second.tx->vin)
             mapTxSpends.erase(txin.prevout);
         mapWallet.erase(it);
