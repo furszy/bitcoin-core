@@ -1017,9 +1017,10 @@ static DBErrors LoadTxRecords(CWallet* pwallet, DatabaseBatch& batch, std::vecto
     DBErrors result = DBErrors::LOAD_OK;
 
     // Load tx record
+    std::set<int64_t> set_seen_tx_pos;
     any_unordered = false;
     LoadResult tx_res = LoadRecords(pwallet, batch, DBKeys::TX,
-        [&any_unordered, &upgraded_txs] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& err) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet) {
+        [&any_unordered, &upgraded_txs, &set_seen_tx_pos] (CWallet* pwallet, DataStream& key, CDataStream& value, std::string& err) EXCLUSIVE_LOCKS_REQUIRED(pwallet->cs_wallet) {
         DBErrors result = DBErrors::LOAD_OK;
         uint256 hash;
         key >> hash;
@@ -1057,8 +1058,13 @@ static DBErrors LoadTxRecords(CWallet* pwallet, DatabaseBatch& batch, std::vecto
                 upgraded_txs.push_back(hash);
             }
 
-            if (wtx.nOrderPos == -1)
+            // Ways in which the tx could be out of order
+            // 1) Order position was not set
+            if (wtx.nOrderPos == -1) any_unordered = true;
+            // 2) There are two txs under the same order position
+            if (!any_unordered && !set_seen_tx_pos.insert(wtx.nOrderPos).second) {
                 any_unordered = true;
+            }
 
             return true;
         };
@@ -1069,6 +1075,13 @@ static DBErrors LoadTxRecords(CWallet* pwallet, DatabaseBatch& batch, std::vecto
         return result;
     });
     result = std::max(result, tx_res.m_result);
+
+    // Verify txs are ordered sequentially
+    if (!any_unordered) {
+        for (size_t pos = 0; pos < pwallet->mapWallet.size(); pos++) {
+            if (pwallet->wtxOrdered.count(pos) != 1) any_unordered = true;
+        }
+    }
 
     // Load locked utxo record
     LoadResult locked_utxo_res = LoadRecords(pwallet, batch, DBKeys::LOCKED_UTXO,
