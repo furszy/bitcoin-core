@@ -928,6 +928,36 @@ BOOST_FIXTURE_TEST_CASE(ZapSelectTx, TestChain100Setup)
     TestUnloadWallet(std::move(wallet));
 }
 
+BOOST_FIXTURE_TEST_CASE(tx_ordering, TestChain100Setup)
+{
+    MockableData records;
+    {
+        auto wallet = CreateSyncedWallet(*m_node.chain, WITH_LOCK(Assert(m_node.chainman)->GetMutex(), return m_node.chainman->ActiveChain()), coinbaseKey);
+        // Ensure we have 100 ordered txs.
+        int64_t expected_num = 0;
+        for (const auto& [pos, wtx] : wallet->wtxOrdered) {
+            BOOST_CHECK_EQUAL(pos, expected_num++);
+        }
+        // Mess up the ordering of some random tx
+        CWalletTx* wtx = wallet->wtxOrdered.at(1);//g_insecure_rand_ctx.randrange(wallet->wtxOrdered.size()));
+        wtx->nOrderPos = g_insecure_rand_ctx.randrange(wallet->wtxOrdered.size()) + 15; // +15 to also add the possibility of being out of the txs map size
+        WalletBatch db(wallet->GetDatabase());
+        BOOST_CHECK(db.WriteTx(*wtx));
+        records = GetMockableDatabase(*wallet).m_records;
+    }
+
+    // Now load a new wallet and verify the txs ordering is the same
+    CWallet wallet2(m_node.chain.get(), "w1", CreateMockableWalletDatabase(records));
+    BOOST_CHECK_EQUAL(wallet2.LoadWallet(), DBErrors::LOAD_OK);
+
+    // Now verify map
+    BOOST_CHECK_EQUAL(100, wallet2.wtxOrdered.size());
+    int64_t expected_num = 0;
+    for (const auto& [pos, wtx] : wallet2.wtxOrdered) {
+        BOOST_CHECK_EQUAL(pos, expected_num++);
+    }
+}
+
 /**
  * Checks a wallet invalid state where the inputs (prev-txs) of a new arriving transaction are not marked dirty,
  * while the transaction that spends them exist inside the in-memory wallet tx map (not stored on db due a db write failure).
