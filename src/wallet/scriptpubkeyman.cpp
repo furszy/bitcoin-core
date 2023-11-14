@@ -1736,10 +1736,10 @@ std::unordered_set<CScript, SaltedSipHasher> LegacyScriptPubKeyMan::GetNotMineSc
     return spks;
 }
 
-std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
+std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor(WalletStorage& new_storage)
 {
     LOCK(cs_KeyStore);
-    if (m_storage.IsLocked()) {
+    if (m_storage.IsLocked() || new_storage.IsLocked()) {
         return std::nullopt;
     }
 
@@ -1803,7 +1803,7 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
         WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
 
         // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
-        auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(m_storage, w_desc, m_keypool_size));
+        auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(new_storage, w_desc, m_keypool_size));
         desc_spk_man->AddDescriptorKey(key, key.GetPubKey());
         desc_spk_man->TopUp();
         auto desc_spks = desc_spk_man->GetScriptPubKeys();
@@ -1848,7 +1848,7 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
             WalletDescriptor w_desc(std::move(desc), 0, 0, chain_counter, 0);
 
             // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
-            auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(m_storage, w_desc, m_keypool_size));
+            auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(new_storage, w_desc, m_keypool_size));
             desc_spk_man->AddDescriptorKey(master_key.key, master_key.key.GetPubKey());
             desc_spk_man->TopUp();
             auto desc_spks = desc_spk_man->GetScriptPubKeys();
@@ -1901,7 +1901,7 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
         // Make the descriptor string with private keys
         std::string desc_str;
         bool watchonly = !desc->ToPrivateString(*this, desc_str);
-        if (watchonly && !m_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
+        if (watchonly && !new_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
             out.watch_descs.emplace_back(desc->ToString(), creation_time);
 
             // Get the scriptPubKeys without writing this to the wallet
@@ -1910,7 +1910,7 @@ std::optional<MigrationData> LegacyScriptPubKeyMan::MigrateToDescriptor()
         } else {
             // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
             WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
-            auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(m_storage, w_desc, m_keypool_size));
+            auto desc_spk_man = std::unique_ptr<DescriptorScriptPubKeyMan>(new DescriptorScriptPubKeyMan(new_storage, w_desc, m_keypool_size));
             for (const auto& keyid : privkeyids) {
                 CKey key;
                 if (!GetKey(keyid, key)) {
