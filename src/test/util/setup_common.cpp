@@ -49,6 +49,7 @@
 #include <txmempool.h>
 #include <util/chaintype.h>
 #include <util/check.h>
+#include <util/fs_helpers.h>
 #include <util/rbf.h>
 #include <util/strencodings.h>
 #include <util/string.h>
@@ -134,11 +135,35 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
         // By default, the data directory has a random name
         const std::string testdatadir{g_insecure_rand_ctx_temp_path.rand256().ToString().c_str()};
         m_path_root = fs::temp_directory_path() / "test_common_" PACKAGE_NAME / testdatadir;
+        fs::create_directories(m_path_root);
     } else {
         // Custom data directory
+        m_has_custom_datadir = true;
         const std::string testdatadir{m_node.args->GetArg("-testdatadir").value()};
         m_path_root = fs::path(testdatadir.c_str()) / "test_temp";
+
+        // Try to obtain the lock; if unsuccessful don't disturb the existing test.
+        auto lock_datadir = [&]() -> void {
+            try {
+                fs::create_directories(m_path_root);
+            } catch (const std::exception&) {
+            }
+            if (!fs::exists(m_path_root)) {
+                std::cerr << "Cannot create test data directory " + fs::PathToString(m_path_root) + '\n';
+                exit(1);
+            }
+            if (util::LockDirectory(m_path_root, ".lock", /*probe_only=*/false) != util::LockResult::Success) {
+                std::cerr << "Cannot obtain a lock on test data directory " + fs::PathToString(m_path_root) + '\n' +
+                                 "The test executable is probably already running.\n";
+                exit(1);
+            }
+        };
+        lock_datadir();
+
+        // Always start with a fresh data directory (must release the lock before remove on some platforms).
+        ReleaseDirectoryLocks();
         fs::remove_all(m_path_root);
+        lock_datadir();
 
         // Print the test directory name if custom, but only once per test run
         static bool g_printed_dir{false};
@@ -146,9 +171,7 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
             g_printed_dir = true;
             std::cout << "Test directory (will not be deleted): " << m_path_root << std::endl;
         }
-        m_has_custom_datadir = true;
     }
-    fs::create_directories(m_path_root);
     m_args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
     gArgs.ForceSetArg("-datadir", fs::PathToString(m_path_root));
 
@@ -180,6 +203,7 @@ BasicTestingSetup::~BasicTestingSetup()
     SetMockTime(0s); // Reset mocktime for following tests
     LogInstance().DisconnectTestLogger();
     if (!m_has_custom_datadir) {
+        ReleaseDirectoryLocks();
         fs::remove_all(m_path_root);
     }
     gArgs.ClearArgs();
