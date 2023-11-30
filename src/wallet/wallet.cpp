@@ -4202,10 +4202,17 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
         func_early_failure(desc_wallet->GetDatabase());
         return util::Error{Untranslated("New wallet creation failed.") + Untranslated(" ") + error};
     }
+    // Encrypt blank descriptor wallet if needed
+    {
+        LOCK(desc_wallet->cs_wallet);
+        if (!passphrase.empty() && !desc_wallet->EncryptWallet(passphrase)) {
+            func_early_failure(desc_wallet->GetDatabase());
+            return util::Error{Untranslated("New wallet created but failed to encrypt.") + Untranslated(" ") + error};
+        }
+    }
 
     bool success = false;
     {
-        LOCK(local_wallet->cs_wallet);
 
         // Unlock the wallet if needed
         if (local_wallet->IsLocked() && !local_wallet->Unlock(passphrase)) {
@@ -4228,6 +4235,7 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
         }
 
         // Do the migration, and cleanup if it fails
+        LOCK(local_wallet->cs_wallet);
         success = DoMigration(*local_wallet, desc_wallet, context, error, res);
     }
 
