@@ -4146,10 +4146,28 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
         return util::Error{_("Error: This wallet is already a descriptor wallet")};
     }
 
-    const auto& func_rm_db = [](WalletDatabase& database) {
+    // In case of reloading failure, we need to remember the wallet dirs to remove.
+    // Set is used as it may be populated with the same wallet directory paths multiple times,
+    // both before and after reloading. This ensures the set is complete even if one of the wallets
+    // fails to reload.
+    std::set<fs::path> wallet_dirs;
+    const auto& reload_wallet = [&](std::shared_ptr<CWallet>& to_reload) {
+        assert(to_reload.use_count() == 1);
+        std::string name = to_reload->GetName();
+        wallet_dirs.insert(fs::PathFromString(to_reload->GetDatabase().Filename()).parent_path());
+        to_reload.reset();
+        to_reload = LoadWallet(context, name, /*load_on_start=*/std::nullopt, options, status, error, warnings);
+        return to_reload != nullptr;
+    };
+
+    const auto& func_early_failure = [&](WalletDatabase& database) {
+        // Delete temp descriptor db
         fs::path desc_wallet_path = fs::PathFromString(database.Filename()).parent_path();
         assert(desc_wallet_path != GetWalletDir());
         fs::remove_all(desc_wallet_path);
+
+        // Reload local wallet
+        reload_wallet(local_wallet);
     };
 
     // Create a new descriptor wallet
@@ -4175,13 +4193,13 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
     std::string desc_wallet_name = (wallet_name.empty() ? GetWalletDir() / "migration" : wallet_name) + "_desc";
     std::unique_ptr<WalletDatabase> db_desc = MakeWalletDatabase(desc_wallet_name, options_desc, status, error);
     if (!db_desc) {
-        func_rm_db(*db_desc);
+        func_early_failure(*db_desc);
         return util::Error{Untranslated("Wallet file verification failed.") + Untranslated(" ") + error};
     }
 
     std::shared_ptr<CWallet> desc_wallet = CWallet::Create(empty_context, desc_wallet_name, std::move(db_desc), options_desc.create_flags, error, warnings);
     if (!desc_wallet) {
-        func_rm_db(desc_wallet->GetDatabase());
+        func_early_failure(desc_wallet->GetDatabase());
         return util::Error{Untranslated("New wallet creation failed.") + Untranslated(" ") + error};
     }
 
@@ -4191,7 +4209,7 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
 
         // Unlock the wallet if needed
         if (local_wallet->IsLocked() && !local_wallet->Unlock(passphrase)) {
-            func_rm_db(desc_wallet->GetDatabase()); // clean directory
+            func_early_failure(desc_wallet->GetDatabase()); // clean directory
             if (passphrase.find('\0') == std::string::npos) {
                 return util::Error{Untranslated("Error: Wallet decryption failed, the wallet passphrase was not provided or was incorrect.")};
             } else {
@@ -4205,7 +4223,7 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
 
         // Unlock new descriptor wallet
         if (desc_wallet->IsLocked() && !desc_wallet->Unlock(passphrase)) {
-            func_rm_db(desc_wallet->GetDatabase()); // clean directory
+            func_early_failure(desc_wallet->GetDatabase()); // clean directory
             return util::Error{Untranslated("Error: Wallet decryption failed, the wallet passphrase was not provided or was incorrect.")};
         }
 
@@ -4213,22 +4231,8 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
         success = DoMigration(*local_wallet, desc_wallet, context, error, res);
     }
 
-    // In case of reloading failure, we need to remember the wallet dirs to remove
-    // Set is used as it may be populated with the same wallet directory paths multiple times,
-    // both before and after reloading. This ensures the set is complete even if one of the wallets
-    // fails to reload.
-    std::set<fs::path> wallet_dirs;
     if (success) {
         // Migration successful, unload all wallets locally, then reload them.
-        const auto& reload_wallet = [&](std::shared_ptr<CWallet>& to_reload) {
-            assert(to_reload.use_count() == 1);
-            std::string name = to_reload->GetName();
-            wallet_dirs.insert(fs::PathFromString(to_reload->GetDatabase().Filename()).parent_path());
-            to_reload.reset();
-            to_reload = LoadWallet(context, name, /*load_on_start=*/std::nullopt, options, status, error, warnings);
-            return to_reload != nullptr;
-        };
-
         if (success && res.watchonly_wallet) {
             // Reload watchonly
             success = reload_wallet(res.watchonly_wallet);
