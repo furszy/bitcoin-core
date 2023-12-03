@@ -99,8 +99,7 @@ struct NetworkSetup
 static NetworkSetup g_networksetup_instance;
 
 BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vector<const char*>& extra_args)
-    : m_path_root{fs::temp_directory_path() / "test_common_" PACKAGE_NAME / g_insecure_rand_ctx_temp_path.rand256().ToString()},
-      m_args{}
+    : m_args{}
 {
     m_node.args = &gArgs;
     std::vector<const char*> arguments = Cat(
@@ -120,9 +119,6 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
         arguments = Cat(arguments, G_TEST_COMMAND_LINE_ARGUMENTS());
     }
     util::ThreadRename("test");
-    fs::create_directories(m_path_root);
-    m_args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
-    gArgs.ForceSetArg("-datadir", fs::PathToString(m_path_root));
     gArgs.ClearPathCache();
     {
         SetupServerArgs(*m_node.args);
@@ -132,6 +128,23 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
             throw std::runtime_error{error};
         }
     }
+
+    // Verify if we either use a custom or default datadir
+    if (!m_node.args->IsArgSet("-datadir")) {
+        m_path_root = fs::temp_directory_path() / "test_common_" PACKAGE_NAME / g_insecure_rand_ctx_temp_path.rand256().ToString();
+    } else {
+        const fs::path test_dir = m_node.args->GetPathArg("-datadir");
+        if (!fs::exists(test_dir)) throw std::runtime_error(strprintf("Error: Custom test dir '%s', does not exist", test_dir.u8string()));
+        if (!fs::is_directory(test_dir)) throw std::runtime_error(strprintf("Error: Custom test dir '%s', not a directory", test_dir.u8string()));
+        m_path_root = test_dir / "test_common_" PACKAGE_NAME / g_insecure_rand_ctx_temp_path.rand256().ToString().c_str();
+        has_custom_dir = true;
+        std::cout << strprintf("Running on a custom directory, the datadir will not be automatically cleaned up upon completion. Path %s", m_path_root.u8string()) << std::endl;
+    }
+
+    fs::create_directories(m_path_root);
+    m_args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+    gArgs.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+
     SelectParams(chainType);
     SeedInsecureRand();
     if (G_TEST_LOG_FUN) LogInstance().PushBackCallback(G_TEST_LOG_FUN);
@@ -159,7 +172,7 @@ BasicTestingSetup::~BasicTestingSetup()
     m_node.kernel.reset();
     SetMockTime(0s); // Reset mocktime for following tests
     LogInstance().DisconnectTestLogger();
-    fs::remove_all(m_path_root);
+    if (!has_custom_dir) fs::remove_all(m_path_root);
     gArgs.ClearArgs();
 }
 

@@ -52,7 +52,8 @@ struct BasicTestingSetup {
     explicit BasicTestingSetup(const ChainType chainType = ChainType::MAIN, const std::vector<const char*>& extra_args = {});
     ~BasicTestingSetup();
 
-    const fs::path m_path_root;
+    fs::path m_path_root;
+    bool has_custom_dir{false};
     ArgsManager m_args;
 };
 
