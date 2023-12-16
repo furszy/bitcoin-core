@@ -58,6 +58,8 @@ struct BasicTestingSetup {
 
     fs::path m_path_root;
     ArgsManager m_args;
+    // Clean up datadir on destruction
+    bool m_clean_dir{true};
 };
 
 /** Testing setup that performs all steps up until right before

@@ -137,6 +137,7 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
             throw std::runtime_error{error};
         }
     }
+    m_clean_dir = m_node.args->GetBoolArg("-nocleanup", false);
     SelectParams(chainType);
     SeedInsecureRand();
     if (G_TEST_LOG_FUN) LogInstance().PushBackCallback(G_TEST_LOG_FUN);
@@ -164,7 +165,7 @@ BasicTestingSetup::~BasicTestingSetup()
     m_node.kernel.reset();
     SetMockTime(0s); // Reset mocktime for following tests
     LogInstance().DisconnectTestLogger();
-    fs::remove_all(m_path_root);
+    if (m_clean_dir) fs::remove_all(m_path_root);
     gArgs.ClearArgs();
 }
 
