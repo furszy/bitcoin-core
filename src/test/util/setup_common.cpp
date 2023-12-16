@@ -98,9 +98,12 @@ struct NetworkSetup
 static NetworkSetup g_networksetup_instance;
 
 BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vector<const char*>& extra_args)
-    : m_path_root{fs::temp_directory_path() / "test_common_" PACKAGE_NAME / g_insecure_rand_ctx_temp_path.rand256().ToString()},
-      m_args{}
+    : m_args{}
 {
+    // Set test root path. Use test name if accessible.
+    std::string test_dir_name = strprintf("test_common_%s_%s", PACKAGE_NAME, G_TEST_GET_NAME ? G_TEST_GET_NAME() : "");
+    m_path_root = fs::temp_directory_path() / test_dir_name / g_insecure_rand_ctx_temp_path.rand256().ToString();
+
     m_node.shutdown = &m_interrupt;
     m_node.args = &gArgs;
     std::vector<const char*> arguments = Cat(
@@ -119,6 +122,7 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
     if (G_TEST_COMMAND_LINE_ARGUMENTS) {
         arguments = Cat(arguments, G_TEST_COMMAND_LINE_ARGUMENTS());
     }
+
     util::ThreadRename("test");
     fs::create_directories(m_path_root);
     m_args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
@@ -126,6 +130,7 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
     gArgs.ClearPathCache();
     {
         SetupServerArgs(*m_node.args);
+        m_node.args->AddArg("-nocleanup", "", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
         std::string error;
         if (!m_node.args->ParseParameters(arguments.size(), arguments.data(), error)) {
             m_node.args->ClearArgs();

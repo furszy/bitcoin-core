@@ -58,6 +58,8 @@ const std::function<std::vector<const char*>()> G_TEST_COMMAND_LINE_ARGUMENTS = 
     return g_args;
 };
 
+const std::function<std::string()> G_TEST_GET_NAME{};
+
 struct FuzzTarget {
     const TypeTestOneInput test_one_input;
     const FuzzTargetOptions opts;
