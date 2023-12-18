@@ -110,7 +110,7 @@ Mutex SQLiteDatabase::g_sqlite_mutex;
 int SQLiteDatabase::g_sqlite_count = 0;
 
 SQLiteDatabase::SQLiteDatabase(const fs::path& dir_path, const fs::path& file_path, const DatabaseOptions& options, bool mock)
-    : WalletDatabase(), m_mock(mock), m_dir_path(fs::PathToString(dir_path)), m_file_path(fs::PathToString(file_path)), m_use_unsafe_sync(options.use_unsafe_sync)
+    : WalletDatabase(), m_mock(mock), m_dir_path(fs::PathToString(dir_path)), m_file_path(fs::PathToString(file_path)), m_sqlite_semaphore(1), m_use_unsafe_sync(options.use_unsafe_sync)
 {
     {
         LOCK(g_sqlite_mutex);
@@ -465,6 +465,8 @@ bool SQLiteBatch::WriteKey(DataStream&& key, DataStream&& value, bool overwrite)
     if (!BindBlobToStatement(stmt, 1, key, "key")) return false;
     if (!BindBlobToStatement(stmt, 2, value, "value")) return false;
 
+    if (!m_txn) m_database.m_sqlite_semaphore.wait();
+
     // Execute
     int res = sqlite3_step(stmt);
     sqlite3_clear_bindings(stmt);
@@ -472,6 +474,9 @@ bool SQLiteBatch::WriteKey(DataStream&& key, DataStream&& value, bool overwrite)
     if (res != SQLITE_DONE) {
         LogPrintf("%s: Unable to execute statement: %s\n", __func__, sqlite3_errstr(res));
     }
+
+    if (!m_txn) m_database.m_sqlite_semaphore.post();
+
     return res == SQLITE_DONE;
 }
 
@@ -483,6 +488,8 @@ bool SQLiteBatch::ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob)
     // Bind: leftmost parameter in statement is index 1
     if (!BindBlobToStatement(stmt, 1, blob, "key")) return false;
 
+    if (!m_txn) m_database.m_sqlite_semaphore.wait();
+
     // Execute
     int res = sqlite3_step(stmt);
     sqlite3_clear_bindings(stmt);
@@ -490,6 +497,9 @@ bool SQLiteBatch::ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob)
     if (res != SQLITE_DONE) {
         LogPrintf("%s: Unable to execute statement: %s\n", __func__, sqlite3_errstr(res));
     }
+
+    if (!m_txn) m_database.m_sqlite_semaphore.post();
+
     return res == SQLITE_DONE;
 }
 
@@ -606,30 +616,41 @@ std::unique_ptr<DatabaseCursor> SQLiteBatch::GetNewPrefixCursor(Span<const std::
 
 bool SQLiteBatch::TxnBegin()
 {
+    if (m_txn) return false;
+    m_database.m_sqlite_semaphore.wait();
     if (!m_database.m_db || sqlite3_get_autocommit(m_database.m_db) == 0) return false;
     int res = sqlite3_exec(m_database.m_db, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to begin the transaction\n");
+        m_database.m_sqlite_semaphore.post();
+    } else {
+        m_txn = true;
     }
     return res == SQLITE_OK;
 }
 
 bool SQLiteBatch::TxnCommit()
 {
-    if (!m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
+    if (!m_txn || !m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
     int res = sqlite3_exec(m_database.m_db, "COMMIT TRANSACTION", nullptr, nullptr, nullptr);
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to commit the transaction\n");
+    } else {
+        m_txn = false;
+        m_database.m_sqlite_semaphore.post();
     }
     return res == SQLITE_OK;
 }
 
 bool SQLiteBatch::TxnAbort()
 {
-    if (!m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
+    if (!m_txn || !m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
     int res = sqlite3_exec(m_database.m_db, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to abort the transaction\n");
+    } else {
+        m_txn = false;
+        m_database.m_sqlite_semaphore.post();
     }
     return res == SQLITE_OK;
 }
