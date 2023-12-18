@@ -48,6 +48,8 @@ private:
     sqlite3_stmt* m_delete_stmt{nullptr};
     sqlite3_stmt* m_delete_prefix_stmt{nullptr};
 
+    bool m_txn{false};
+
     void SetupSQLStatements();
     bool ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob);
 
@@ -102,6 +104,10 @@ public:
     SQLiteDatabase(const fs::path& dir_path, const fs::path& file_path, const DatabaseOptions& options, bool mock = false);
 
     ~SQLiteDatabase();
+
+    // Batches must acquire this semaphore on writing, and release when done writing.
+    // This ensures that only one batch is modifying the database at a time.
+    CSemaphore m_sqlite_semaphore;
 
     bool Verify(bilingual_str& error);
 
