@@ -122,6 +122,9 @@ public:
      */
     bool Backup(const std::string& strDest) const override;
 
+    /** Return true if there is at least a single db transaction active */
+    bool HasAnyTxnActive() override;
+
     /** Make sure all changes are flushed to database file.
      */
     void Flush() override;

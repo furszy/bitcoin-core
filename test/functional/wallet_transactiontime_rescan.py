@@ -19,6 +19,7 @@ class TransactionTimeRescanTest(BitcoinTestFramework):
     def set_test_params(self):
         self.setup_clean_chain = False
         self.num_nodes = 3
+        self.extra_args = [['-keypool=5'],['-keypool=5'], ['-keypool=1']]
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()

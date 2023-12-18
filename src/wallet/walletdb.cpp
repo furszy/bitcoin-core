@@ -70,6 +70,10 @@ bool WalletBatch::TryInit()
     if (m_batch) return false;
     m_batch = m_database.MakeBatch(m_flush_on_close);
     if (m_is_txn) {
+        // As we are using a single db connection and the current supported dbs does not accept
+        // concurrent db transactions on the same connection, let's first check that we have no
+        // txn active.
+        assert(!m_database.HasAnyTxnActive());
         if (!TxnBegin()) {
             LogPrintf("%s: txn begin failed, reverting to synchronized write mode\n", __func__);
             m_is_txn = false;

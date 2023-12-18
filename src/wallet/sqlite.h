@@ -92,6 +92,9 @@ public:
      */
     bool Backup(const std::string& dest) const override;
 
+    /** Whether the db connection has a transaction active or not */
+    bool HasAnyTxnActive() override;
+
     /** No-ops
      *
      * SQLite always flushes everything to the database file after each transaction

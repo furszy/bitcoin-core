@@ -17,6 +17,7 @@
 #endif
 
 namespace wallet {
+    WalletDatabaseManager g_db_manager;
 namespace {
 
 //! Make sure database has a unique fileid within the environment. If it
@@ -638,6 +639,15 @@ bool BerkeleyDatabase::Backup(const std::string& strDest) const
     }
 }
 
+bool BerkeleyDatabase::HasAnyTxnActive()
+{
+    LOCK(cs_db);
+    for (auto& it : env->m_databases) {
+        if (it.second.get().HasAnyTxnActive()) return true;
+    }
+    return false;
+}
+
 void BerkeleyDatabase::Flush()
 {
     env->Flush(false);
@@ -809,12 +819,14 @@ void BerkeleyDatabase::AddRef()
     } else {
         m_refcount++;
     }
+    g_db_manager.addRef();
 }
 
 void BerkeleyDatabase::RemoveRef()
 {
     LOCK(cs_db);
     m_refcount--;
+    g_db_manager.RemoveRef();
     if (env) env->m_db_in_use.notify_all();
 }
 

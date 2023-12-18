@@ -16,6 +16,10 @@
 #include <optional>
 #include <string>
 
+#include <sync.h>
+#include <thread>
+#include <logging.h>
+
 class ArgsManager;
 struct bilingual_str;
 
@@ -100,7 +104,29 @@ public:
     virtual bool TxnAbort() = 0;
 };
 
-/** An instance of this class represents one database.
+class WalletDatabaseManager
+{
+    Mutex cs_db_man;
+    // Thread-id -> db ref count
+    std::map<std::thread::id, int> m_active_connection_references;
+
+public:
+    void addRef() {
+        LOCK(cs_db_man);
+        m_active_connection_references[std::this_thread::get_id()]++;
+        LogPrintf("%s, Adding ref for thread %d \n", __func__ , std::this_thread::get_id());
+    }
+
+    void RemoveRef() {
+        LOCK(cs_db_man);
+        m_active_connection_references[std::this_thread::get_id()]--;
+        LogPrintf("%s, Removing ref for thread %d \n", __func__ , std::this_thread::get_id());
+    }
+};
+
+extern WalletDatabaseManager g_db_manager;
+
+/** An instance of this class represents one database connection.
  **/
 class WalletDatabase
 {
@@ -126,6 +152,9 @@ public:
     /** Back up the entire database to a file.
      */
     virtual bool Backup(const std::string& strDest) const = 0;
+
+    /** Return true if there is at least a single db transaction active */
+    virtual bool HasAnyTxnActive() = 0;
 
     /** Make sure all changes are flushed to database file.
      */
@@ -187,6 +216,7 @@ public:
     void RemoveRef() override {}
     bool Rewrite(const char* pszSkip=nullptr) override { return true; }
     bool Backup(const std::string& strDest) const override { return true; }
+    bool HasAnyTxnActive() override { return false; }
     void Close() override {}
     void Flush() override {}
     bool PeriodicFlush() override { return true; }

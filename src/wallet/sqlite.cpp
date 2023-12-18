@@ -333,6 +333,12 @@ bool SQLiteDatabase::Backup(const std::string& dest) const
     return res == SQLITE_OK;
 }
 
+bool SQLiteDatabase::HasAnyTxnActive()
+{
+    assert(m_db);
+    return sqlite3_get_autocommit(m_db) != 0;
+}
+
 void SQLiteDatabase::Close()
 {
     int res = sqlite3_close(m_db);
@@ -360,7 +366,7 @@ SQLiteBatch::SQLiteBatch(SQLiteDatabase& database)
 void SQLiteBatch::Close()
 {
     // If m_db is in a transaction (i.e. not in autocommit mode), then abort the transaction in progress
-    if (m_database.m_db && sqlite3_get_autocommit(m_database.m_db) == 0) {
+    if (m_database.m_db && !m_database.HasAnyTxnActive()) {
         if (TxnAbort()) {
             LogPrintf("SQLiteBatch: Batch closed unexpectedly without the transaction being explicitly committed or aborted\n");
         } else {
@@ -514,7 +520,7 @@ void SQLiteBatch::CloseCursor()
 
 bool SQLiteBatch::TxnBegin()
 {
-    if (!m_database.m_db || sqlite3_get_autocommit(m_database.m_db) == 0) return false;
+    if (!m_database.m_db || !m_database.HasAnyTxnActive()) return false;
     int res = sqlite3_exec(m_database.m_db, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to begin the transaction\n");
@@ -524,7 +530,7 @@ bool SQLiteBatch::TxnBegin()
 
 bool SQLiteBatch::TxnCommit()
 {
-    if (!m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
+    if (!m_database.m_db || m_database.HasAnyTxnActive()) return false;
     int res = sqlite3_exec(m_database.m_db, "COMMIT TRANSACTION", nullptr, nullptr, nullptr);
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to commit the transaction\n");
@@ -534,7 +540,7 @@ bool SQLiteBatch::TxnCommit()
 
 bool SQLiteBatch::TxnAbort()
 {
-    if (!m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
+    if (!m_database.m_db || m_database.HasAnyTxnActive()) return false;
     int res = sqlite3_exec(m_database.m_db, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to abort the transaction\n");
