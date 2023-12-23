@@ -122,7 +122,7 @@ BOOST_AUTO_TEST_CASE(getwalletenv_g_dbenvs_free_instance)
     BOOST_CHECK(env_2_a == env_2_b);
 }
 
-static std::vector<std::unique_ptr<WalletDatabase>> TestDatabases(const fs::path& path_root)
+static std::vector<std::unique_ptr<WalletDatabase>> TestDatabases(const fs::path& path_root, bool use_mock_db=true)
 {
     std::vector<std::unique_ptr<WalletDatabase>> dbs;
     DatabaseOptions options;
@@ -134,7 +134,7 @@ static std::vector<std::unique_ptr<WalletDatabase>> TestDatabases(const fs::path
 #ifdef USE_SQLITE
     dbs.emplace_back(MakeSQLiteDatabase(path_root / "sqlite", options, status, error));
 #endif
-    dbs.emplace_back(CreateMockableWalletDatabase());
+    if (use_mock_db) dbs.emplace_back(CreateMockableWalletDatabase());
     return dbs;
 }
 
@@ -210,7 +210,7 @@ BOOST_AUTO_TEST_CASE(db_availability_after_write_error)
     // Ensures the database remains accessible without deadlocking after a write error.
     // To simulate the behavior, record overwrites are disallowed, and the test verifies
     // that the database remains active after failing to store an existing record.
-    for (const auto& database : TestDatabases(m_path_root)) {
+    for (const auto& database : TestDatabases(m_path_root, /*use_mock_db=*/false)) {
         std::unique_ptr<DatabaseBatch> handler = Assert(database)->MakeBatch();
 
         // Write original record
@@ -230,6 +230,44 @@ BOOST_AUTO_TEST_CASE(db_availability_after_write_error)
     }
 }
 
+BOOST_AUTO_TEST_CASE(concurrent_txn_dont_interfere)
+{
+    std::string key = "key";
+    std::string value = "value";
+    std::string value2 = "value_2";
+
+    // Verify concurrent db transactions does not interfere between each other.
+    for (const auto& database : TestDatabases(m_path_root, /*use_mock_db=*/false)) {
+        std::unique_ptr<DatabaseBatch> handler = Assert(database)->MakeBatch();
+
+        // Start db txn, write key and check the key does exist within the db txn.
+        BOOST_CHECK(handler->TxnBegin());
+        BOOST_CHECK(handler->Write(key, value));
+        BOOST_CHECK(handler->Exists(key));
+
+        // But, the same key, does not exist in another handler
+        std::unique_ptr<DatabaseBatch> handler2 = Assert(database)->MakeBatch();
+        BOOST_CHECK(handler2->Exists(key));
+
+        // Attempt to commit the handler txn calling the handler2 methods.
+        // Which, must not be possible.
+        BOOST_CHECK(!handler2->TxnCommit());
+        BOOST_CHECK(!handler2->TxnAbort());
+
+        // Only the first handler can commit the changes.
+        BOOST_CHECK(handler->TxnCommit());
+        // And, once commit is completed, handler2 can read the record
+        std::string read_value;
+        BOOST_CHECK(handler2->Read(key, read_value));
+        BOOST_CHECK_EQUAL(read_value, value);
+
+        // Also, once txn is committed, single write statements are re-enabled.
+        // Which means that handler2 can read the record changes directly.
+        BOOST_CHECK(handler->Write(key, value2, /*fOverwrite=*/true));
+        BOOST_CHECK(handler2->Read(key, read_value));
+        BOOST_CHECK_EQUAL(read_value, value2);
+    }
+}
 
 BOOST_AUTO_TEST_SUITE_END()
 } // namespace wallet
