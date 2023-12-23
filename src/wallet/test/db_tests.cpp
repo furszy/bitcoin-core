@@ -269,5 +269,33 @@ BOOST_AUTO_TEST_CASE(concurrent_txn_dont_interfere)
     }
 }
 
+#ifdef USE_BDB
+// Exercise deadlock occurring in bdb.
+// The situation arises when a secondary db handler attempts to read the db
+// while there is an ongoing db transaction in parallel in another handler.
+BOOST_AUTO_TEST_CASE(bdb_txn_read_deadlock)
+{
+    std::vector<std::unique_ptr<WalletDatabase>> dbs;
+    DatabaseOptions options;
+    DatabaseStatus status;
+    bilingual_str error;
+    auto db = Assert(MakeBerkeleyDatabase(m_path_root / "bdb", options, status, error));
+
+    // Create the first database batch handler and begin transaction.
+    std::unique_ptr<DatabaseBatch> handler = db->MakeBatch();
+    BOOST_CHECK(handler->TxnBegin());
+
+    // Write record to db and check for its existence.
+    BOOST_CHECK(handler->Write("key", "value"));
+    BOOST_CHECK(handler->Exists("key"));
+
+    // Create a second db batch handler.
+    std::unique_ptr<DatabaseBatch> handler2 = db->MakeBatch();
+
+    // Boom. Attempt to read record using the second handler.
+    BOOST_CHECK(handler2->Exists("key"));
+}
+#endif
+
 BOOST_AUTO_TEST_SUITE_END()
 } // namespace wallet
