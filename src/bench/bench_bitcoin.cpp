@@ -34,6 +34,7 @@ static void SetupBenchArgs(ArgsManager& argsman)
     argsman.AddArg("-sanity-check", "Run benchmarks for only one iteration with no output", ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
     argsman.AddArg("-priority-level=<l1,l2,l3>", strprintf("Run benchmarks of one or multiple priority level(s) (%s), default: '%s'",
                                                            benchmark::ListPriorities(), DEFAULT_PRIORITY), ArgsManager::ALLOW_ANY, OptionsCategory::OPTIONS);
+    argsman.AddArg("-testdatadir", "Run benchmarks on a custom data directory (default: </tmp/random_string>)", ArgsManager::ALLOW_ANY, OptionsCategory::DEBUG_TEST);
 }
 
 // parses a comma separated list like "10,20,30,50"
@@ -55,6 +56,17 @@ static uint8_t parsePriorityLevel(const std::string& str) {
         levels |= benchmark::StringToPriority(level);
     }
     return levels;
+}
+
+// Parses test setup related arguments
+static std::vector<std::string> parseTestSetupArgs(const ArgsManager& argsman) {
+    std::vector<std::string> args;
+
+    // Test data directory
+    fs::path test_datadir = argsman.GetPathArg("-testdatadir");
+    if (!test_datadir.empty()) args.emplace_back(strprintf("-testdatadir=%s", PathToString(test_datadir)));
+
+    return args;
 }
 
 int main(int argc, char** argv)
@@ -128,6 +140,7 @@ int main(int argc, char** argv)
         args.regex_filter = argsman.GetArg("-filter", DEFAULT_BENCH_FILTER);
         args.sanity_check = argsman.GetBoolArg("-sanity-check", false);
         args.priority = parsePriorityLevel(argsman.GetArg("-priority-level", DEFAULT_PRIORITY));
+        args.setup_args = parseTestSetupArgs(argsman);
 
         benchmark::BenchRunner::RunAll(args);
 
