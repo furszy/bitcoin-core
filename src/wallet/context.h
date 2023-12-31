@@ -10,7 +10,7 @@
 #include <functional>
 #include <list>
 #include <memory>
-#include <vector>
+#include <set>
 
 class ArgsManager;
 class CScheduler;
@@ -40,7 +40,7 @@ struct WalletContext {
     // It is unsafe to lock this after locking a CWallet::cs_wallet mutex because
     // this could introduce inconsistent lock ordering and cause deadlocks.
     Mutex wallets_mutex;
-    std::vector<std::shared_ptr<CWallet>> wallets GUARDED_BY(wallets_mutex);
+    std::set<std::shared_ptr<CWallet>> wallets GUARDED_BY(wallets_mutex);
     std::list<LoadWalletFn> wallet_load_fns GUARDED_BY(wallets_mutex);
 
     //! Declare default constructor and destructor that are not inline, so code

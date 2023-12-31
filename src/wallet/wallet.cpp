@@ -141,9 +141,8 @@ bool AddWallet(WalletContext& context, const std::shared_ptr<CWallet>& wallet)
 {
     LOCK(context.wallets_mutex);
     assert(wallet);
-    std::vector<std::shared_ptr<CWallet>>::const_iterator i = std::find(context.wallets.begin(), context.wallets.end(), wallet);
-    if (i != context.wallets.end()) return false;
-    context.wallets.push_back(wallet);
+    auto it = context.wallets.emplace(wallet);
+    if (!it.second) return false; // already existing wallet
     wallet->ConnectScriptPubKeyManNotifiers();
     wallet->NotifyCanGetAddressesChanged();
     return true;
@@ -159,9 +158,7 @@ bool RemoveWallet(WalletContext& context, const std::shared_ptr<CWallet>& wallet
     // Unregister with the validation interface which also drops shared pointers.
     wallet->m_chain_notifications_handler.reset();
     LOCK(context.wallets_mutex);
-    std::vector<std::shared_ptr<CWallet>>::iterator i = std::find(context.wallets.begin(), context.wallets.end(), wallet);
-    if (i == context.wallets.end()) return false;
-    context.wallets.erase(i);
+    if (!context.wallets.erase(wallet)) return false;
 
     // Write the wallet setting
     UpdateWalletSetting(chain, name, load_on_start, warnings);
@@ -175,7 +172,7 @@ bool RemoveWallet(WalletContext& context, const std::shared_ptr<CWallet>& wallet
     return RemoveWallet(context, wallet, load_on_start, warnings);
 }
 
-std::vector<std::shared_ptr<CWallet>> GetWallets(WalletContext& context)
+std::set<std::shared_ptr<CWallet>> GetWallets(WalletContext& context)
 {
     LOCK(context.wallets_mutex);
     return context.wallets;
@@ -185,7 +182,7 @@ std::shared_ptr<CWallet> GetDefaultWallet(WalletContext& context, size_t& count)
 {
     LOCK(context.wallets_mutex);
     count = context.wallets.size();
-    return count == 1 ? context.wallets[0] : nullptr;
+    return count == 1 ? *context.wallets.begin() : nullptr;
 }
 
 std::shared_ptr<CWallet> GetWallet(WalletContext& context, const std::string& name)

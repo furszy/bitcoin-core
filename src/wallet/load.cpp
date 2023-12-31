@@ -170,10 +170,7 @@ void StopWallets(WalletContext& context)
 
 void UnloadWallets(WalletContext& context)
 {
-    auto wallets = GetWallets(context);
-    while (!wallets.empty()) {
-        auto wallet = wallets.back();
-        wallets.pop_back();
+    for (auto wallet : GetWallets(context)) {
         std::vector<bilingual_str> warnings;
         RemoveWallet(context, wallet, /* load_on_start= */ std::nullopt, warnings);
         UnloadWallet(std::move(wallet));
