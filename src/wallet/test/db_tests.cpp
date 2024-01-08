@@ -270,6 +270,57 @@ BOOST_AUTO_TEST_CASE(concurrent_txn_dont_interfere)
     BOOST_CHECK(handler2->Read(key, read_value));
     BOOST_CHECK_EQUAL(read_value, value2);
 }
+
+class DbExecBlocker : public SQliteExecHandler
+{
+public:
+    bool CanExecute(const std::string& statement) override {
+        if (statement == "ROLLBACK TRANSACTION" || statement == "COMMIT TRANSACTION") return false;
+        return true;
+    }
+};
+
+BOOST_AUTO_TEST_CASE(txn_close_failure)
+{
+    std::string value = "value";
+    std::string value2 = "value_2";
+
+    for (int i = 0; i < 3; ++i) {
+        // Verifies that the SQLite database remains active and usable even after database tranasction fails to close.
+        DatabaseOptions options;
+        DatabaseStatus status;
+        bilingual_str error;
+        std::unique_ptr<SQLiteDatabase> database = MakeSQLiteDatabase(m_path_root / fs::PathFromString(strprintf("sqlite%d", i)), options, status, error);
+
+        std::unique_ptr<SQLiteBatch> batch = std::make_unique<SQLiteBatch>(*database);
+        BOOST_CHECK(batch->TxnBegin());
+        BOOST_CHECK(batch->Write(i, value));
+        // Set handler to simulate error in TxnAbort, TxnCommit, or destructor.
+        batch->SetExecHandler(std::make_unique<DbExecBlocker>());
+
+        switch (i) {
+        case 0:
+            batch->TxnAbort();
+            break;
+        case 1:
+            batch->TxnCommit();
+            break;
+        case 2:
+            // Do nothing, the batch will always be destroyed
+            break;
+        }
+        batch.reset();
+
+        // Now, verify that any subsequent write and read operations can be performed
+        std::unique_ptr<DatabaseBatch> batch2 = Assert(database)->MakeBatch();
+        BOOST_CHECK(batch2->Write(i, value2));
+
+        std::string read_value;
+        BOOST_CHECK(batch2->Read(i, read_value));
+        BOOST_CHECK_EQUAL(read_value, value2);
+    }
+}
+
 #endif // USE_SQLITE
 
 
