@@ -503,6 +503,12 @@ bool SQLiteBatch::ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob)
     return res == SQLITE_DONE;
 }
 
+int SQLiteBatch::Exec(const std::string& statement)
+{
+    if (m_exec_handler && !m_exec_handler->CanExecute(statement)) return -999;
+    return sqlite3_exec(m_database.m_db, statement.data(), nullptr, nullptr, nullptr);
+}
+
 bool SQLiteBatch::EraseKey(DataStream&& key)
 {
     return ExecStatement(m_delete_stmt, key);
@@ -619,7 +625,7 @@ bool SQLiteBatch::TxnBegin()
     if (m_txn) return false;
     m_database.m_sqlite_semaphore.wait();
     if (!m_database.m_db || sqlite3_get_autocommit(m_database.m_db) == 0) return false;
-    int res = sqlite3_exec(m_database.m_db, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
+    int res = Exec("BEGIN TRANSACTION");
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to begin the transaction\n");
         m_database.m_sqlite_semaphore.post();
@@ -632,7 +638,7 @@ bool SQLiteBatch::TxnBegin()
 bool SQLiteBatch::TxnCommit()
 {
     if (!m_txn || !m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
-    int res = sqlite3_exec(m_database.m_db, "COMMIT TRANSACTION", nullptr, nullptr, nullptr);
+    int res = Exec("COMMIT TRANSACTION");
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to commit the transaction\n");
     } else {
@@ -645,7 +651,7 @@ bool SQLiteBatch::TxnCommit()
 bool SQLiteBatch::TxnAbort()
 {
     if (!m_txn || !m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
-    int res = sqlite3_exec(m_database.m_db, "ROLLBACK TRANSACTION", nullptr, nullptr, nullptr);
+    int res = Exec("ROLLBACK TRANSACTION");
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to abort the transaction\n");
     } else {

@@ -36,11 +36,20 @@ public:
     Status Next(DataStream& key, DataStream& value) override;
 };
 
+class SQliteExecHandler
+{
+public:
+    virtual ~SQliteExecHandler() {}
+    // Whether the SQlite statement will be executed or not
+    virtual bool CanExecute(const std::string& statement) = 0;
+};
+
 /** RAII class that provides access to a WalletDatabase */
 class SQLiteBatch : public DatabaseBatch
 {
 private:
     SQLiteDatabase& m_database;
+    std::unique_ptr<SQliteExecHandler> m_exec_handler;
 
     sqlite3_stmt* m_read_stmt{nullptr};
     sqlite3_stmt* m_insert_stmt{nullptr};
@@ -59,9 +68,14 @@ private:
     bool HasKey(DataStream&& key) override;
     bool ErasePrefix(Span<const std::byte> prefix) override;
 
+    // Execute statement
+    int Exec(const std::string& statement);
+
 public:
     explicit SQLiteBatch(SQLiteDatabase& database);
     ~SQLiteBatch() override { Close(); }
+
+    void SetExecHandler(std::unique_ptr<SQliteExecHandler>&& handler) { m_exec_handler = std::move(handler); }
 
     /* No-op. See comment on SQLiteDatabase::Flush */
     void Flush() override {}
