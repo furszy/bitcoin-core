@@ -9,6 +9,7 @@ from test_framework.address import (
     ADDRESS_BCRT1_UNSPENDABLE,
 )
 from test_framework.blocktools import COINBASE_MATURITY
+from test_framework.messages import COIN
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import assert_equal
 from test_framework.wallet import MiniWallet
@@ -20,41 +21,32 @@ class WalletRescanUnconfirmed(BitcoinTestFramework):
         self.add_wallet_options(parser, legacy=False)
 
     def set_test_params(self):
-        self.num_nodes = 3
-        # Immediate tx relay
-        self.extra_args = [['-whitelist=noban@127.0.0.1']] * self.num_nodes
+        self.num_nodes = 1
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
         self.skip_if_no_sqlite()
 
     def run_test(self):
-        # Node which we will use to send funds to the wallet and mine blocks
-        tester_node = self.nodes[0]
-        # Node on which the wallet is originally created
-        orig_wallet_node = self.nodes[1]
-        # Node which will import the wallet and rescan blocks / mempool for transactions
-        import_wallet_node = self.nodes[2]
-
-
         self.log.info("Create wallets and mine initial chain")
-        tester_wallet = MiniWallet(tester_node)
-        self.generate(tester_wallet, COINBASE_MATURITY)
+        node = self.nodes[0]
+        tester_wallet = MiniWallet(node)
+        self.generate(tester_wallet, 1)
 
-        orig_wallet_node.createwallet(wallet_name='w0', disable_private_keys=False, descriptors=True)
-        w0 = orig_wallet_node.get_wallet_rpc('w0')
+        node.createwallet(wallet_name='w0', disable_private_keys=False)
+        w0 = node.get_wallet_rpc('w0')
 
         self.log.info("Create a parent tx and mine it in a block that will later be disconnected")
-        parent_amount = 100000
         parent_address = w0.getnewaddress()
         tx_parent_to_reorg = tester_wallet.send_to(
-            from_node=tester_node,
+            from_node=node,
             scriptPubKey=address_to_scriptpubkey(parent_address),
-            amount=parent_amount,
+            amount=COIN,
         )
-        assert tx_parent_to_reorg["txid"] in tester_node.getrawmempool()
-        block_to_reorg = self.generate(tester_node, 1)[0]
-        assert_equal(len(tester_node.getrawmempool()), 0)
+        assert tx_parent_to_reorg["txid"] in node.getrawmempool()
+        block_to_reorg = self.generate(tester_wallet, 1)[0]
+        assert_equal(len(node.getrawmempool()), 0)
+        node.syncwithvalidationinterfacequeue()
         assert_equal(w0.gettransaction(tx_parent_to_reorg["txid"])["confirmations"], 1)
 
         # Create an unconfirmed child transaction from the parent tx, sending all
@@ -68,23 +60,18 @@ class WalletRescanUnconfirmed(BitcoinTestFramework):
         assert_equal(len(w0_utxos), 1)
         assert_equal(w0_utxos[0]["txid"], tx_parent_to_reorg["txid"])
         tx_child_unconfirmed_sweep = w0.sendall([ADDRESS_BCRT1_UNSPENDABLE])
-        self.sync_all()
-        assert tx_child_unconfirmed_sweep["txid"] in tester_node.getrawmempool()
-        assert tx_child_unconfirmed_sweep["txid"] in import_wallet_node.getrawmempool()
+        assert tx_child_unconfirmed_sweep["txid"] in node.getrawmempool()
+        node.syncwithvalidationinterfacequeue()
 
         self.log.info("Mock a reorg, causing parent to re-enter mempools after its child")
-        for node in self.nodes:
-            node.invalidateblock(block_to_reorg)
-            assert tx_parent_to_reorg["txid"] in node.getrawmempool()
+        node.invalidateblock(block_to_reorg)
+        assert tx_parent_to_reorg["txid"] in node.getrawmempool()
 
         self.log.info("Import descriptor wallet on another node")
-        descriptors_to_import = []
-        for item in w0.listdescriptors()["descriptors"]:
-            # use timestamp 0 to tell wallet to rescan entire chain
-            if not item["internal"]:
-                descriptors_to_import.append({"desc": item["desc"], "timestamp": 0, "label": "w0 import"})
-        import_wallet_node.createwallet(wallet_name="w1", disable_private_keys=True, blank=True, descriptors=True)
-        w1 = import_wallet_node.get_wallet_rpc("w1")
+        descriptors_to_import = [{"desc": w0.getaddressinfo(parent_address)['parent_desc'], "timestamp": 0, "label": "w0 import"}]
+
+        node.createwallet(wallet_name="w1", disable_private_keys=True)
+        w1 = node.get_wallet_rpc("w1")
         w1.importdescriptors(descriptors_to_import)
 
         self.log.info("Check that the importing node has properly rescanned mempool transactions")
