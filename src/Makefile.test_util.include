@@ -10,6 +10,7 @@ EXTRA_LIBRARIES += \
 TEST_UTIL_H = \
   test/util/blockfilter.h \
   test/util/chainstate.h \
+  test/util/chain_proxy.h \
   test/util/coins.h \
   test/util/index.h \
   test/util/json.h \

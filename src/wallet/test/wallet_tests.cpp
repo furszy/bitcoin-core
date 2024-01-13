@@ -16,6 +16,7 @@
 #include <policy/policy.h>
 #include <rpc/server.h>
 #include <script/solver.h>
+#include <test/util/chain_proxy.h>
 #include <test/util/logging.h>
 #include <test/util/random.h>
 #include <test/util/setup_common.h>
@@ -69,6 +70,57 @@ static void AddKey(CWallet& wallet, const CKey& key)
     assert(desc);
     WalletDescriptor w_desc(std::move(desc), 0, 0, 1, 1);
     if (!wallet.AddWalletDescriptor(w_desc, provider, "", false)) assert(false);
+}
+
+// Triggers AssumeUTXO failure on CWallet::AttachChain
+class ChainMock : public interfaces::ChainProxy
+{
+public:
+    explicit ChainMock(interfaces::Chain* chain) : ChainProxy(chain) {}
+    ~ChainMock() override {}
+
+    bool hasAssumedValidChain() override { return true; }
+    bool haveBlockOnDisk(int height) override { return false; }
+};
+
+// Tests that the wallet is released from memory after loading failure
+BOOST_FIXTURE_TEST_CASE(wallet_load_release, TestChain100Setup)
+{
+    WalletContext context;
+    context.args = &m_args;
+    context.chain = m_node.chain.get();
+    context.scheduler = m_node.scheduler.get();
+
+    DatabaseOptions options;
+    options.require_format = DatabaseFormat::SQLITE;
+    options.require_create = true;
+    options.create_flags = WALLET_FLAG_DESCRIPTORS;
+
+    DatabaseStatus status;
+    bilingual_str error_string;
+    std::vector<bilingual_str> warnings;
+
+    // Create valid wallet and unload it.
+    std::shared_ptr<CWallet> wallet = CreateWallet(context, "wallet_name", /*load_on_start=*/true, options, status, error_string, warnings);
+    BOOST_CHECK(wallet);
+    assert(RemoveWallet(context, wallet, /*load_on_start=*/ std::nullopt, warnings));
+    UnloadWallet(std::move(wallet));
+
+    // Generate blocks
+    mineBlocks(20);
+
+    // Trigger loading failure during rescan for an assumeUTXO violation.
+    std::unique_ptr<interfaces::Chain> chain = std::make_unique<ChainMock>(m_node.chain.get());
+    context.chain = chain.get();
+    options.require_create = false;
+    wallet = CreateWallet(context, "wallet_name", /*load_on_start=*/true, options, status, error_string, warnings);
+    BOOST_CHECK(!wallet);
+    BOOST_CHECK(error_string.original.find("Wallet requires blocks to be downloaded") != std::string::npos);
+
+    // Now try to re-open the same wallet with the correct chain interface
+    context.chain = m_node.chain.get();
+    wallet = CreateWallet(context, "wallet_name", /*load_on_start=*/true, options, status, error_string, warnings);
+    BOOST_CHECK(wallet);
 }
 
 BOOST_FIXTURE_TEST_CASE(scan_for_wallet_transactions, TestChain100Setup)
