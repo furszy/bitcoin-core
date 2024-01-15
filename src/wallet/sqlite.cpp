@@ -400,11 +400,16 @@ SQLiteBatch::SQLiteBatch(SQLiteDatabase& database)
 void SQLiteBatch::Close()
 {
     // If m_db is in a transaction (i.e. not in autocommit mode), then abort the transaction in progress
+    bool force_conn_refresh = false;
     if (m_database.HasActiveTxn()) {
         if (TxnAbort()) {
             LogPrintf("SQLiteBatch: Batch closed unexpectedly without the transaction being explicitly committed or aborted\n");
         } else {
-            LogPrintf("SQLiteBatch: Batch closed and failed to abort transaction\n");
+            // In case we cannot abort the transaction, prevent other handler/s from dumping the ongoing
+            // to-be-reverted transaction to disk unexpectedly by forcing a db connection reset.
+            // This will automatically roll back the transaction.
+            force_conn_refresh = true;
+            LogPrintf("SQLiteBatch: Batch closed and failed to abort transaction, resetting db connection..\n");
         }
     }
 
@@ -424,6 +429,17 @@ void SQLiteBatch::Close()
                       stmt_description, sqlite3_errstr(res));
         }
         *stmt_prepared = nullptr;
+    }
+
+    if (force_conn_refresh) {
+        m_database.Close();
+        try {
+            m_database.Open();
+        } catch (const std::runtime_error&) {
+            // If open fails, cleanup this object and rethrow the exception
+            m_database.Close();
+            throw;
+        }
     }
 }
 
