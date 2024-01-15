@@ -7,6 +7,7 @@
 #include <test/util/setup_common.h>
 #include <util/check.h>
 #include <util/fs.h>
+#include <util/thread.h>
 #include <util/translation.h>
 #ifdef USE_BDB
 #include <wallet/bdb.h>
@@ -319,6 +320,54 @@ BOOST_AUTO_TEST_CASE(txn_close_failure)
         BOOST_CHECK(batch2->Read(i, read_value));
         BOOST_CHECK_EQUAL(read_value, value2);
     }
+}
+
+// Tests that only the handler who originates the db txn can commit and/or abort such txn, not other handlers.
+// If other handlers were able to commit transactions that they did not start, they could be saving incomplete
+// information to disk and affecting other processes.
+BOOST_AUTO_TEST_CASE(concurrent_txns_isolation)
+{
+    DatabaseOptions options;
+    DatabaseStatus status;
+    bilingual_str error;
+    std::unique_ptr<SQLiteDatabase> database = MakeSQLiteDatabase(m_path_root / "sqlite", options, status, error);
+
+    std::string key = "key";
+    std::string value = "value";
+    std::string key2 = "key_2";
+    std::string value2 = "value_2";
+
+    // Perform write within a db txn and mimic a transient failure
+    std::unique_ptr<SQLiteBatch> handler = std::make_unique<SQLiteBatch>(*database);
+    BOOST_CHECK(handler->TxnBegin());
+    BOOST_CHECK(handler->Write(key, value));
+    // Set handler to simulate TxnAbort failure
+    handler->SetExecHandler(std::make_unique<DbExecBlocker>());
+    BOOST_CHECK(!handler->TxnAbort());
+
+    // Now, simulate a concurrent handler trying to access db while the first handler attempts to abort the existing txn.
+    // This second handler must not be able to commit the pending-to-abort txn of the first handler, as this txn could
+    // contain incomplete information!
+    std::thread task(util::TraceThread, "concurrent", [&] {
+        std::unique_ptr<SQLiteBatch> handler2 = std::make_unique<SQLiteBatch>(*database);
+        BOOST_CHECK(handler2->Write(key2, value2)); // should lock until the first handler txn finishes.
+
+        // Verify the first txn data was not dumped to disk
+        BOOST_CHECK_MESSAGE(!handler2->Exists(key), "error: pending-to-abort txn was dumped to disk!");
+        // Only this second handler write operation was dumped to disk
+        BOOST_CHECK(handler2->Exists(key2));
+    });
+
+    // Ensure there is no dangling, to-be-reversed db txn
+    BOOST_CHECK(!database->HasActiveTxn());
+
+    // Sleep a bit to let the second thread execute
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    // Abort transaction appropriately
+    handler->SetExecHandler(nullptr); // clear statements blocker
+    BOOST_CHECK(handler->TxnAbort());
+    // And wait until thread finishes
+    task.join();
 }
 
 #endif // USE_SQLITE
