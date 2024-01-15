@@ -7,6 +7,7 @@
 #include <test/util/setup_common.h>
 #include <util/check.h>
 #include <util/fs.h>
+#include <util/thread.h>
 #include <util/translation.h>
 #ifdef USE_BDB
 #include <wallet/bdb.h>
@@ -320,6 +321,51 @@ BOOST_AUTO_TEST_CASE(concurrent_txn_dont_interfere)
     BOOST_CHECK(handler2->Read(key, read_value));
     BOOST_CHECK_EQUAL(read_value, value2);
 }
+
+// Validates serial execution of batch operations in concurrent processes.
+BOOST_AUTO_TEST_CASE(serial_txns_in_concurrent_processes)
+{
+    DatabaseOptions options;
+    DatabaseStatus status;
+    bilingual_str error;
+    std::unique_ptr<SQLiteDatabase> database = MakeSQLiteDatabase(m_path_root / "sqlite", options, status, error);
+
+    std::string key = "key";
+    std::string value = "value";
+    std::string key2 = "key_2";
+    std::string value2 = "value_2";
+
+    // Perform write within a db txn and mimic a failure
+    std::unique_ptr<SQLiteBatch> batch = std::make_unique<SQLiteBatch>(*database);
+    BOOST_CHECK(batch->TxnBegin());
+    BOOST_CHECK(batch->Write(key, value));
+    // Set handler to simulate TxnAbort failure
+    batch->SetExecHandler(std::make_unique<DbExecBlocker>(std::set<std::string>{"ROLLBACK TRANSACTION"}));
+    BOOST_CHECK(!batch->TxnAbort());
+
+    // Now, simulate a concurrent batch trying to access db while the first batch attempts to abort the existing txn.
+    std::thread task(util::TraceThread, "concurrent", [&] {
+        std::unique_ptr<SQLiteBatch> batch2 = std::make_unique<SQLiteBatch>(*database);
+        BOOST_CHECK(batch2->Write(key2, value2)); // should lock until the first batch txn finishes.
+
+        // Verify the first txn data was not dumped to disk
+        BOOST_CHECK_MESSAGE(!batch2->Exists(key), "error: pending-to-abort txn was dumped to disk!");
+        // Only this second batch write operation was dumped to disk
+        BOOST_CHECK(batch2->Exists(key2));
+    });
+
+    // Sleep a bit to let the second thread start (it will be locked until the original 'batch' finishes the txn)
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    // Abort transaction appropriately, letting the concurrent process make use of the db
+    batch->SetExecHandler(std::make_unique<SQliteExecHandler>());
+    BOOST_CHECK(batch->TxnAbort());
+
+    // Wait until the concurrent process finishes
+    task.join();
+    // And finish reading the data that was written in the concurrent process
+    BOOST_CHECK(batch->Exists(key2));
+}
+
 #endif // USE_SQLITE
 
 BOOST_AUTO_TEST_SUITE_END()
