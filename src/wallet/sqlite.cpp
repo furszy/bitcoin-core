@@ -377,6 +377,11 @@ void SQLiteDatabase::Close()
     m_db = nullptr;
 }
 
+bool SQLiteDatabase::HasActiveTxn()
+{
+    return m_db && sqlite3_get_autocommit(m_db) == 0;
+}
+
 std::unique_ptr<DatabaseBatch> SQLiteDatabase::MakeBatch(bool flush_on_close)
 {
     // We ignore flush_on_close because we don't do manual flushing for SQLite
@@ -395,7 +400,7 @@ SQLiteBatch::SQLiteBatch(SQLiteDatabase& database)
 void SQLiteBatch::Close()
 {
     // If m_db is in a transaction (i.e. not in autocommit mode), then abort the transaction in progress
-    if (m_database.m_db && sqlite3_get_autocommit(m_database.m_db) == 0) {
+    if (m_database.HasActiveTxn()) {
         if (TxnAbort()) {
             LogPrintf("SQLiteBatch: Batch closed unexpectedly without the transaction being explicitly committed or aborted\n");
         } else {
@@ -624,7 +629,7 @@ bool SQLiteBatch::TxnBegin()
 {
     if (m_txn) return false;
     m_database.m_sqlite_semaphore.wait();
-    if (!m_database.m_db || sqlite3_get_autocommit(m_database.m_db) == 0) return false;
+    if (!m_database.m_db || m_database.HasActiveTxn()) return false;
     int res = Exec("BEGIN TRANSACTION");
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to begin the transaction\n");
@@ -637,7 +642,7 @@ bool SQLiteBatch::TxnBegin()
 
 bool SQLiteBatch::TxnCommit()
 {
-    if (!m_txn || !m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
+    if (!m_txn || !m_database.m_db || !m_database.HasActiveTxn()) return false;
     int res = Exec("COMMIT TRANSACTION");
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to commit the transaction\n");
@@ -650,7 +655,7 @@ bool SQLiteBatch::TxnCommit()
 
 bool SQLiteBatch::TxnAbort()
 {
-    if (!m_txn || !m_database.m_db || sqlite3_get_autocommit(m_database.m_db) != 0) return false;
+    if (!m_txn || !m_database.m_db || !m_database.HasActiveTxn()) return false;
     int res = Exec("ROLLBACK TRANSACTION");
     if (res != SQLITE_OK) {
         LogPrintf("SQLiteBatch: Failed to abort the transaction\n");
