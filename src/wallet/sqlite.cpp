@@ -664,8 +664,8 @@ bool SQLiteBatch::TxnCommit()
         LogPrintf("SQLiteBatch: Failed to commit the transaction\n");
     } else {
         m_txn = false;
+        m_database.m_sqlite_semaphore.post();
     }
-    m_database.m_sqlite_semaphore.post();
     return res == SQLITE_OK;
 }
 
@@ -677,8 +677,8 @@ bool SQLiteBatch::TxnAbort()
         LogPrintf("SQLiteBatch: Failed to abort the transaction\n");
     } else {
         m_txn = false;
+        m_database.m_sqlite_semaphore.post();
     }
-    m_database.m_sqlite_semaphore.post();
     return res == SQLITE_OK;
 }
 
