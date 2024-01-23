@@ -140,13 +140,13 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
     } else {
         // Custom data directory
         m_has_custom_datadir = true;
-        const std::string testdatadir{m_node.args->GetPathArg("-testdatadir")};
-        if (testdatadir.empty()) {
+        fs::path root_dir{m_node.args->GetPathArg("-testdatadir")};
+        if (root_dir.empty()) {
             std::cerr << "-testdatadir argument is empty, please specify a path\n";
             exit(EXIT_FAILURE);
         }
         const std::string test_path{G_TEST_GET_FULL_NAME ? G_TEST_GET_FULL_NAME() : ""};
-        const fs::path lockdir{fs::PathFromString(testdatadir) / "test_temp" / fs::PathFromString(test_path)};
+        const fs::path lockdir{root_dir / "test_temp" / fs::PathFromString(test_path)};
         m_path_root = lockdir / "datadir";
 
         // Try to obtain the lock; if unsuccessful don't disturb the existing test.
