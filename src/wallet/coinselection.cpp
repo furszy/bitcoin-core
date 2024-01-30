@@ -322,14 +322,20 @@ util::Result<SelectionResult> KnapsackSolver(std::vector<OutputGroup>& groups, c
 
     Shuffle(groups.begin(), groups.end(), rng);
 
+    bool max_weight_exceeded{false};
     for (const OutputGroup& group : groups) {
-        if (group.GetSelectionAmount() == nTargetValue && group.m_weight <= max_input_weight) {
+        if (group.m_weight > max_input_weight) {
+            max_weight_exceeded = true;
+            continue;
+        }
+
+        if (group.GetSelectionAmount() == nTargetValue) {
             result.AddInput(group);
             return result;
         } else if (group.GetSelectionAmount() < nTargetValue + change_target) {
             applicable_groups.push_back(group);
             nTotalLower += group.GetSelectionAmount();
-        } else if (group.m_weight <= max_input_weight && (!lowest_larger || group.GetSelectionAmount() < lowest_larger->GetSelectionAmount())) {
+        } else if (!lowest_larger || group.GetSelectionAmount() < lowest_larger->GetSelectionAmount()) {
             lowest_larger = group;
         }
     }
@@ -338,16 +344,22 @@ util::Result<SelectionResult> KnapsackSolver(std::vector<OutputGroup>& groups, c
         for (const auto& group : applicable_groups) {
             result.AddInput(group);
         }
+
         if (result.GetWeight() <= max_input_weight) return result;
+        else max_weight_exceeded = true;
 
         // Try something else
         result.Clear();
     }
 
     if (nTotalLower < nTargetValue) {
-        if (!lowest_larger) return util::Error{Untranslated(strprintf("Only %d coins to cover target value of %d", nTotalLower, nTargetValue))};
+        if (!lowest_larger) {
+            if (max_weight_exceeded) return ErrorMaxWeightExceeded();
+            return util::Error();
+        }
         result.AddInput(*lowest_larger);
         if (result.GetWeight() <= max_input_weight) return result;
+        else max_weight_exceeded = true;
 
         // Try something else
         result.Clear();
