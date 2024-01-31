@@ -180,6 +180,9 @@ public:
     //! Is initial block download.
     virtual bool isInitialBlockDownload() = 0;
 
+    //! If the node us running a chain exclusively used for testing
+    virtual bool isTestChain() = 0;
+
     //! Is loading blocks.
     virtual bool isLoadingBlocks() = 0;
 

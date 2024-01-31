@@ -490,8 +490,8 @@ bool RPCExecutor::executeConsoleGenerate(const std::vector<std::string>& parsed_
         executeConsoleHelpGenerate();
         return true;
     }
-    // Fail if we are on mainnet, to avoid generating addresses for blocks that will not be generated
-    if (Params().GetChainType() == ChainType::MAIN) {
+    // Fail on mainnet, avoid generating addresses for blocks that will not be generated
+    if (!wallet_model->node().isTestChain()) {
         Q_EMIT reply(RPCConsole::CMD_ERROR, QString("Error: generate is not available on mainnet"));
         return true;
     }

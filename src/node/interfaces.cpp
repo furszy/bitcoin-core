@@ -302,6 +302,10 @@ public:
     {
         return GuessVerificationProgress(chainman().GetParams().TxData(), WITH_LOCK(::cs_main, return chainman().ActiveChain().Tip()));
     }
+    bool isTestChain() override
+    {
+        return chainman().GetParams().IsTestChain();
+    }
     bool isInitialBlockDownload() override
     {
         return chainman().IsInitialBlockDownload();
