@@ -5,6 +5,7 @@
 #ifndef BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H
 #define BITCOIN_ZMQ_ZMQPUBLISHNOTIFIER_H
 
+#include <span.h>
 #include <zmq/zmqabstractnotifier.h>
 
 #include <cstddef>
@@ -28,7 +29,7 @@ public:
           * data
           * message sequence number
     */
-    bool SendZmqMessage(const char *command, const void* data, size_t size);
+    bool SendZmqMessage(Span<const unsigned char> command, Span<const unsigned char> msg);
 
     bool Initialize(void *pcontext) override;
     void Shutdown() override;

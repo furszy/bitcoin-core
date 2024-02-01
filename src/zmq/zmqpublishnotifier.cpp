@@ -40,11 +40,11 @@ struct Params;
 
 static std::multimap<std::string, CZMQAbstractPublishNotifier*> mapPublishNotifiers;
 
-static const char *MSG_HASHBLOCK = "hashblock";
-static const char *MSG_HASHTX    = "hashtx";
-static const char *MSG_RAWBLOCK  = "rawblock";
-static const char *MSG_RAWTX     = "rawtx";
-static const char *MSG_SEQUENCE  = "sequence";
+static constexpr std::string_view MSG_HASHBLOCK = "hashblock";
+static constexpr std::string_view MSG_HASHTX    = "hashtx";
+static constexpr std::string_view MSG_RAWBLOCK  = "rawblock";
+static constexpr std::string_view MSG_RAWTX     = "rawtx";
+static constexpr std::string_view MSG_SEQUENCE  = "sequence";
 
 // Internal function to send multipart message
 static int zmq_send_multipart(void *sock, const void* data, size_t size, ...)
@@ -200,14 +200,14 @@ void CZMQAbstractPublishNotifier::Shutdown()
     psocket = nullptr;
 }
 
-bool CZMQAbstractPublishNotifier::SendZmqMessage(const char *command, const void* data, size_t size)
+bool CZMQAbstractPublishNotifier::SendZmqMessage(Span<const unsigned char> command, Span<const unsigned char> msg)
 {
     assert(psocket);
 
     /* send three parts, command & data & a LE 4byte sequence number */
     unsigned char msgseq[sizeof(uint32_t)];
     WriteLE32(msgseq, nSequence);
-    int rc = zmq_send_multipart(psocket, command, strlen(command), data, size, msgseq, (size_t)sizeof(uint32_t), nullptr);
+    int rc = zmq_send_multipart(psocket, command.data(), command.size(), msg.data(), msg.size(), msgseq, (size_t)sizeof(uint32_t), nullptr);
     if (rc == -1)
         return false;
 
@@ -225,7 +225,7 @@ bool CZMQPublishHashBlockNotifier::NotifyBlock(const CBlockIndex *pindex)
     for (unsigned int i = 0; i < 32; i++) {
         data[31 - i] = hash.begin()[i];
     }
-    return SendZmqMessage(MSG_HASHBLOCK, data, 32);
+    return SendZmqMessage(MakeUCharSpan(MSG_HASHBLOCK), data);
 }
 
 bool CZMQPublishHashTransactionNotifier::NotifyTransaction(const CTransaction &transaction)
@@ -236,7 +236,7 @@ bool CZMQPublishHashTransactionNotifier::NotifyTransaction(const CTransaction &t
     for (unsigned int i = 0; i < 32; i++) {
         data[31 - i] = hash.begin()[i];
     }
-    return SendZmqMessage(MSG_HASHTX, data, 32);
+    return SendZmqMessage(MakeUCharSpan(MSG_HASHTX), data);
 }
 
 bool CZMQPublishRawBlockNotifier::NotifyBlock(const CBlockIndex *pindex)
@@ -252,7 +252,7 @@ bool CZMQPublishRawBlockNotifier::NotifyBlock(const CBlockIndex *pindex)
 
     ss << TX_WITH_WITNESS(block);
 
-    return SendZmqMessage(MSG_RAWBLOCK, &(*ss.begin()), ss.size());
+    return SendZmqMessage(MakeUCharSpan(MSG_RAWBLOCK), MakeUCharSpan(ss));
 }
 
 bool CZMQPublishRawTransactionNotifier::NotifyTransaction(const CTransaction &transaction)
@@ -261,7 +261,7 @@ bool CZMQPublishRawTransactionNotifier::NotifyTransaction(const CTransaction &tr
     LogPrint(BCLog::ZMQ, "Publish rawtx %s to %s\n", hash.GetHex(), this->address);
     DataStream ss;
     ss << TX_WITH_WITNESS(transaction);
-    return SendZmqMessage(MSG_RAWTX, &(*ss.begin()), ss.size());
+    return SendZmqMessage(MakeUCharSpan(MSG_RAWTX), MakeUCharSpan(ss));
 }
 
 // Helper function to send a 'sequence' topic message with the following structure:
@@ -274,7 +274,7 @@ static bool SendSequenceMsg(CZMQAbstractPublishNotifier& notifier, uint256 hash,
     }
     data[sizeof(hash)] = label;
     if (sequence) WriteLE64(data + sizeof(hash) + sizeof(label), *sequence);
-    return notifier.SendZmqMessage(MSG_SEQUENCE, data, sequence ? sizeof(data) : sizeof(hash) + sizeof(label));
+    return notifier.SendZmqMessage(MakeUCharSpan(MSG_SEQUENCE), Span{&data[0], sequence ? sizeof(data) : sizeof(hash) + sizeof(label)});
 }
 
 bool CZMQPublishSequenceNotifier::NotifyBlockConnect(const CBlockIndex *pindex)
