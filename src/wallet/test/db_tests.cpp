@@ -205,5 +205,33 @@ BOOST_AUTO_TEST_CASE(db_cursor_prefix_byte_test)
     }
 }
 
+BOOST_AUTO_TEST_CASE(erase_tests)
+{
+    std::string key = "key";
+    std::string value = "value";
+    std::string value1 = "value1";
+
+    for (const auto& database : TestDatabases(m_path_root)) {
+        auto batch = database->MakeBatch();
+
+        // Verify 'Erase' returns false, and 'ErasePrefix' returns 0, when key does not exist
+        BOOST_CHECK(!batch->Exists(key));
+        BOOST_CHECK_MESSAGE(!batch->Erase(key), "error: erase returned true when key does not exist");
+        auto op_num_erase = batch->ErasePrefix(DataStream() << key);
+        BOOST_CHECK_MESSAGE(op_num_erase && *op_num_erase == 0, "error: erase prefix returned true when key does not exist");
+
+        // Verify 'Erase' returns true when the record was removed
+        BOOST_CHECK(batch->Write(key, value));
+        BOOST_CHECK(batch->Erase(key));
+        BOOST_CHECK(!batch->Exists(key));
+
+        // Verify 'ErasePrefix' returns the number of erased records
+        BOOST_CHECK(batch->Write(std::make_pair(key, value), value));
+        BOOST_CHECK(batch->Write(std::make_pair(key, value1), value1));
+        op_num_erase = batch->ErasePrefix(DataStream() << key);
+        BOOST_CHECK(op_num_erase && *op_num_erase == 2);
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()
 } // namespace wallet

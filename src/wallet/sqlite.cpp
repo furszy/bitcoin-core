@@ -475,7 +475,7 @@ bool SQLiteBatch::WriteKey(DataStream&& key, DataStream&& value, bool overwrite)
     return res == SQLITE_DONE;
 }
 
-bool SQLiteBatch::ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob)
+bool SQLiteBatch::ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob, int& rows_modified)
 {
     if (!m_database.m_db) return false;
     assert(stmt);
@@ -485,6 +485,7 @@ bool SQLiteBatch::ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob)
 
     // Execute
     int res = sqlite3_step(stmt);
+    rows_modified = sqlite3_changes(m_database.m_db);
     sqlite3_clear_bindings(stmt);
     sqlite3_reset(stmt);
     if (res != SQLITE_DONE) {
@@ -493,14 +494,16 @@ bool SQLiteBatch::ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob)
     return res == SQLITE_DONE;
 }
 
-bool SQLiteBatch::EraseKey(DataStream&& key)
+std::optional<uint64_t> SQLiteBatch::EraseKey(DataStream&& key)
 {
-    return ExecStatement(m_delete_stmt, key);
+    int rows_modified;
+    return ExecStatement(m_delete_stmt, key, rows_modified) ? std::make_optional(rows_modified) : std::nullopt;
 }
 
-bool SQLiteBatch::ErasePrefix(Span<const std::byte> prefix)
+std::optional<uint64_t> SQLiteBatch::ErasePrefix(Span<const std::byte> prefix)
 {
-    return ExecStatement(m_delete_prefix_stmt, prefix);
+    int rows_modified;
+    return ExecStatement(m_delete_prefix_stmt, prefix, rows_modified) ? std::make_optional(rows_modified) : std::nullopt;
 }
 
 bool SQLiteBatch::HasKey(DataStream&& key)

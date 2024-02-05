@@ -47,7 +47,7 @@ class DatabaseBatch
 private:
     virtual bool ReadKey(DataStream&& key, DataStream& value) = 0;
     virtual bool WriteKey(DataStream&& key, DataStream&& value, bool overwrite = true) = 0;
-    virtual bool EraseKey(DataStream&& key) = 0;
+    virtual std::optional<uint64_t> EraseKey(DataStream&& key) = 0;
     virtual bool HasKey(DataStream&& key) = 0;
 
 public:
@@ -98,7 +98,7 @@ public:
         ssKey.reserve(1000);
         ssKey << key;
 
-        return EraseKey(std::move(ssKey));
+        return EraseKey(std::move(ssKey)) == 1;
     }
 
     template <typename K>
@@ -110,7 +110,9 @@ public:
 
         return HasKey(std::move(ssKey));
     }
-    virtual bool ErasePrefix(Span<const std::byte> prefix) = 0;
+
+    // Returns the number of erased records, or std::nullopt in case of an execution error
+    virtual std::optional<uint64_t> ErasePrefix(Span<const std::byte> prefix) = 0;
 
     virtual std::unique_ptr<DatabaseCursor> GetNewCursor() = 0;
     virtual std::unique_ptr<DatabaseCursor> GetNewPrefixCursor(Span<const std::byte> prefix) = 0;

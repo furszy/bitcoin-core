@@ -49,13 +49,13 @@ private:
     sqlite3_stmt* m_delete_prefix_stmt{nullptr};
 
     void SetupSQLStatements();
-    bool ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob);
+    bool ExecStatement(sqlite3_stmt* stmt, Span<const std::byte> blob, int& rows_modified);
 
     bool ReadKey(DataStream&& key, DataStream& value) override;
     bool WriteKey(DataStream&& key, DataStream&& value, bool overwrite = true) override;
-    bool EraseKey(DataStream&& key) override;
+    std::optional<uint64_t> EraseKey(DataStream&& key) override;
     bool HasKey(DataStream&& key) override;
-    bool ErasePrefix(Span<const std::byte> prefix) override;
+    std::optional<uint64_t> ErasePrefix(Span<const std::byte> prefix) override;
 
 public:
     explicit SQLiteBatch(SQLiteDatabase& database);

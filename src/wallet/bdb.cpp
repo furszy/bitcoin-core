@@ -861,17 +861,17 @@ bool BerkeleyBatch::WriteKey(DataStream&& key, DataStream&& value, bool overwrit
     return (ret == 0);
 }
 
-bool BerkeleyBatch::EraseKey(DataStream&& key)
+std::optional<uint64_t> BerkeleyBatch::EraseKey(DataStream&& key)
 {
     if (!pdb)
-        return false;
+        return std::nullopt;
     if (fReadOnly)
         assert(!"Erase called on database in read-only mode");
 
     SafeDbt datKey(key.data(), key.size());
 
     int ret = pdb->del(activeTxn, datKey, 0);
-    return (ret == 0 || ret == DB_NOTFOUND);
+    return (ret == 0) ? 1 : (ret == DB_NOTFOUND ? std::make_optional(0) : std::nullopt);
 }
 
 bool BerkeleyBatch::HasKey(DataStream&& key)
@@ -885,7 +885,7 @@ bool BerkeleyBatch::HasKey(DataStream&& key)
     return ret == 0;
 }
 
-bool BerkeleyBatch::ErasePrefix(Span<const std::byte> prefix)
+std::optional<uint64_t> BerkeleyBatch::ErasePrefix(Span<const std::byte> prefix)
 {
     if (!TxnBegin()) return false;
     auto cursor{std::make_unique<BerkeleyCursor>(m_database, *this)};
@@ -894,14 +894,16 @@ bool BerkeleyBatch::ErasePrefix(Span<const std::byte> prefix)
     // and return a different output data pointer
     Dbt prefix_key{const_cast<std::byte*>(prefix.data()), static_cast<uint32_t>(prefix.size())}, prefix_value{};
     int ret{cursor->dbc()->get(&prefix_key, &prefix_value, DB_SET_RANGE)};
+    int count = 0;
     for (int flag{DB_CURRENT}; ret == 0; flag = DB_NEXT) {
         SafeDbt key, value;
         ret = cursor->dbc()->get(key, value, flag);
         if (ret != 0 || key.get_size() < prefix.size() || memcmp(key.get_data(), prefix.data(), prefix.size()) != 0) break;
         ret = cursor->dbc()->del(0);
+        if (ret == 0) count++;
     }
     cursor.reset();
-    return TxnCommit() && (ret == 0 || ret == DB_NOTFOUND);
+    return (TxnCommit() && (ret == 0 || ret == DB_NOTFOUND)) ? std::make_optional(count) : std::nullopt;
 }
 
 void BerkeleyDatabase::AddRef()

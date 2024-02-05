@@ -151,14 +151,13 @@ bool MockableBatch::WriteKey(DataStream&& key, DataStream&& value, bool overwrit
     return inserted;
 }
 
-bool MockableBatch::EraseKey(DataStream&& key)
+std::optional<uint64_t> MockableBatch::EraseKey(DataStream&& key)
 {
     if (!m_pass) {
-        return false;
+        return std::nullopt;
     }
     SerializeData key_data{key.begin(), key.end()};
-    m_records.erase(key_data);
-    return true;
+    return m_records.erase(key_data);
 }
 
 bool MockableBatch::HasKey(DataStream&& key)
@@ -170,11 +169,12 @@ bool MockableBatch::HasKey(DataStream&& key)
     return m_records.count(key_data) > 0;
 }
 
-bool MockableBatch::ErasePrefix(Span<const std::byte> prefix)
+std::optional<uint64_t> MockableBatch::ErasePrefix(Span<const std::byte> prefix)
 {
     if (!m_pass) {
         return false;
     }
+    uint64_t count = 0;
     auto it = m_records.begin();
     while (it != m_records.end()) {
         auto& key = it->first;
@@ -182,9 +182,10 @@ bool MockableBatch::ErasePrefix(Span<const std::byte> prefix)
             it++;
             continue;
         }
+        count++;
         it = m_records.erase(it);
     }
-    return true;
+    return count;
 }
 
 std::unique_ptr<WalletDatabase> CreateMockableWalletDatabase(MockableData records)

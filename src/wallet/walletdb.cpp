@@ -1294,7 +1294,8 @@ bool WalletBatch::EraseAddressData(const CTxDestination& dest)
 {
     DataStream prefix;
     prefix << DBKeys::DESTDATA << EncodeDestination(dest);
-    return m_batch->ErasePrefix(prefix);
+    auto op_num_deleted = m_batch->ErasePrefix(prefix);
+    return op_num_deleted && op_num_deleted == 1;
 }
 
 bool WalletBatch::WriteHDChain(const CHDChain& chain)

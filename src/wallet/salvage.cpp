@@ -31,9 +31,9 @@ class DummyBatch : public DatabaseBatch
 private:
     bool ReadKey(DataStream&& key, DataStream& value) override { return true; }
     bool WriteKey(DataStream&& key, DataStream&& value, bool overwrite=true) override { return true; }
-    bool EraseKey(DataStream&& key) override { return true; }
+    std::optional<uint64_t> EraseKey(DataStream&& key) override { return std::nullopt; }
     bool HasKey(DataStream&& key) override { return true; }
-    bool ErasePrefix(Span<const std::byte> prefix) override { return true; }
+    std::optional<uint64_t> ErasePrefix(Span<const std::byte> prefix) override { return 0; }
 
 public:
     void Flush() override {}
