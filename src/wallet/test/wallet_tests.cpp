@@ -447,7 +447,9 @@ BOOST_FIXTURE_TEST_CASE(LoadReceiveRequests, TestingSetup)
             BOOST_CHECK_EQUAL_COLLECTIONS(requests.begin(), requests.end(), std::begin(erequests), std::end(erequests));
             WalletBatch batch{wallet->GetDatabase()};
             BOOST_CHECK(batch.WriteAddressPreviouslySpent(PKHash(), false));
+            BOOST_CHECK(batch.TxnBegin()); // bdb requirement (more info at BerkeleyBatch::ErasePrefix)
             BOOST_CHECK(batch.EraseAddressData(ScriptHash()));
+            BOOST_CHECK(batch.TxnCommit());
         });
         TestLoadWallet(name, format, [](std::shared_ptr<CWallet> wallet) EXCLUSIVE_LOCKS_REQUIRED(wallet->cs_wallet) {
             BOOST_CHECK(!wallet->IsAddressPreviouslySpent(PKHash()));

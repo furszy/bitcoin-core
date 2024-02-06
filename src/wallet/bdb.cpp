@@ -887,7 +887,11 @@ bool BerkeleyBatch::HasKey(DataStream&& key)
 
 bool BerkeleyBatch::ErasePrefix(Span<const std::byte> prefix)
 {
-    if (!TxnBegin()) return false;
+    // Because this function erases records one by one, ensure that it is executed within a txn context.
+    // Otherwise, consistency is at risk; it's possible that certain records are removed while others
+    // remain due to an internal failure during the procedure.
+    if (!Assume(activeTxn)) return false;
+
     auto cursor{std::make_unique<BerkeleyCursor>(m_database, *this)};
     // const_cast is safe below even though prefix_key is an in/out parameter,
     // because we are not using the DB_DBT_USERMEM flag, so BDB will allocate
@@ -901,7 +905,7 @@ bool BerkeleyBatch::ErasePrefix(Span<const std::byte> prefix)
         ret = cursor->dbc()->del(0);
     }
     cursor.reset();
-    return TxnCommit() && (ret == 0 || ret == DB_NOTFOUND);
+    return ret == 0 || ret == DB_NOTFOUND;
 }
 
 void BerkeleyDatabase::AddRef()
