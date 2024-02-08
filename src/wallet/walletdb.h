@@ -296,6 +296,20 @@ private:
     WalletDatabase& m_database;
 };
 
+/**
+ * Executes the provided function 'func' within a database transaction context.
+ *
+ * This function ensures that all db modifications performed within 'func()' are
+ * atomically committed to the db at the end of the process. And, in case of a
+ * failure during execution, all performed changes are rolled back.
+ *
+ * @param database The db connection instance to perform the transaction on.
+ * @param process_desc A description of the process being executed, used for logging purposes in the event of a failure.
+ * @param func The function to be executed within the db txn context. Returns a boolean indicating success or failure.
+ * @return true if the db txn executed successfully, false otherwise.
+ */
+bool RunWithinTxn(WalletDatabase& database, const std::string& process_desc, const std::function<bool(WalletBatch&)>& func);
+
 //! Compacts BDB state so that wallet.dat is self-contained (if there are changes)
 void MaybeCompactWalletDB(WalletContext& context);
 

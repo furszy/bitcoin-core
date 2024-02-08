@@ -1314,6 +1314,29 @@ DBErrors WalletBatch::ZapSelectTx(std::vector<uint256>& vTxHashIn, std::vector<u
     return DBErrors::LOAD_OK;
 }
 
+bool RunWithinTxn(WalletDatabase& database, const std::string& process_desc, const std::function<bool(WalletBatch&)>& func)
+{
+    WalletBatch batch(database);
+    if (!batch.TxnBegin()) {
+        LogPrint(BCLog::WALLETDB, "Error: cannot create db txn for %s\n", process_desc);
+        return false;
+    }
+
+    // Run procedure, errors are logged internally
+    if (!func(batch)) {
+        batch.TxnAbort();
+        return false;
+    }
+
+    if (!batch.TxnCommit()) {
+        LogPrint(BCLog::WALLETDB, "Error: cannot commit db txn for %s\n", process_desc);
+        return false;
+    }
+
+    // All good
+    return true;
+}
+
 void MaybeCompactWalletDB(WalletContext& context)
 {
     static std::atomic<bool> fOneThread(false);
