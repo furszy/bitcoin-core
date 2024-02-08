@@ -897,15 +897,27 @@ bool BerkeleyBatch::ErasePrefix(Span<const std::byte> prefix)
     // because we are not using the DB_DBT_USERMEM flag, so BDB will allocate
     // and return a different output data pointer
     Dbt prefix_key{const_cast<std::byte*>(prefix.data()), static_cast<uint32_t>(prefix.size())}, prefix_value{};
+    // First, execute the read operations
     int ret{cursor->dbc()->get(&prefix_key, &prefix_value, DB_SET_RANGE)};
+    std::vector<DataStream> to_remove;
     for (int flag{DB_CURRENT}; ret == 0; flag = DB_NEXT) {
         SafeDbt key, value;
         ret = cursor->dbc()->get(key, value, flag);
         if (ret != 0 || key.get_size() < prefix.size() || memcmp(key.get_data(), prefix.data(), prefix.size()) != 0) break;
-        ret = cursor->dbc()->del(0);
+
+        Span<const std::byte> raw_key = SpanFromDbt(key);
+        DataStream stream;
+        stream.write(raw_key);
+        to_remove.emplace_back(stream);
     }
     cursor.reset();
-    return ret == 0 || ret == DB_NOTFOUND;
+    if (ret != 0 && ret != DB_NOTFOUND) return false;
+
+    // Secondly, execute the write operations
+    for (DataStream& key : to_remove) {
+        if (!EraseKey(std::move(key))) return false;
+    }
+    return true;
 }
 
 void BerkeleyDatabase::AddRef()
