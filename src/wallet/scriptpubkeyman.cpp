@@ -2161,6 +2161,7 @@ bool DescriptorScriptPubKeyMan::TopUpWithDB(WalletBatch& batch, unsigned int siz
 
     // Calculate the new range_end
     int32_t new_range_end = std::max(m_wallet_descriptor.next_index + (int32_t)target_size, m_wallet_descriptor.range_end);
+    int32_t range_start = m_wallet_descriptor.range_end;
 
     // If the descriptor is not ranged, we actually just want to fill the first cache item
     if (!m_wallet_descriptor.descriptor->IsRange()) {
@@ -2208,6 +2209,7 @@ bool DescriptorScriptPubKeyMan::TopUpWithDB(WalletBatch& batch, unsigned int siz
     assert(m_wallet_descriptor.range_end - 1 == m_max_cached_index);
 
     NotifyCanGetAddressesChanged();
+    NotifyNewScriptsAdded(GetID(), range_start, m_wallet_descriptor.range_end);
     return true;
 }
 
