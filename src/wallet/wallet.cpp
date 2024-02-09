@@ -1572,11 +1572,17 @@ isminetype CWallet::IsMine(const CTxDestination& dest) const
 isminetype CWallet::IsMine(const CScript& script) const
 {
     AssertLockHeld(cs_wallet);
-    isminetype result = ISMINE_NO;
-    for (const auto& spk_man_pair : m_spk_managers) {
-        result = std::max(result, spk_man_pair.second->IsMine(script));
+    // Firewall, only available on descriptors' spkm
+    for (const auto& [id, pair] : m_elements_by_spkm) {
+        const auto& [last_index, filter] = pair;
+        if (filter.contains(script)) {
+            // Could be a false positive, so check it.
+             if (auto is_mine = GetScriptPubKeyMan(id)->IsMine(script); !(is_mine & ISMINE_NO)) {
+                 return is_mine;
+             }
+        }
     }
-    return result;
+    return IsLegacy() ? GetLegacyScriptPubKeyMan()->IsMine(script) : ISMINE_NO;
 }
 
 bool CWallet::IsMine(const CTransaction& tx) const
