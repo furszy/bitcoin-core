@@ -146,6 +146,7 @@ bool AddWallet(WalletContext& context, const std::shared_ptr<CWallet>& wallet)
     context.wallets.push_back(wallet);
     wallet->ConnectScriptPubKeyManNotifiers();
     wallet->NotifyCanGetAddressesChanged();
+    wallet->LoadElementsSet();
     return true;
 }
 
@@ -1639,6 +1640,27 @@ bool CWallet::CanGetAddresses(bool internal) const
         }
     }
     return false;
+}
+
+void CWallet::HandleNewScripts(const uint256& spkm_id, unsigned int range_start, unsigned int range_end, bool from_init)
+{
+    LOCK(cs_wallet);
+    auto& [last_index, elements] = m_elements_by_spkm[spkm_id];
+    if (from_init || (last_index < range_start || range_end > last_index)) {
+        auto spkm = dynamic_cast<DescriptorScriptPubKeyMan*>(GetScriptPubKeyMan(spkm_id));
+        assert(spkm); // for now, legacy wallet is not supported
+        if (from_init) {
+            int num_elemenets = spkm->IsHDEnabled() ? 20000 : 1;
+            elements = CBloomFilter(/*nElements=*/num_elemenets, /*nFPRate=*/0.001, /*nTweak=*/0, /*nFlagsIn=*/0);
+        }
+
+        int32_t min_index = from_init ? range_start : last_index; // if from init, load all elements from range_start
+        for (const auto& script : spkm->GetScriptPubKeys(min_index, range_end)) {
+            if (script.empty()) continue;
+            elements.insert(script);
+        }
+        last_index = range_end;
+    }
 }
 
 void CWallet::SetWalletFlag(uint64_t flags)
@@ -3554,6 +3576,18 @@ bool CWallet::WithEncryptionKey(std::function<bool (const CKeyingMaterial&)> cb)
 bool CWallet::HasEncryptionKeys() const
 {
     return !mapMasterKeys.empty();
+}
+
+void CWallet::LoadElementsSet()
+{
+    // Fill-up the filter set and connect the update signal
+    for (const auto& spkm : GetAllScriptPubKeyMans()) {
+        if (const auto& desc = dynamic_cast<DescriptorScriptPubKeyMan*>(spkm)) {
+            const auto& wallet_desc = WITH_LOCK(desc->cs_desc_man, return desc->GetWalletDescriptor());
+            HandleNewScripts(spkm->GetID(), wallet_desc.range_start, wallet_desc.range_end, /*from_init=*/true);
+        }
+        m_handlers_new_scripts.emplace_back(interfaces::MakeSignalHandler(spkm->NotifyNewScriptsAdded.connect(std::bind(&CWallet::HandleNewScripts, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, /*from_init=*/false))));
+    }
 }
 
 void CWallet::ConnectScriptPubKeyManNotifiers()

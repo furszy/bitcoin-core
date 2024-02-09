@@ -2692,14 +2692,14 @@ std::unordered_set<CScript, SaltedSipHasher> DescriptorScriptPubKeyMan::GetScrip
     return GetScriptPubKeys(0);
 }
 
-std::unordered_set<CScript, SaltedSipHasher> DescriptorScriptPubKeyMan::GetScriptPubKeys(int32_t minimum_index) const
+std::unordered_set<CScript, SaltedSipHasher> DescriptorScriptPubKeyMan::GetScriptPubKeys(int32_t minimum_index, int32_t max_index) const
 {
     LOCK(cs_desc_man);
     std::unordered_set<CScript, SaltedSipHasher> script_pub_keys;
-    script_pub_keys.reserve(m_map_script_pub_keys.size());
+    script_pub_keys.reserve(std::min(max_index, (int32_t) m_map_script_pub_keys.size()) - minimum_index);
 
     for (auto const& [script_pub_key, index] : m_map_script_pub_keys) {
-        if (index >= minimum_index) script_pub_keys.insert(script_pub_key);
+        if (index >= minimum_index && index <= max_index) script_pub_keys.insert(script_pub_key);
     }
     return script_pub_keys;
 }

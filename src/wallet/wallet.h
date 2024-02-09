@@ -7,6 +7,7 @@
 #define BITCOIN_WALLET_WALLET_H
 
 #include <addresstype.h>
+#include <common/bloom.h>
 #include <consensus/amount.h>
 #include <interfaces/chain.h>
 #include <interfaces/handler.h>
@@ -336,6 +337,15 @@ private:
     TxSpends mapTxSpends GUARDED_BY(cs_wallet);
     void AddToSpends(const COutPoint& outpoint, const uint256& wtxid, WalletBatch* batch = nullptr) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
     void AddToSpends(const CWalletTx& wtx, WalletBatch* batch = nullptr) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+
+    /**
+     * Used to keep track of each spkm owned/watched scripts in a
+     * probabilistic data structure for testing set membership
+     */
+    // Maps skpm id to a pair of <last_script_index, filter>
+    using FilterBySPKM = std::map<uint256, std::pair<size_t, CBloomFilter>>;
+    FilterBySPKM m_elements_by_spkm; // TODO: guard by a mutex
+    std::vector<std::unique_ptr<interfaces::Handler>> m_handlers_new_scripts;
 
     /**
      * Add a transaction to the wallet, or update it.  confirm.block_* should
@@ -891,6 +901,9 @@ public:
     /* Returns the time of the first created key or, in case of an import, it could be the time of the first received transaction */
     int64_t GetBirthTime() const { return m_birth_time; }
 
+    /* Update the scripts filter set */
+    void HandleNewScripts(const uint256& spkm_id, unsigned int range_start, unsigned int range_end, bool from_init = false);
+
     /**
      * Blocks until the wallet state is up-to-date to /at least/ the current
      * chain at the time this function is entered
@@ -987,6 +1000,9 @@ public:
         m_last_block_processed_height = block_height;
         m_last_block_processed = block_hash;
     };
+
+    //! Load elements set by spkm and connects new scripts signal
+    void LoadElementsSet();
 
     //! Connect the signals from ScriptPubKeyMans to the signals in CWallet
     void ConnectScriptPubKeyManNotifiers();
