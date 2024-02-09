@@ -2175,6 +2175,7 @@ bool DescriptorScriptPubKeyMan::TopUpWithDB(WalletBatch& batch, unsigned int siz
     provider.keys = GetKeys();
 
     uint256 id = GetID();
+    std::unordered_set<CScript, SaltedSipHasher> new_scripts;
     for (int32_t i = m_max_cached_index + 1; i < new_range_end; ++i) {
         FlatSigningProvider out_keys;
         std::vector<CScript> scripts_temp;
@@ -2183,7 +2184,8 @@ bool DescriptorScriptPubKeyMan::TopUpWithDB(WalletBatch& batch, unsigned int siz
         if (!m_wallet_descriptor.descriptor->ExpandFromCache(i, m_wallet_descriptor.cache, scripts_temp, out_keys)) {
             if (!m_wallet_descriptor.descriptor->Expand(i, provider, scripts_temp, out_keys, &temp_cache)) return false;
         }
-        // Add all of the scriptPubKeys to the scriptPubKey set
+        // Add all the scriptPubKeys to the scriptPubKey set
+        new_scripts.insert(scripts_temp.begin(), scripts_temp.end());
         for (const CScript& script : scripts_temp) {
             m_map_script_pub_keys[script] = i;
         }
@@ -2210,6 +2212,7 @@ bool DescriptorScriptPubKeyMan::TopUpWithDB(WalletBatch& batch, unsigned int siz
     assert(m_wallet_descriptor.range_end - 1 == m_max_cached_index);
 
     NotifyCanGetAddressesChanged();
+    NotifyNewScripts(this, new_scripts);
     return true;
 }
 

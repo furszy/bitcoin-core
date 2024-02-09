@@ -263,6 +263,16 @@ public:
 
     /** Birth time changed */
     boost::signals2::signal<void (const ScriptPubKeyMan* spkm, int64_t new_birth_time)> NotifyFirstKeyTimeChanged;
+
+    /**
+     * Scripts map has new entries.
+     * Due a keypool top up.
+     *
+     * 'spkm_id' this spkm ID
+     * 'range_start' the first index on the creation range
+     * 'range_end' the last index on the creation range
+     */
+    boost::signals2::signal<void (ScriptPubKeyMan*, const std::unordered_set<CScript, SaltedSipHasher>& scripts)> NotifyNewScripts;
 };
 
 /** OutputTypes supported by the LegacyScriptPubKeyMan */
