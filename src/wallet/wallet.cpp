@@ -3486,11 +3486,18 @@ std::set<ScriptPubKeyMan*> CWallet::GetScriptPubKeyMans(const CScript& script) c
 {
     std::set<ScriptPubKeyMan*> spk_mans;
     SignatureData sigdata;
-    for (const auto& spk_man_pair : m_spk_managers) {
-        if (spk_man_pair.second->CanProvide(script, sigdata)) {
-            spk_mans.insert(spk_man_pair.second.get());
+    // Firewall, only available on descriptors' spkm
+    for (const auto& [id, pair] : m_elements_by_spkm) {
+        const auto& [last_index, filter] = pair;
+        if (filter.contains(script)) {
+            // Could be a false positive, so check it.
+            if (const auto& spkm = GetScriptPubKeyMan(id); spkm->CanProvide(script, sigdata)) {
+                spk_mans.insert(spkm);
+            }
         }
     }
+    // Legacy wallet
+    if (IsLegacy()) spk_mans.insert(GetLegacyScriptPubKeyMan());
     return spk_mans;
 }
 
