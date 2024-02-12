@@ -422,6 +422,10 @@ private:
     // Same as 'AddActiveScriptPubKeyMan' but designed for use within a batch transaction context
     void AddActiveScriptPubKeyManWithDb(WalletBatch& batch, uint256 id, OutputType type, bool internal);
 
+    //! Cache of descriptor ScriptPubKeys used for IsMine. Maps ScriptPubKey to set of spkms
+    std::unordered_map<CScript, std::unordered_set<ScriptPubKeyMan*>, SaltedSipHasher> m_cached_spks;
+    std::vector<std::unique_ptr<interfaces::Handler>> m_handlers_new_scripts;
+
     /**
      * Catch wallet up to current chain, scanning new blocks, updating the best
      * block locator and m_last_block_processed, and registering for
@@ -890,6 +894,9 @@ public:
     /* Returns the time of the first created key or, in case of an import, it could be the time of the first received transaction */
     int64_t GetBirthTime() const { return m_birth_time; }
 
+    /* Update the scripts filter set */
+    void HandleNewScripts(ScriptPubKeyMan* spkm, const std::unordered_set<CScript, SaltedSipHasher>& scripts);
+
     /**
      * Blocks until the wallet state is up-to-date to /at least/ the current
      * chain at the time this function is entered
@@ -986,6 +993,9 @@ public:
         m_last_block_processed_height = block_height;
         m_last_block_processed = block_hash;
     };
+
+    //! Load all SPKMs scripts in a cache and connects new scripts signal
+    void LoadScriptsCache();
 
     //! Connect the signals from ScriptPubKeyMans to the signals in CWallet
     void ConnectScriptPubKeyManNotifiers();

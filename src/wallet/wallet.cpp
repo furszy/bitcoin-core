@@ -146,6 +146,7 @@ bool AddWallet(WalletContext& context, const std::shared_ptr<CWallet>& wallet)
     context.wallets.push_back(wallet);
     wallet->ConnectScriptPubKeyManNotifiers();
     wallet->NotifyCanGetAddressesChanged();
+    wallet->LoadScriptsCache();
     return true;
 }
 
@@ -1639,6 +1640,14 @@ bool CWallet::CanGetAddresses(bool internal) const
         }
     }
     return false;
+}
+
+void CWallet::HandleNewScripts(ScriptPubKeyMan* spkm, const std::unordered_set<CScript, SaltedSipHasher>& scripts)
+{
+    LOCK(cs_wallet);
+    for (const auto& script : scripts) {
+        m_cached_spks[script].insert(spkm);
+    }
 }
 
 void CWallet::SetWalletFlag(uint64_t flags)
@@ -3522,6 +3531,17 @@ bool CWallet::WithEncryptionKey(std::function<bool (const CKeyingMaterial&)> cb)
 bool CWallet::HasEncryptionKeys() const
 {
     return !mapMasterKeys.empty();
+}
+
+void CWallet::LoadScriptsCache()
+{
+    // Fill-up the cache and connect the update signal
+    for (const auto& spkm : GetAllScriptPubKeyMans()) {
+        const auto& desc = dynamic_cast<DescriptorScriptPubKeyMan*>(spkm);
+        if (!desc) continue; // legacy unsupported
+        HandleNewScripts(spkm, desc->GetScriptPubKeys());
+        m_handlers_new_scripts.emplace_back(interfaces::MakeSignalHandler(spkm->NotifyNewScripts.connect(std::bind(&CWallet::HandleNewScripts, this, std::placeholders::_1, std::placeholders::_2))));
+    }
 }
 
 void CWallet::ConnectScriptPubKeyManNotifiers()
