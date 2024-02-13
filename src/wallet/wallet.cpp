@@ -2323,12 +2323,22 @@ DBErrors CWallet::LoadWallet()
 util::Result<void> CWallet::RemoveTxs(std::vector<uint256>& txs_to_remove)
 {
     AssertLockHeld(cs_wallet);
-    WalletBatch batch(GetDatabase());
-    if (!batch.TxnBegin()) return util::Error{_("Error starting db txn for wallet transactions removal")};
+    util::Result<std::vector<CWallet::MapWalletIt>> res{util::Error{}}; // Note: Make RunWithinTxn generic.
+    bool was_txn_committed = RunWithinTxn(GetDatabase(), /*process_desc=*/"remove transactions", [&](WalletBatch& batch) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet) {
+        return (res = RemoveTxs(batch, txs_to_remove)).has_value();
+    });
+    if (!res) return util::Error{util::ErrorString(res)};
+    if (!was_txn_committed) return util::Error{_("Error starting/committing db txn for wallet transactions removal process")};
 
+    // Now that txs have been deleted from disk, erase them from memory.
+    ClearTxs(*res);
+    return {};
+}
+
+util::Result<std::vector<CWallet::MapWalletIt>> CWallet::RemoveTxs(WalletBatch& batch, std::vector<uint256>& txs_to_remove) {
+    AssertLockHeld(cs_wallet);
     // Check for transaction existence and remove entries from disk
-    using TxIterator = std::unordered_map<uint256, CWalletTx, SaltedTxidHasher>::const_iterator;
-    std::vector<TxIterator> erased_txs;
+    std::vector<MapWalletIt> erased_txs;
     bilingual_str str_err;
     for (const uint256& hash : txs_to_remove) {
         auto it_wtx = mapWallet.find(hash);
@@ -2343,17 +2353,14 @@ util::Result<void> CWallet::RemoveTxs(std::vector<uint256>& txs_to_remove)
         erased_txs.emplace_back(it_wtx);
     }
 
-    // Roll back removals in case of an error
-    if (!str_err.empty()) {
-        batch.TxnAbort();
-        return util::Error{str_err};
-    }
+    if (!str_err.empty()) return util::Error{str_err};
+    return erased_txs; // all good
+}
 
-    // Dump changes to disk
-    if (!batch.TxnCommit()) return util::Error{_("Error committing db txn for wallet transactions removal")};
-
+void CWallet::ClearTxs(const std::vector<CWallet::MapWalletIt>& tx_to_remove)
+{
     // Update the in-memory state and notify upper layers about the removals
-    for (const auto& it : erased_txs) {
+    for (const auto& it : tx_to_remove) {
         const uint256 hash{it->first};
         wtxOrdered.erase(it->second.m_it_wtxOrdered);
         for (const auto& txin : it->second.tx->vin)
@@ -2363,8 +2370,6 @@ util::Result<void> CWallet::RemoveTxs(std::vector<uint256>& txs_to_remove)
     }
 
     MarkDirty();
-
-    return {}; // all good
 }
 
 bool CWallet::SetAddressBookWithDB(WalletBatch& batch, const CTxDestination& address, const std::string& strName, const std::optional<AddressPurpose>& new_purpose)
