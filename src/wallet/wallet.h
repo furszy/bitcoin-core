@@ -365,6 +365,20 @@ private:
     /** Mark a transaction (and its in-wallet descendants) as a particular tx state. */
     void RecursiveUpdateTxState(const uint256& tx_hash, const TryUpdatingStateFn& try_updating_state) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
+    /**
+     * Internal usage only. Prepared to be used within a batch process.
+     * Removes the transactions matching the input hashes from disk without clearing them from memory.
+     * Returns the 'mapWallet' iterators of the transactions removed from disk. This is to be used in company of 'ClearTxs()' once the
+     * db batch operation gets committed to disk (not before, otherwise transactions will be in memory but not on disk!).
+     */
+    using MapWalletIt = std::unordered_map<uint256, CWalletTx, SaltedTxidHasher>::const_iterator;
+    util::Result<std::vector<MapWalletIt>> RemoveTxs(WalletBatch& batch, std::vector<uint256>& txs_to_remove) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+
+    /**
+     * Removes transactions from memory. It does not remove them from disk.
+     */
+    void ClearTxs(const std::vector<CWallet::MapWalletIt>& tx_to_remove) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+
     /** Mark a transaction's inputs dirty, thus forcing the outputs to be recomputed */
     void MarkInputsDirty(const CTransactionRef& tx) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
