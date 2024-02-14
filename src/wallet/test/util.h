@@ -96,6 +96,8 @@ public:
     bool TxnCommit() override { return m_pass; }
     bool TxnAbort() override { return m_pass; }
     bool HasActiveTxn() override { return false; }
+    bool WriteMulti(const std::vector<std::pair<SerializeData, SerializeData>>& records) override { return false; }
+
 };
 
 /** A WalletDatabase whose contents and return values can be modified as needed for testing

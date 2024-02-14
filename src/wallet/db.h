@@ -123,6 +123,8 @@ public:
     virtual bool TxnCommit() = 0;
     virtual bool TxnAbort() = 0;
     virtual bool HasActiveTxn() = 0;
+
+    virtual bool WriteMulti(const std::vector<std::pair<SerializeData, SerializeData>>& records) = 0;
 };
 
 /** An instance of this class represents one database.

@@ -116,6 +116,8 @@ public:
     bool TxnCommit() override { return false; }
     bool TxnAbort() override { return false; }
     bool HasActiveTxn() override { return false; }
+
+    bool WriteMulti(const std::vector<std::pair<SerializeData, SerializeData>>& records) { return false; }
 };
 
 //! Return object giving access to Berkeley Read Only database at specified path.

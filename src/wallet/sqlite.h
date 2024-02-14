@@ -96,6 +96,8 @@ public:
     bool TxnCommit() override;
     bool TxnAbort() override;
     bool HasActiveTxn() override { return m_txn; }
+
+    bool WriteMulti(const std::vector<std::pair<SerializeData, SerializeData>>& records) override;
 };
 
 /** An instance of this class represents one SQLite3 database.
