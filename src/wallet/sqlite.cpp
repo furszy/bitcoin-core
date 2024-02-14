@@ -646,6 +646,49 @@ std::unique_ptr<DatabaseCursor> SQLiteBatch::GetNewPrefixCursor(Span<const std::
     return cursor;
 }
 
+bool SQLiteBatch::WriteMulti(const std::vector<std::pair<SerializeData, SerializeData>>& records)
+{
+    LogPrintf("###### WriteMulti, records size %d #######\n", records.size());
+    // Prepare statement
+    std::string multi_line_insert = "INSERT INTO main VALUES(?, ?)";
+    for (size_t i=1; i<records.size(); i++) multi_line_insert += ", (?, ?)";
+    multi_line_insert += ";";
+
+    sqlite3_stmt* stmt{nullptr};
+    int res = sqlite3_prepare_v2(m_database.m_db, multi_line_insert.c_str(), -1, &stmt, nullptr);
+    if (res != SQLITE_OK) {
+        LogPrintf("Failed to prepare multi insert statement\n");
+        return false;
+    }
+
+    // Bind data
+    int pos = 0;
+    for (size_t i = 0; i < records.size(); i++) {
+        const auto& [key, value] = records.at(i);
+        assert(BindBlobToStatement(stmt, ++pos, key, "key"));
+        assert(BindBlobToStatement(stmt, ++pos, value, "value"));
+    }
+
+    // Execute
+    res = sqlite3_step(stmt);
+    sqlite3_clear_bindings(stmt);
+    sqlite3_reset(stmt);
+    if (res != SQLITE_DONE) {
+        LogPrintf("Failed to insert multi insert statement, res: %s, code %d\n", sqlite3_errstr(res), res);
+        return false;
+    }
+
+    // Clear
+    res = sqlite3_finalize(stmt);
+    if (res != SQLITE_OK) {
+        LogPrintf("Failed to finalize multi insert statement\n");
+        return false;
+    }
+    stmt = nullptr;
+
+    return true;
+}
+
 bool SQLiteBatch::TxnBegin()
 {
     if (!m_database.m_db || m_txn) return false;

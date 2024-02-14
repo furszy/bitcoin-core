@@ -3907,13 +3907,11 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
     batch = m_database->MakeBatch();
     bool began = batch->TxnBegin();
     assert(began); // This is a critical error, the new db could not be written to. The original db exists as a backup, but we should not continue execution.
-    for (const auto& [key, value] : records) {
-        if (!batch->Write(Span{key}, Span{value})) {
-            batch->TxnAbort();
-            m_database->Close();
-            fs::remove(m_database->Filename());
-            assert(false); // This is a critical error, the new db could not be written to. The original db exists as a backup, but we should not continue execution.
-        }
+    if (!batch->WriteMulti(records)) {
+        batch->TxnAbort();
+        m_database->Close();
+        fs::remove(m_database->Filename());
+        assert(false); // This is a critical error, the new db could not be written to. The original db exists as a backup, but we should not continue execution.
     }
     bool committed = batch->TxnCommit();
     assert(committed); // This is a critical error, the new db could not be written to. The original db exists as a backup, but we should not continue execution.

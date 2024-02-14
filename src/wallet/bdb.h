@@ -206,6 +206,7 @@ public:
     bool TxnCommit() override;
     bool TxnAbort() override;
     DbTxn* txn() const { return activeTxn; }
+    bool WriteMulti(const std::vector<std::pair<SerializeData, SerializeData>>& records) override { return false; }
 };
 
 std::string BerkeleyDatabaseVersion();
