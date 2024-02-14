@@ -398,36 +398,38 @@ std::vector<WalletDestination> LegacyScriptPubKeyMan::MarkUnusedAddresses(const 
 void LegacyScriptPubKeyMan::UpgradeKeyMetadata()
 {
     LOCK(cs_KeyStore);
-    if (m_storage.IsLocked() || m_storage.IsWalletFlagSet(WALLET_FLAG_KEY_ORIGIN_METADATA)) {
+    if (m_storage.IsLocked() || m_storage.IsWalletFlagSet(WALLET_FLAG_KEY_ORIGIN_METADATA) || mapKeyMetadata.empty()) {
         return;
     }
 
-    std::unique_ptr<WalletBatch> batch = std::make_unique<WalletBatch>(m_storage.GetDatabase());
-    for (auto& meta_pair : mapKeyMetadata) {
-        CKeyMetadata& meta = meta_pair.second;
-        if (!meta.hd_seed_id.IsNull() && !meta.has_key_origin && meta.hdKeypath != "s") { // If the hdKeypath is "s", that's the seed and it doesn't have a key origin
-            CKey key;
-            GetKey(meta.hd_seed_id, key);
-            CExtKey masterKey;
-            masterKey.SetSeed(key);
-            // Add to map
-            CKeyID master_id = masterKey.key.GetPubKey().GetID();
-            std::copy(master_id.begin(), master_id.begin() + 4, meta.key_origin.fingerprint);
-            if (!ParseHDKeypath(meta.hdKeypath, meta.key_origin.path)) {
-                throw std::runtime_error("Invalid stored hdKeypath");
-            }
-            meta.has_key_origin = true;
-            if (meta.nVersion < CKeyMetadata::VERSION_WITH_KEY_ORIGIN) {
-                meta.nVersion = CKeyMetadata::VERSION_WITH_KEY_ORIGIN;
-            }
+    RunWithinTxn(m_storage.GetDatabase(), /*process_desc=*/"upgrade key metadata", [&](WalletBatch& batch) EXCLUSIVE_LOCKS_REQUIRED(cs_KeyStore) {
+        for (auto& meta_pair : mapKeyMetadata) {
+            CKeyMetadata& meta = meta_pair.second;
+            if (!meta.hd_seed_id.IsNull() && !meta.has_key_origin && meta.hdKeypath != "s") { // If the hdKeypath is "s", that's the seed and it doesn't have a key origin
+                CKey key;
+                GetKey(meta.hd_seed_id, key);
+                CExtKey masterKey;
+                masterKey.SetSeed(key);
+                // Add to map
+                CKeyID master_id = masterKey.key.GetPubKey().GetID();
+                std::copy(master_id.begin(), master_id.begin() + 4, meta.key_origin.fingerprint);
+                if (!ParseHDKeypath(meta.hdKeypath, meta.key_origin.path)) {
+                    throw std::runtime_error("Invalid stored hdKeypath");
+                }
+                meta.has_key_origin = true;
+                if (meta.nVersion < CKeyMetadata::VERSION_WITH_KEY_ORIGIN) {
+                    meta.nVersion = CKeyMetadata::VERSION_WITH_KEY_ORIGIN;
+                }
 
-            // Write meta to wallet
-            CPubKey pubkey;
-            if (GetPubKey(meta_pair.first, pubkey)) {
-                batch->WriteKeyMetadata(meta, pubkey, true);
+                // Write meta to wallet
+                CPubKey pubkey;
+                if (GetPubKey(meta_pair.first, pubkey)) {
+                    if (!batch.WriteKeyMetadata(meta, pubkey, true)) return false;
+                }
             }
         }
-    }
+        return true;
+    });
 }
 
 bool LegacyScriptPubKeyMan::SetupGeneration(bool force)
