@@ -5,6 +5,8 @@
 #include <boost/test/unit_test.hpp>
 
 #include <test/util/setup_common.h>
+#include <span.h>
+#include <random.h>
 #include <util/check.h>
 #include <util/fs.h>
 #include <util/translation.h>
@@ -16,6 +18,8 @@
 #endif
 #include <wallet/test/util.h>
 #include <wallet/walletutil.h> // for WALLET_FLAG_DESCRIPTORS
+
+#include <sqlite3.h>
 
 #include <fstream>
 #include <memory>
@@ -136,6 +140,195 @@ static std::vector<std::unique_ptr<WalletDatabase>> TestDatabases(const fs::path
 #endif
     dbs.emplace_back(CreateMockableWalletDatabase());
     return dbs;
+}
+
+void MeasureTime(std::string desc, const std::function<void()>& func)
+{
+    auto now = GetTime();
+    std::cout << "start time: " << now << ", for " << desc  << std::endl;
+
+    func();
+
+    auto end = GetTime();
+    std::cout << "end time: " << end << ", for " << desc  << std::endl;
+    std::cout << "time in seconds: " << end - now << ", for " << desc  << std::endl;
+    std::cout << "--------" << std::endl;
+}
+
+
+static bool BindBlobToStatement(sqlite3_stmt* stmt,
+                                int index,
+                                Span<const std::byte> blob,
+                                const std::string& description)
+{
+    // Pass a pointer to the empty string "" below instead of passing the
+    // blob.data() pointer if the blob.data() pointer is null. Passing a null
+    // data pointer to bind_blob would cause sqlite to bind the SQL NULL value
+    // instead of the empty blob value X'', which would mess up SQL comparisons.
+    int res = sqlite3_bind_blob(stmt, index, blob.data() ? static_cast<const void*>(blob.data()) : "", blob.size(), SQLITE_STATIC);
+    if (res != SQLITE_OK) {
+        LogPrintf("Unable to bind %s to statement: %s\n", description, sqlite3_errstr(res));
+        sqlite3_clear_bindings(stmt);
+        sqlite3_reset(stmt);
+        return false;
+    }
+
+    return true;
+}
+
+BOOST_AUTO_TEST_CASE(migrate_database)
+{
+    // Here will try to perform a large number of single inserts in a new sqlite database
+    // and see how much it takes. Then try to do the same with a multi-insert statement.
+    FastRandomContext random;
+    SetMockTime(0); // disable mock time
+
+    // Will use 600k records, with 40 bytes keys and 120 bytes values. --> ~1.6mb
+    std::vector<std::pair<SerializeData, SerializeData>> records;
+    {
+        std::cout << "starting records load" << std::endl;
+        int KEY_SIZE = 50;
+        int VALUE_SIZE = 150;
+        std::vector<uint8_t> key_id(KEY_SIZE); // key size
+        std::vector<uint8_t> value(VALUE_SIZE); // value size
+        for (int i = 0; i < 250000; i++) { // 600000
+            DataStream ss_key{};
+            DataStream ss_value{};
+
+            // first the key
+            key_id = random.randbytes(KEY_SIZE);
+            ss_key << std::make_pair(strprintf("key_%d", i), key_id);
+            // now the value
+            value = random.randbytes(VALUE_SIZE);
+            ss_value << value;
+
+            records.emplace_back(SerializeData(ss_key.begin(), ss_key.end()),
+                                 SerializeData(ss_value.begin(), ss_value.end()));
+        }
+        std::cout << "finished records load" << std::endl;
+    }
+
+    auto make_db = [&](std::string db_name) {
+        DatabaseOptions options;
+        DatabaseStatus status;
+        bilingual_str error;
+        return MakeSQLiteDatabase(m_path_root / db_name.c_str(), options, status, error);
+    };
+
+    // Now the tests...
+    // First test, write db with single writes
+
+//    {
+//        std::cout << "starting single writes test" << std::endl;
+//        auto db = make_db("sqlite_1");
+//        auto batch = std::make_unique<SQLiteBatch>(*db);
+//        MeasureTime("single writes", [&]() {
+//            for (const auto& [key, value] : records) {
+//                assert(batch->Write(key, value));
+//            }
+//            batch.reset();
+//        });
+//    }
+
+    // ....
+    // second test, write db within a txn
+    {
+        std::cout << "starting batch writes test" << std::endl;
+        auto db = make_db("sqlite_2");
+        auto batch = std::make_unique<SQLiteBatch>(*db);
+        assert(batch->TxnBegin());
+        MeasureTime("batch writes", [&]() {
+            for (const auto& [key, value] : records) {
+                assert(batch->Write(key, value));
+            }
+            assert(batch->TxnCommit());
+            batch.reset();
+        });
+        db->Close();
+    }
+
+
+    // third test, write db with a multi-insert statement, no db txn
+    {
+        std::cout << "starting multi-insert writes test" << std::endl;
+        auto db = make_db("sqlite_3");
+        MeasureTime("multi-line insert", [&]() {
+            std::string multi_line_insert = "INSERT INTO main VALUES(?, ?)";
+            for (size_t i=1; i<records.size(); i++) {
+                multi_line_insert += ", (?, ?)";
+            }
+            multi_line_insert += ";";
+
+            sqlite3_stmt* stmt{nullptr};
+            int res = sqlite3_prepare_v2(db->m_db, multi_line_insert.c_str(), -1, &stmt, nullptr);
+            BOOST_CHECK_EQUAL(res, SQLITE_OK);
+
+            int pos = 0;
+            for (size_t i=0; i<records.size(); i++) {
+                const auto& [key, value] = records.at(i);
+                assert(BindBlobToStatement(stmt, ++pos, key, "key"));
+                assert(BindBlobToStatement(stmt, ++pos, value, "value"));
+            }
+
+            // Execute
+            res = sqlite3_step(stmt);
+            sqlite3_clear_bindings(stmt);
+            sqlite3_reset(stmt);
+            assert(res == SQLITE_DONE);
+
+            res = sqlite3_finalize(stmt);
+            assert(res == SQLITE_OK);
+            stmt = nullptr;
+        });
+        db->Close();
+    }
+
+
+    // fourth test, write db with a multi-insert statement in a db txn
+    {
+        std::cout << "starting multi-insert batch writes test" << std::endl;
+        auto db = make_db("sqlite_4");
+        MeasureTime("multi-line batch insert", [&]() {
+
+            // Start txn
+            int res = sqlite3_exec(db->m_db, "BEGIN TRANSACTION", nullptr, nullptr, nullptr);
+            assert(res == SQLITE_OK);
+
+
+            std::string multi_line_insert = "INSERT INTO main VALUES(?, ?)";
+            for (size_t i=1; i<records.size(); i++) {
+                multi_line_insert += ", (?, ?)";
+            }
+            multi_line_insert += ";";
+
+            sqlite3_stmt* stmt{nullptr};
+            res = sqlite3_prepare_v2(db->m_db, multi_line_insert.c_str(), -1, &stmt, nullptr);
+            assert(res == SQLITE_OK);
+
+            int pos = 0;
+            for (size_t i=0; i<records.size(); i++) {
+                const auto& [key, value] = records.at(i);
+                assert(BindBlobToStatement(stmt, ++pos, key, "key"));
+                assert(BindBlobToStatement(stmt, ++pos, value, "value"));
+            }
+
+            // Execute
+            res = sqlite3_step(stmt);
+            sqlite3_clear_bindings(stmt);
+            sqlite3_reset(stmt);
+            assert(res == SQLITE_DONE);
+
+            // Commit txn
+            res = sqlite3_exec(db->m_db, "COMMIT TRANSACTION", nullptr, nullptr, nullptr);
+            assert(res == SQLITE_OK);
+
+            res = sqlite3_finalize(stmt);
+            assert(res == SQLITE_OK);
+            stmt = nullptr;
+        });
+        db->Close();
+    }
+
 }
 
 BOOST_AUTO_TEST_CASE(db_cursor_prefix_range_test)
