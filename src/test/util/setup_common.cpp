@@ -146,20 +146,23 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, const std::vecto
             exit(EXIT_FAILURE);
         }
         const std::string test_path{G_TEST_GET_FULL_NAME ? G_TEST_GET_FULL_NAME() : ""};
-        const fs::path lockdir{root_dir / "test_temp" / fs::PathFromString(test_path)};
-        m_path_root = lockdir / "datadir";
+        m_path_root = root_dir / "test_common_" PACKAGE_NAME / fs::PathFromString(test_path);
+        // The parent dir is the test group name.
+        const fs::path parent_dir{m_path_root.parent_path()};
 
-        // Try to obtain the lock; if unsuccessful don't disturb the existing test.
-        TryCreateDirectories(lockdir);
-        if (util::LockDirectory(lockdir, ".lock", /*probe_only=*/false) != util::LockResult::Success) {
-            std::cerr << "Cannot obtain a lock on test data lock directory " + fs::PathToString(lockdir) + '\n' +
+        // Try to obtain the lock from the parent dir; if unsuccessful don't disturb the existing test.
+        bool exist = !TryCreateDirectories(parent_dir);
+        if (util::LockDirectory(parent_dir, ".lock", /*probe_only=*/false) != util::LockResult::Success) {
+            std::cerr << "Cannot obtain a lock on test data lock directory " + fs::PathToString(parent_dir) + '\n' +
                              "The test executable is probably already running.\n";
             exit(EXIT_FAILURE);
         }
 
-        // Always start with a fresh data directory; this doesn't delete the .lock file.
-        fs::remove_all(m_path_root);
-        TryCreateDirectories(m_path_root);
+        // Start with a fresh data directory; this doesn't delete the .lock file.
+        if (exist) {
+            fs::remove_all(m_path_root);
+            TryCreateDirectories(m_path_root);
+        }
 
         // Print the test directory name if custom.
         std::cout << "Test directory (will not be deleted): " << m_path_root << std::endl;
