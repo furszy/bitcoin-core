@@ -10,9 +10,9 @@ Two nodes. Node1 is under test. Node0 is providing transactions and generating b
 - Generate 110 keys (enough to drain the keypool). Store key 90 (in the initial keypool) and key 110 (beyond the initial keypool). Send funds to key 90 and key 110.
 - Stop node1, clear the datadir, move wallet file back into the datadir and restart node1.
 - connect node1 to node0. Verify that they sync and node1 receives its funds."""
+from pathlib import Path
 import shutil
 
-from test_framework.blocktools import COINBASE_MATURITY
 from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
@@ -24,71 +24,77 @@ class KeypoolRestoreTest(BitcoinTestFramework):
         self.add_wallet_options(parser)
 
     def set_test_params(self):
-        self.setup_clean_chain = True
-        self.num_nodes = 4
-        self.extra_args = [[], ['-keypool=100'], ['-keypool=100'], ['-keypool=100']]
+        self.num_nodes = 1
+        self.extra_args = [['-keypool=100']]
 
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
 
     def run_test(self):
-        wallet_path = self.nodes[1].wallets_path / self.default_wallet_name / self.wallet_data_filename
-        wallet_backup_path = self.nodes[1].datadir_path / "wallet.bak"
-        self.generate(self.nodes[0], COINBASE_MATURITY + 1)
+        node = self.nodes[0]
+        self.log.info("Create origin wallet and back it up")
+        wallet_name = "origin"
+        node.createwallet(wallet_name, load_on_startup=True)
+        wallet_path = node.chain_path / wallet_name / self.wallet_data_filename
+        wallet_backup_path = node.datadir_path / "wallet.bak"
 
-        self.log.info("Make backup of wallet")
-        self.stop_node(1)
+        # Backup original wallet
+        self.stop_node(0)
         shutil.copyfile(wallet_path, wallet_backup_path)
-        self.start_node(1, self.extra_args[1])
-        self.connect_nodes(0, 1)
-        self.connect_nodes(0, 2)
-        self.connect_nodes(0, 3)
+        self.start_node(0, self.extra_args[0])
 
-        for i, output_type in enumerate(["legacy", "p2sh-segwit", "bech32"]):
-
+        # Surpass the keypool limit on each output type
+        default_wallet = node.get_wallet_rpc(self.default_wallet_name)
+        wallet = node.get_wallet_rpc(wallet_name)
+        expected_balance = 0
+        for output_type in ["legacy", "p2sh-segwit", "bech32"]:
             self.log.info("Generate keys for wallet with address type: {}".format(output_type))
-            idx = i+1
             for _ in range(90):
-                addr_oldpool = self.nodes[idx].getnewaddress(address_type=output_type)
+                addr_oldpool = wallet.getnewaddress(address_type=output_type)
             for _ in range(20):
-                addr_extpool = self.nodes[idx].getnewaddress(address_type=output_type)
+                addr_extpool = wallet.getnewaddress(address_type=output_type)
 
             # Make sure we're creating the outputs we expect
-            address_details = self.nodes[idx].validateaddress(addr_extpool)
-            if i == 0:
+            address_details = wallet.validateaddress(addr_extpool)
+            if output_type == "legacy":
                 assert not address_details["isscript"] and not address_details["iswitness"]
-            elif i == 1:
+            elif output_type == "p2sh-segwit":
                 assert address_details["isscript"] and not address_details["iswitness"]
             else:
                 assert not address_details["isscript"] and address_details["iswitness"]
 
-
             self.log.info("Send funds to wallet")
-            self.nodes[0].sendtoaddress(addr_oldpool, 10)
+            default_wallet.sendtoaddress(addr_oldpool, 10)
             self.generate(self.nodes[0], 1)
-            self.nodes[0].sendtoaddress(addr_extpool, 5)
+            default_wallet.sendtoaddress(addr_extpool, 5)
             self.generate(self.nodes[0], 1)
+            # Increase wallet expected balance
+            expected_balance += 15
 
-            self.log.info("Restart node with wallet backup")
-            self.stop_node(idx)
-            shutil.copyfile(wallet_backup_path, wallet_path)
-            self.start_node(idx, self.extra_args[idx])
-            self.connect_nodes(0, idx)
-            self.sync_all()
+            self.log.info("Restore wallet from backup")
+            parent_dir = Path(node.chain_path / output_type)
+            parent_dir.mkdir()
+            to_restore_wallet_path = parent_dir / self.wallet_data_filename
+            shutil.copyfile(wallet_backup_path, to_restore_wallet_path)
+
+            # Loading the original wallet will trigger a rescan
+            self.nodes[0].loadwallet(output_type)
+            res_wallet = node.get_wallet_rpc(output_type)
 
             self.log.info("Verify keypool is restored and balance is correct")
-            assert_equal(self.nodes[idx].getbalance(), 15)
-            assert_equal(self.nodes[idx].listtransactions()[0]['category'], "receive")
+            assert_equal(res_wallet.getbalance(), expected_balance)
+            for tx_info in res_wallet.listtransactions():
+                assert_equal(tx_info['category'], "receive")
             # Check that we have marked all keys up to the used keypool key as used
             if self.options.descriptors:
                 if output_type == 'legacy':
-                    assert_equal(self.nodes[idx].getaddressinfo(self.nodes[idx].getnewaddress(address_type=output_type))['hdkeypath'], "m/44h/1h/0h/0/110")
+                    assert_equal(res_wallet.getaddressinfo(res_wallet.getnewaddress(address_type=output_type))['hdkeypath'], "m/44h/1h/0h/0/110")
                 elif output_type == 'p2sh-segwit':
-                    assert_equal(self.nodes[idx].getaddressinfo(self.nodes[idx].getnewaddress(address_type=output_type))['hdkeypath'], "m/49h/1h/0h/0/110")
+                    assert_equal(res_wallet.getaddressinfo(res_wallet.getnewaddress(address_type=output_type))['hdkeypath'], "m/49h/1h/0h/0/110")
                 elif output_type == 'bech32':
-                    assert_equal(self.nodes[idx].getaddressinfo(self.nodes[idx].getnewaddress(address_type=output_type))['hdkeypath'], "m/84h/1h/0h/0/110")
+                    assert_equal(res_wallet.getaddressinfo(res_wallet.getnewaddress(address_type=output_type))['hdkeypath'], "m/84h/1h/0h/0/110")
             else:
-                assert_equal(self.nodes[idx].getaddressinfo(self.nodes[idx].getnewaddress(address_type=output_type))['hdkeypath'], "m/0'/0'/110'")
+                assert_equal(res_wallet.getaddressinfo(res_wallet.getnewaddress(address_type=output_type))['hdkeypath'], "m/0'/0'/110'")
 
 
 if __name__ == '__main__':
