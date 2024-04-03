@@ -415,6 +415,7 @@ CDBIterator::~CDBIterator() = default;
 bool CDBIterator::Valid() const { return m_impl_iter->iter->Valid(); }
 void CDBIterator::SeekToFirst() { m_impl_iter->iter->SeekToFirst(); }
 void CDBIterator::Next() { m_impl_iter->iter->Next(); }
+void CDBIterator::Prev() { m_impl_iter->iter->Prev(); }
 
 namespace dbwrapper_private {
 

@@ -290,12 +290,13 @@ bool BlockFilterIndex::Write(const BlockFilter& filter, uint32_t block_height, c
 
 [[nodiscard]] static bool CopyHeightIndexToHashIndex(CDBIterator& db_it, CDBBatch& batch,
                                        const std::string& index_name,
-                                       int start_height, int stop_height)
+                                       CBlockIndex* rollback_to, CBlockIndex* rollback_from)
 {
-    DBHeightKey key(start_height);
+    DBHeightKey key(rollback_from->nHeight);
     db_it.Seek(key);
 
-    for (int height = start_height; height <= stop_height; ++height) {
+    while (rollback_from != rollback_to) {
+        int height = rollback_from->nHeight;
         if (!db_it.GetKey(key) || key.height != height) {
             LogError("%s: unexpected key in %s: expected (%c, %d)\n",
                          __func__, index_name, DB_BLOCK_HEIGHT, height);
@@ -309,9 +310,18 @@ bool BlockFilterIndex::Write(const BlockFilter& filter, uint32_t block_height, c
             return false;
         }
 
+        if (value.second.hash != rollback_from->GetBlockHash()) {
+            LogError("%s: unexpected block hash in %s: expected (%s, %s), height %d\n",
+                     __func__, index_name, rollback_from->GetBlockHash().GetHex(), value.second.hash.GetHex(), height);
+            assert(false); // TODO: this should never happen..
+        }
+
         batch.Write(DBHashKey(value.first), std::move(value.second));
 
-        db_it.Next();
+        // Move to the next block in the reorged blocks line
+        rollback_from = rollback_from->pprev;
+
+        db_it.Prev();
     }
     return true;
 }
@@ -321,10 +331,13 @@ bool BlockFilterIndex::CustomRewind(const interfaces::BlockKey& current_tip, con
     CDBBatch batch(*m_db);
     std::unique_ptr<CDBIterator> db_it(m_db->NewIterator());
 
+    CBlockIndex* current_index_tip = WITH_LOCK(::cs_main, return &m_chainstate->m_chainman.m_blockman.m_block_index[current_tip.hash]);
+    CBlockIndex* node_tip = WITH_LOCK(::cs_main, return &m_chainstate->m_chainman.m_blockman.m_block_index[new_tip.hash]);
+
     // During a reorg, we need to copy all filters for blocks that are getting disconnected from the
     // height index to the hash index so we can still find them when the height index entries are
     // overwritten.
-    if (!CopyHeightIndexToHashIndex(*db_it, batch, m_name, new_tip.height, current_tip.height)) {
+    if (!CopyHeightIndexToHashIndex(*db_it, batch, m_name, node_tip, current_index_tip)) {
         return false;
     }
 
