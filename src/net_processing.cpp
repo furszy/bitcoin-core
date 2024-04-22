@@ -5598,8 +5598,9 @@ bool PeerManagerImpl::SendMessages(CNode* pto)
         CNodeState &state = *State(pto->GetId());
 
         // Start block sync
-        if (m_chainman.m_best_header == nullptr) {
-            m_chainman.m_best_header = m_chainman.ActiveChain().Tip();
+        if (!Assume(m_chainman.m_best_header)) {
+            // TODO: Complete me..
+            // It cannot be null. It should be the genesis block at most.
         }
 
         // Determine whether we might try initial headers sync or parallel
