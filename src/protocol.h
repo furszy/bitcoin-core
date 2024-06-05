@@ -487,6 +487,7 @@ enum GetDataMsg : uint32_t {
     // The following can only occur in getdata. Invs always use TX/WTX or BLOCK.
     MSG_FILTERED_BLOCK = 3,                           //!< Defined in BIP37
     MSG_CMPCT_BLOCK = 4,                              //!< Defined in BIP152
+    MSG_BLOCK_HEADER = 5,                             //!< Defined in BIP<>
     MSG_WITNESS_BLOCK = MSG_BLOCK | MSG_WITNESS_FLAG, //!< Defined in BIP144
     MSG_WITNESS_TX = MSG_TX | MSG_WITNESS_FLAG,       //!< Defined in BIP144
     // MSG_FILTERED_WITNESS_BLOCK is defined in BIP144 as reserved for future

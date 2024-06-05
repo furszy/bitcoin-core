@@ -4554,11 +4554,13 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
             // If locator is null, return the hashStop block
             pindex = m_chainman.m_blockman.LookupBlockIndex(hashStop);
             if (!pindex) {
+                MakeAndPushMessage(pfrom, NetMsgType::NOTFOUND, std::vector<CInv>{CInv(MSG_BLOCK_HEADER, hashStop)});
                 return;
             }
 
             if (!BlockRequestAllowed(pindex)) {
                 LogPrint(BCLog::NET, "%s: ignoring request from peer=%i for old block header that isn't in the main chain\n", __func__, pfrom.GetId());
+                MakeAndPushMessage(pfrom, NetMsgType::NOTFOUND, std::vector<CInv>{CInv(MSG_BLOCK_HEADER, hashStop)});
                 return;
             }
         }
