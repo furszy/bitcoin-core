@@ -4353,39 +4353,72 @@ void PeerManagerImpl::ProcessMessage(CNode& pfrom, const std::string& msg_type, 
             }
         }
 
-        LOCK(cs_main);
+        // Last block the caller has in the main chain
+        const CBlockIndex* shared_pindex;
+        // Newest block we will send to the caller
+        const CBlockIndex* pindex;
+        // Whether we should send a sync continuation block inv
+        bool send_batch_continue = false;
 
-        // Find the last block the caller has in the main chain
-        const CBlockIndex* pindex = m_chainman.ActiveChainstate().FindForkInGlobalIndex(locator);
-
-        // Send the rest of the chain
-        if (pindex)
-            pindex = m_chainman.ActiveChain().Next(pindex);
-        int nLimit = 500;
-        LogPrint(BCLog::NET, "getblocks %d to %s limit %d from peer=%d\n", (pindex ? pindex->nHeight : -1), hashStop.IsNull() ? "end" : hashStop.ToString(), nLimit, pfrom.GetId());
-        for (; pindex; pindex = m_chainman.ActiveChain().Next(pindex))
         {
-            if (pindex->GetBlockHash() == hashStop)
-            {
-                LogPrint(BCLog::NET, "  getblocks stopping at %d %s\n", pindex->nHeight, pindex->GetBlockHash().ToString());
-                break;
+            LOCK(cs_main);
+
+            // Find the last block the caller has in the main chain
+            shared_pindex = m_chainman.ActiveChainstate().FindForkInGlobalIndex(locator);
+            // Last block in the locator, potential 'newest block' to send
+            const CBlockIndex* end_block = m_chainman.m_blockman.LookupBlockIndex(hashStop);
+
+            int nLimit = 500;
+            int active_chain_tip = m_chainman.ActiveHeight();
+
+            // Determine block window to send
+            // 1) If it is in the main chain and within the limits, use the 'hashStop' block
+            if (end_block && end_block->nHeight - shared_pindex->nHeight <= nLimit) {
+                pindex = end_block;
+            } else {
+                // 2) When 'hashStop' is not in the main chain, obtain last block within the limits
+                int end_block_height = std::min(shared_pindex->nHeight + nLimit, active_chain_tip);
+                pindex = m_chainman.ActiveChain()[end_block_height];
+                send_batch_continue = true;
             }
+
+            LogPrint(BCLog::NET, "getblocks %d to %s limit %d from peer=%d\n", (pindex ? pindex->nHeight : -1), hashStop.IsNull() ? "end" : hashStop.ToString(), nLimit, pfrom.GetId());
+
+            // Find the first block to send to perform the pruning check
+            const CBlockIndex* first_block = m_chainman.ActiveChain().Next(shared_pindex);
+            if (!first_block) {
+                return; // Nothing to do
+            }
+
             // If pruning, don't inv blocks unless we have on disk and are likely to still have
             // for some reasonable time window (1 hour) that block relay might require.
+            // TODO: what if the node fetched some blocks manually after pruning? That would screw up this "first block pruned" check..
             const int nPrunedBlocksLikelyToHave = MIN_BLOCKS_TO_KEEP - 3600 / m_chainparams.GetConsensus().nPowTargetSpacing;
-            if (m_chainman.m_blockman.IsPruneMode() && (!(pindex->nStatus & BLOCK_HAVE_DATA) || pindex->nHeight <= m_chainman.ActiveChain().Tip()->nHeight - nPrunedBlocksLikelyToHave)) {
+            if (m_chainman.m_blockman.IsPruneMode() && (!(first_block->nStatus & BLOCK_HAVE_DATA) || first_block->nHeight <= active_chain_tip - nPrunedBlocksLikelyToHave)) {
                 LogPrint(BCLog::NET, " getblocks stopping, pruned or too old block at %d %s\n", pindex->nHeight, pindex->GetBlockHash().ToString());
-                break;
-            }
-            WITH_LOCK(peer->m_block_inv_mutex, peer->m_blocks_for_inv_relay.push_back(pindex->GetBlockHash()));
-            if (--nLimit <= 0) {
-                // When this block is requested, we'll send an inv that'll
-                // trigger the peer to getblocks the next batch of inventory.
-                LogPrint(BCLog::NET, "  getblocks stopping at limit %d %s\n", pindex->nHeight, pindex->GetBlockHash().ToString());
-                WITH_LOCK(peer->m_block_inv_mutex, {peer->m_continuation_block = pindex->GetBlockHash();});
-                break;
+                return; // Nothing to do
             }
         }
+
+        // Relay INVs within the requested window
+        std::vector<uint256> blocks_for_inv_relay;
+        while (pindex != shared_pindex) {
+            blocks_for_inv_relay.emplace_back(pindex->GetBlockHash());
+            pindex = pindex->pprev;
+        }
+
+        {   // Insert blocks in reverse order to send them in-order
+            LOCK(peer->m_block_inv_mutex);
+            peer->m_blocks_for_inv_relay.insert(peer->m_blocks_for_inv_relay.end(), blocks_for_inv_relay.rbegin(), blocks_for_inv_relay.rend());
+        }
+
+        if (send_batch_continue) {
+            // When this block is requested, we'll send an inv that'll
+            // trigger the peer to getblocks the next batch of inventory.
+            LogPrint(BCLog::NET, "  getblocks stopping at limit %d %s\n", pindex->nHeight, pindex->GetBlockHash().ToString());
+            WITH_LOCK(peer->m_block_inv_mutex, {peer->m_continuation_block = pindex->GetBlockHash();});
+        }
+
         return;
     }
 
