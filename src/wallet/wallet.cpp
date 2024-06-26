@@ -4413,6 +4413,8 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
         return util::Error{Untranslated("Wallet loading failed.") + Untranslated(" ") + error};
     }
 
+    // Reset options.require_format as options are used by reload_wallet which may reload wallets of any format.
+    options.require_format = std::nullopt;
     // Helper to reload as normal for some of our exit scenarios
     const auto& reload_wallet = [&](std::shared_ptr<CWallet>& to_reload) {
         assert(to_reload.use_count() == 1);
@@ -4480,8 +4482,6 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(const std::string& walle
     // both before and after reloading. This ensures the set is complete even if one of the wallets
     // fails to reload.
     std::set<fs::path> wallet_dirs;
-    // Reset options.require_format as options are used by reload_wallet which may reload wallets of any format.
-    options.require_format = std::nullopt;
     if (success) {
         // Migration successful, unload all wallets locally, then reload them.
         // Reload the main wallet
