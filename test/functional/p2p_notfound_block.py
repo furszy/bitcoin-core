@@ -167,10 +167,31 @@ class NotFoundBlockTest(BitcoinTestFramework):
         self.log.info("(e) Test getdata (merkleblock) for a peer that does not have TxRelay enabled")
         self.send_getdata_and_wait_for_notfound(node0, node0.getbestblockhash(), block_request_type=MSG_FILTERED_BLOCK)
 
+    def test_notfound_handler(self):
+        self.log.info("Test 'notfound' handler..")
+        node = self.nodes[0]
+
+        # Cases need to cover:
+        # 1) Send not_found for a block the peer did not request. --> Expect disconnection.
+        # 2) Send not_found for a block the peer requested but not to us. --> Expect disconnection.
+        # 3) Send not_found for an historical block (could use getblockfrompeer) --> Expect the impossibility to request the block again to the same peer.
+        #    Maybe should block getblockfrompeer to request this block again or.. maybe not. --> this could be tested.
+        #           --> Also, after some time, the node should drop the block request blockage and retry to download the block from this peer.
+        # 4) Send not found for a block close to the tip (could send a new header) --> Expect the impossibility to request the block again to the same peer.
+        #           --> Also, after some short time, the node should drop the block request blockage and retry to download the block from this peer.
+        # 5) Send more than 'MAX_MISSING_BLOCKS_NUM' not_found blocks. --> Expect disconnection.
+
+        ##################################################################################
+        # 1) Send not_found for a block the peer did not request. --> Expect disconnection
+
+
+
+
 
     def run_test(self):
         self.test_feature_negotiation()
         self.test_getdata_response()
+        self.test_notfound_handler()
 
 
 if __name__ == '__main__':
