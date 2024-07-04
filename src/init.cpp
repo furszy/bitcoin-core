@@ -30,6 +30,7 @@
 #include <index/txindex.h>
 #include <init/common.h>
 #include <interfaces/chain.h>
+#include <interfaces/handler.h>
 #include <interfaces/init.h>
 #include <interfaces/node.h>
 #include <kernel/context.h>
@@ -1117,14 +1118,8 @@ bool AppInitLockDataDirectory()
  */
 static void SyncCoinsTipAfterChainSync(const NodeContext& node)
 {
+    assert(!node.chainman->IsInitialBlockDownload());
     LOCK(node.chainman->GetMutex());
-    if (node.chainman->IsInitialBlockDownload()) {
-        LogDebug(BCLog::COINDB, "Node is still in IBD, rescheduling post-IBD chainstate disk sync...\n");
-        node.scheduler->scheduleFromNow([&node] {
-            SyncCoinsTipAfterChainSync(node);
-        }, SYNC_CHECK_INTERVAL);
-        return;
-    }
 
     static auto last_chain_height{-1};
     const auto current_height{node.chainman->ActiveHeight()};
@@ -2025,11 +2020,11 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 #if HAVE_SYSTEM
     StartupNotify(args);
 #endif
-
     if (node.chainman->IsInitialBlockDownload()) {
-        node.scheduler->scheduleFromNow([&node] {
+        const auto& handler = interfaces::MakeNode(node)->handleNotifyIBDCompletion([&]{
             SyncCoinsTipAfterChainSync(node);
-        }, SYNC_CHECK_INTERVAL);
+        });
+        // TODO: store handler somewhere. The listener is automatically unregistered during destruction.
     }
 
     return true;

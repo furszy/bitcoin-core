@@ -94,6 +94,11 @@ void KernelNotifications::fatalError(const bilingual_str& message)
                     m_exit_status, message);
 }
 
+void KernelNotifications::ibd_completed()
+{
+    uiInterface.NotifyIBDCompletion();
+}
+
 void ReadNotificationArgs(const ArgsManager& args, KernelNotifications& notifications)
 {
     if (auto value{args.GetIntArg("-stopatheight")}) notifications.m_stop_at_height = *value;

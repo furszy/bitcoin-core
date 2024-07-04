@@ -397,6 +397,11 @@ public:
                 fn(sync_state, BlockTip{(int)height, timestamp, uint256{}}, presync);
             }));
     }
+    std::unique_ptr<Handler> handleNotifyIBDCompletion(NotifyIBDCompletionFn fn) override
+    {
+        return MakeSignalHandler(::uiInterface.NotifyIBDCompletion_connect([fn]() { fn(); }));
+    }
+
     NodeContext* context() override { return m_context; }
     void setContext(NodeContext* context) override
     {

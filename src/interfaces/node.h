@@ -263,6 +263,10 @@ public:
         std::function<void(SynchronizationState, interfaces::BlockTip tip, bool presync)>;
     virtual std::unique_ptr<Handler> handleNotifyHeaderTip(NotifyHeaderTipFn fn) = 0;
 
+    //! Register handler for ibd completion signal
+    using NotifyIBDCompletionFn = std::function<void()>;
+    virtual std::unique_ptr<Handler> handleNotifyIBDCompletion(NotifyIBDCompletionFn fn) = 0;
+
     //! Get and set internal node context. Useful for testing, but not
     //! accessible across processes.
     virtual node::NodeContext* context() { return nullptr; }

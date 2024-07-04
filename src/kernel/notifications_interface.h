@@ -40,6 +40,9 @@ public:
     virtual void progress(const bilingual_str& title, int progress_percent, bool resume_possible) {}
     virtual void warning(const bilingual_str& warning) {}
 
+    //! Signaled only when the node exits ibd for the first time since startup
+    virtual void ibd_completed() {}
+
     //! The flush error notification is sent to notify the user that an error
     //! occurred while flushing block data to disk. Kernel code may ignore flush
     //! errors that don't affect the immediate operation it is trying to

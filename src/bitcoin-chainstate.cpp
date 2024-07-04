@@ -98,6 +98,11 @@ int main(int argc, char* argv[])
         {
             std::cerr << "Error: " << message.original << std::endl;
         }
+
+        void ibd_completed() override
+        {
+            std::cout << "IBD completed" << std::endl;
+        }
     };
     auto notifications = std::make_unique<KernelNotifications>();
 

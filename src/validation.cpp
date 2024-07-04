@@ -3471,8 +3471,13 @@ bool Chainstate::ActivateBestChain(BlockValidationState& state, std::shared_ptr<
         if (exited_ibd) {
             // If a background chainstate is in use, we may need to rebalance our
             // allocation of caches once a chainstate exits initial block download.
-            LOCK(::cs_main);
-            m_chainman.MaybeRebalanceCaches();
+            {
+                LOCK(::cs_main);
+                m_chainman.MaybeRebalanceCaches();
+            }
+
+            // Notify upper layers about IBD completion
+            m_chainman.GetNotifications().ibd_completed();
         }
 
         if (WITH_LOCK(::cs_main, return m_disabled)) {
