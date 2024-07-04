@@ -80,6 +80,11 @@ class PSBTTest(BitcoinTestFramework):
         psbt = wallet.createpsbt([{"txid": utxos[0]["txid"], "vout": utxos[0]["vout"]}], [{wallet.getnewaddress(): 0.9999}])
         signed_psbt = wallet.walletprocesspsbt(psbt)["psbt"]
 
+        # Get the output known destination derivation path
+        decoded_psbt = wallet.decodepsbt(signed_psbt)
+        dest_deriv_path = decoded_psbt['outputs'][0]['bip32_derivs']
+        assert_equal(len(dest_deriv_path), 1)
+
         # Modify the raw transaction by changing the output address, so the signature is no longer valid
         signed_psbt_obj = PSBT.from_base64(signed_psbt)
         substitute_addr = wallet.getnewaddress()
@@ -89,6 +94,11 @@ class PSBTTest(BitcoinTestFramework):
         # Check that the walletprocesspsbt call succeeds but also recognizes that the transaction is not complete
         signed_psbt_incomplete = wallet.walletprocesspsbt(signed_psbt_obj.to_base64(), finalize=False)
         assert signed_psbt_incomplete["complete"] is False
+
+        # Check the replaced output information is no longer in the psbt
+        new_dest_deriv_path = wallet.decodepsbt(signed_psbt_incomplete['psbt'])['outputs'][0]['bip32_derivs']
+        assert_equal(len(new_dest_deriv_path), 1)  # only the derivation path of the new destination
+        assert dest_deriv_path not in new_dest_deriv_path
 
     def test_utxo_conversion(self):
         self.log.info("Check that non-witness UTXOs are removed for segwit v1+ inputs")
