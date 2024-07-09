@@ -508,6 +508,13 @@ public:
                 .nChainTx = 334,
                 .blockhash = uint256S("0x3bb7ce5eba0be48939b7a521ac1ba9316afee2c7bada3a0cca24188e6d7d96c0")
             },
+            {
+                    // For use by test/functional/p2p_sync_from_assumeUTXO.py. TODO: DROP.
+                    .height = 500,
+                    .hash_serialized = AssumeutxoHash{uint256S("0xdac262804a4e3d23ead652f942b7bf64810aaee4f9fffe10166e942c4d574fa3")},
+                    .nChainTx = 501,
+                    .blockhash = uint256S("512f4231aabf978b0eacc0e72ff01f05cc58c6695f2454e20d43b2cb5e7d7d8c")
+            },
         };
 
         chainTxData = ChainTxData{
