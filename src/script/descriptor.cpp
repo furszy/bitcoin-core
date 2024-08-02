@@ -1314,8 +1314,31 @@ enum class ParseScriptContext {
     P2TR,    //!< Inside tr() (either internal key, or BIP342 script leaf)
 };
 
+std::optional<uint32_t> ParseKeyPathNum(Span<const char> elem, bool& apostrophe, std::string& error)
+{
+    bool hardened = false;
+    if (elem.size() > 0) {
+        const char last = elem[elem.size() - 1];
+        if (last == '\'' || last == 'h') {
+            elem = elem.first(elem.size() - 1);
+            hardened = true;
+            apostrophe = last == '\'';
+        }
+    }
+    uint32_t p;
+    if (!ParseUInt32(std::string(elem.begin(), elem.end()), &p)) {
+        error = strprintf("Key path value '%s' is not a valid uint32", std::string(elem.begin(), elem.end()));
+        return std::nullopt;
+    } else if (p > 0x7FFFFFFFUL) {
+        error = strprintf("Key path value %u is out of range", p);
+        return std::nullopt;
+    }
+
+    return std::make_optional<uint32_t>(p | (((uint32_t)hardened) << 31));
+}
+
 /**
- * Parse a key path, being passed a split list of elements (the first element is ignored).
+ * Parse a key path, being passed a split list of elements (the first element is ignored because it is always the key).
  *
  * @param[in] split BIP32 path string, using either ' or h for hardened derivation
  * @param[out] out the key path
@@ -1323,28 +1346,53 @@ enum class ParseScriptContext {
  * @param[out] error parsing error message
  * @returns false if parsing failed
  **/
-[[nodiscard]] bool ParseKeyPath(const std::vector<Span<const char>>& split, KeyPath& out, bool& apostrophe, std::string& error)
+[[nodiscard]] bool ParseKeyPath(const std::vector<Span<const char>>& split, std::vector<KeyPath>& out, bool& apostrophe, std::string& error)
 {
+    KeyPath path;
+    std::optional<size_t> multipath_segment_index;
+    std::vector<uint32_t> multipath_values;
+
     for (size_t i = 1; i < split.size(); ++i) {
-        Span<const char> elem = split[i];
-        bool hardened = false;
-        if (elem.size() > 0) {
-            const char last = elem[elem.size() - 1];
-            if (last == '\'' || last == 'h') {
-                elem = elem.first(elem.size() - 1);
-                hardened = true;
-                apostrophe = last == '\'';
+        const Span<const char>& elem = split[i];
+
+        // Check if element contain multipath specifier
+        if (!elem.empty() && elem.front() == '<' && elem.back() == '>') {
+            if (multipath_segment_index) {
+                error = "Multiple multipath key path specifiers found";
+                return false;
             }
+
+            // Parse each possible value
+            std::vector<Span<const char>> nums = Split(Span(elem.begin()+1, elem.end()-1), ";");
+            if (nums.size() < 2) {
+                error = "Multipath key path specifiers must have at least two items";
+                return false;
+            }
+
+            for (const auto& num : nums) {
+                const auto& op_num = ParseKeyPathNum(num, apostrophe, error);
+                if (!op_num) return false;
+                multipath_values.emplace_back(*op_num);
+            }
+
+            path.emplace_back(); // Placeholder for multipath segment
+            multipath_segment_index = path.size()-1;
+        } else {
+            const auto& op_num = ParseKeyPathNum(elem, apostrophe, error);
+            if (!op_num) return false;
+            path.emplace_back(*op_num);
         }
-        uint32_t p;
-        if (!ParseUInt32(std::string(elem.begin(), elem.end()), &p)) {
-            error = strprintf("Key path value '%s' is not a valid uint32", std::string(elem.begin(), elem.end()));
-            return false;
-        } else if (p > 0x7FFFFFFFUL) {
-            error = strprintf("Key path value %u is out of range", p);
-            return false;
+    }
+
+    if (!multipath_segment_index) {
+        out.emplace_back(path);
+    } else {
+        // Replace the multipath placeholder with each value while generating paths
+        for (size_t i = 0; i < multipath_values.size(); i++) {
+            KeyPath branch_path = path;
+            branch_path[*multipath_segment_index] = multipath_values[i];
+            out.emplace_back(branch_path);
         }
-        out.push_back(p | (((uint32_t)hardened) << 31));
     }
     return true;
 }
