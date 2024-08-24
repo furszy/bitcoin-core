@@ -814,14 +814,31 @@ public:
         });
         return result;
     }
-    bool updateRwSetting(const std::string& name, const common::SettingsValue& value, bool write) override
+    bool updateRwSetting(const std::string& name,
+                         const std::function<std::optional<interfaces::SettingsAction>(common::SettingsValue&)>& func_update) override
     {
+        std::optional<interfaces::SettingsAction> res;
         args().LockSettings([&](common::Settings& settings) {
-            if (value.isNull()) {
-                settings.rw_settings.erase(name);
-            } else {
-                settings.rw_settings[name] = value;
-            }
+            common::SettingsValue* ptr_value = common::FindKey(settings.rw_settings, name);
+            // Create value if it doesn't exist
+            common::SettingsValue& value = ptr_value ? *ptr_value : settings.rw_settings[name];
+            res = func_update(value);
+        });
+        if (!res) return false;
+        // Now dump value to disk if requested
+        return *res == interfaces::SettingsAction::SKIP_WRITE || args().WriteSettingsFile();
+    }
+    bool overwriteRwSetting(const std::string& name, const common::SettingsValue& value, bool write) override
+    {
+        if (value.isNull()) return deleteRwSettings(name, write);
+        return updateRwSetting(name, [&](common::SettingsValue& settings) {
+            settings = std::move(value);
+            return write ? interfaces::SettingsAction::WRITE : interfaces::SettingsAction::SKIP_WRITE;
+        });
+    }
+    bool deleteRwSettings(const std::string& name, bool write) override {
+        args().LockSettings([&](common::Settings& settings) {
+            settings.rw_settings.erase(name);
         });
         return !write || args().WriteSettingsFile();
     }

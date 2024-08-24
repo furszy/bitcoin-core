@@ -71,6 +71,35 @@ static void AddKey(CWallet& wallet, const CKey& key)
     if (!wallet.AddWalletDescriptor(w_desc, provider, "", false)) assert(false);
 }
 
+// This test verifies that wallet settings can be added and removed
+// concurrently, ensuring no race conditions occur during either process.
+BOOST_FIXTURE_TEST_CASE(write_wallet_settings_concurrently, TestingSetup)
+{
+    WalletContext context;
+    context.chain = m_node.chain.get();
+    const auto NUM_WALLETS{5};
+    // Since we're counting the number of wallets, ensure we start without any.
+    BOOST_REQUIRE(context.chain->getRwSetting("wallet").isNull());
+    const auto& func_check = [&](const auto& func, int num_expected_wallets) {
+        std::vector<std::thread> threads;
+        threads.reserve(NUM_WALLETS);
+        for (int i{0}; i < NUM_WALLETS; ++i) threads.emplace_back(func, i);
+        for (auto& t : threads) t.join();
+        auto wallets = context.chain->getRwSetting("wallet");
+        BOOST_CHECK_EQUAL(wallets.getValues().size(), num_expected_wallets);
+    };
+
+    // Add NUM_WALLETS wallets concurrently, ensure we end up with NUM_WALLETS stored.
+    func_check([&context](int i) {
+        Assert(AddWalletSetting(*context.chain, strprintf("wallet_%d", i)));
+    }, /*num_expected_wallets=*/NUM_WALLETS);
+
+    // Remove NUM_WALLETS wallets concurrently, ensure we end up with 0 wallets.
+    func_check([&context](int i) {
+        Assert(RemoveWalletSetting(*context.chain, strprintf("wallet_%d", i)));
+    }, /*num_expected_wallets=*/0);
+}
+
 BOOST_FIXTURE_TEST_CASE(scan_for_wallet_transactions, TestChain100Setup)
 {
     // Cap last block file size, and mine new block in a new block file.

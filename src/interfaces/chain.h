@@ -96,6 +96,14 @@ struct BlockInfo {
     BlockInfo(const uint256& hash LIFETIMEBOUND) : hash(hash) {}
 };
 
+//! The action to be taken after updating a settings value.
+//! WRITE indicates that the updated value must be written to disk,
+//! while SKIP_WRITE indicates that the change will be kept in memory-only without persisting it.
+enum class SettingsAction {
+    WRITE,
+    SKIP_WRITE
+};
+
 //! Interface giving clients (wallet processes, maybe other analysis tools in
 //! the future) ability to access to the chain state, receive notifications,
 //! estimate fees, and submit transactions.
@@ -346,7 +354,10 @@ public:
 
     //! Write a setting to <datadir>/settings.json. Optionally just update the
     //! setting in memory and do not write the file.
-    virtual bool updateRwSetting(const std::string& name, const common::SettingsValue& value, bool write=true) = 0;
+    virtual bool updateRwSetting(const std::string& name,
+                                 const std::function<std::optional<interfaces::SettingsAction>(common::SettingsValue&)>& func_update) = 0;
+    virtual bool overwriteRwSetting(const std::string& name, const common::SettingsValue& value, bool write=true) = 0;
+    virtual bool deleteRwSettings(const std::string& name, bool write=true) = 0;
 
     //! Synchronously send transactionAddedToMempool notifications about all
     //! current mempool transactions to the specified handler and return after
