@@ -518,6 +518,20 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         assert_equal(len(versions), num_nodes)
         assert_equal(len(binary), num_nodes)
         assert_equal(len(binary_cli), num_nodes)
+
+        # Verify all required binaries exist
+        def check_binaries(binaries, bin_name):
+            for index, bin_path in enumerate(binaries):
+                if not os.path.isfile(bin_path):
+                    raise FileNotFoundError(
+                        f"'{bin_name}' binary for node{index} not found. "
+                        f"Verify the build process has completed successfully. "
+                        f"Expected binary path: '{bin_path}'."
+                    )
+
+        check_binaries(binary, "bitcoind")
+        check_binaries(binary_cli, "bitcoin-cli")
+
         for i in range(num_nodes):
             args = list(extra_args[i])
             test_node_i = TestNode(
