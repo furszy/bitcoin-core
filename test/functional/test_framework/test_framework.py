@@ -76,6 +76,16 @@ class BitcoinTestMetaClass(type):
         return super().__new__(cls, clsname, bases, dct)
 
 
+def check_binaries(binaries, bin_name):
+    for index, bin_path in enumerate(binaries):
+        if not os.path.isfile(bin_path):
+            raise FileNotFoundError(
+                f"'{bin_name}' binary for node{index} not found. "
+                f"Verify the build process has completed successfully. "
+                f"Expected binary path: '{bin_path}'."
+            )
+
+
 class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
     """Base class for a bitcoin test script.
 
@@ -520,15 +530,6 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         assert_equal(len(binary_cli), num_nodes)
 
         # Verify all required binaries exist
-        def check_binaries(binaries, bin_name):
-            for index, bin_path in enumerate(binaries):
-                if not os.path.isfile(bin_path):
-                    raise FileNotFoundError(
-                        f"'{bin_name}' binary for node{index} not found. "
-                        f"Verify the build process has completed successfully. "
-                        f"Expected binary path: '{bin_path}'."
-                    )
-
         check_binaries(binary, "bitcoind")
         check_binaries(binary_cli, "bitcoin-cli")
 
@@ -845,6 +846,9 @@ class BitcoinTestFramework(metaclass=BitcoinTestMetaClass):
         assert self.num_nodes <= MAX_NODES
 
         if not os.path.isdir(cache_node_dir):
+            #TODO: I dislike this..
+            check_binaries([self.options.bitcoind], "bitcoind")
+            check_binaries([self.options.bitcoincli], "bitcoin-cli")
             self.log.debug("Creating cache directory {}".format(cache_node_dir))
 
             initialize_datadir(self.options.cachedir, CACHE_NODE_ID, self.chain, self.disable_autoconnect)
