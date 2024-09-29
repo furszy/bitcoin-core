@@ -139,10 +139,11 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, TestOpts opts)
     // data directories use a random name that doesn't overlap with other tests.
     SeedRandomForTest(SeedRand::FIXED_SEED);
 
+    const std::string test_name{G_TEST_GET_FULL_NAME ? G_TEST_GET_FULL_NAME() : ""};
     if (!m_node.args->IsArgSet("-testdatadir")) {
-        // By default, the data directory has a random name
+        // By default, the data directory has a random name on each test run
         const auto rand_str{g_rng_temp_path.rand256().ToString()};
-        m_path_root = fs::temp_directory_path() / TEST_DIR_PATH_ELEMENT / rand_str;
+        m_path_root = fs::temp_directory_path() / TEST_DIR_PATH_ELEMENT / test_name / rand_str;
         TryCreateDirectories(m_path_root);
     } else {
         // Custom data directory
@@ -151,8 +152,7 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, TestOpts opts)
         if (root_dir.empty()) ExitFailure("-testdatadir argument is empty, please specify a path");
 
         root_dir = fs::absolute(root_dir);
-        const std::string test_path{G_TEST_GET_FULL_NAME ? G_TEST_GET_FULL_NAME() : ""};
-        m_path_lock = root_dir / TEST_DIR_PATH_ELEMENT / fs::PathFromString(test_path);
+        m_path_lock = root_dir / TEST_DIR_PATH_ELEMENT / fs::PathFromString(test_name);
         m_path_root = m_path_lock / "datadir";
 
         // Try to obtain the lock; if unsuccessful don't disturb the existing test.
