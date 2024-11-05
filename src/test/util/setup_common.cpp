@@ -103,88 +103,93 @@ static void ExitFailure(std::string_view str_err)
 BasicTestingSetup::BasicTestingSetup(const ChainType chainType, TestOpts opts)
     : m_args{}
 {
-    m_node.shutdown_signal = &m_interrupt;
-    m_node.shutdown_request = [this]{ return m_interrupt(); };
-    m_node.args = &gArgs;
-    std::vector<const char*> arguments = Cat(
+    try {
+        m_node.shutdown_signal = &m_interrupt;
+        m_node.shutdown_request = [this] { return m_interrupt(); };
+        m_node.args = &gArgs;
+        std::vector<const char *> arguments = Cat(
+                {
+                        "dummy",
+                        "-printtoconsole=0",
+                        "-logsourcelocations",
+                        "-logtimemicros",
+                        "-logthreadnames",
+                        "-loglevel=trace",
+                        "-debug",
+                        "-debugexclude=libevent",
+                        "-debugexclude=leveldb",
+                },
+                opts.extra_args);
+        if (G_TEST_COMMAND_LINE_ARGUMENTS) {
+            arguments = Cat(arguments, G_TEST_COMMAND_LINE_ARGUMENTS());
+        }
+        util::ThreadRename("test");
+        gArgs.ClearPathCache();
         {
-            "dummy",
-            "-printtoconsole=0",
-            "-logsourcelocations",
-            "-logtimemicros",
-            "-logthreadnames",
-            "-loglevel=trace",
-            "-debug",
-            "-debugexclude=libevent",
-            "-debugexclude=leveldb",
-        },
-        opts.extra_args);
-    if (G_TEST_COMMAND_LINE_ARGUMENTS) {
-        arguments = Cat(arguments, G_TEST_COMMAND_LINE_ARGUMENTS());
-    }
-    util::ThreadRename("test");
-    gArgs.ClearPathCache();
-    {
-        SetupServerArgs(*m_node.args);
-        SetupCommonTestArgs(*m_node.args);
-        std::string error;
-        if (!m_node.args->ParseParameters(arguments.size(), arguments.data(), error)) {
-            m_node.args->ClearArgs();
-            throw std::runtime_error{error};
-        }
-    }
-
-    // Use randomly chosen seed for deterministic PRNG, so that (by default) test
-    // data directories use a random name that doesn't overlap with other tests.
-    SeedRandomForTest(SeedRand::FIXED_SEED);
-
-    const std::string test_name{G_TEST_GET_FULL_NAME ? G_TEST_GET_FULL_NAME() : ""};
-    if (!m_node.args->IsArgSet("-testdatadir")) {
-        // By default, the data directory has a random name on each test run
-        const auto rand_str{g_rng_temp_path.rand256().ToString()};
-        m_path_root = fs::temp_directory_path() / TEST_DIR_PATH_ELEMENT / test_name / rand_str;
-        TryCreateDirectories(m_path_root);
-    } else {
-        // Custom data directory
-        m_has_custom_datadir = true;
-        fs::path root_dir{m_node.args->GetPathArg("-testdatadir")};
-        if (root_dir.empty()) ExitFailure("-testdatadir argument is empty, please specify a path");
-
-        root_dir = fs::absolute(root_dir);
-        m_path_lock = root_dir / TEST_DIR_PATH_ELEMENT / fs::PathFromString(test_name);
-        m_path_root = m_path_lock / "datadir";
-
-        // Try to obtain the lock; if unsuccessful don't disturb the existing test.
-        TryCreateDirectories(m_path_lock);
-        if (util::LockDirectory(m_path_lock, ".lock", /*probe_only=*/false) != util::LockResult::Success) {
-            ExitFailure("Cannot obtain a lock on test data lock directory " + fs::PathToString(m_path_lock) + '\n' + "The test executable is probably already running.");
+            SetupServerArgs(*m_node.args);
+            SetupCommonTestArgs(*m_node.args);
+            std::string error;
+            if (!m_node.args->ParseParameters(arguments.size(), arguments.data(), error)) {
+                m_node.args->ClearArgs();
+                throw std::runtime_error{error};
+            }
         }
 
-        // Always start with a fresh data directory; this doesn't delete the .lock file located one level above.
-        fs::remove_all(m_path_root);
-        if (!TryCreateDirectories(m_path_root)) ExitFailure("Cannot create test data directory");
+        // Use randomly chosen seed for deterministic PRNG, so that (by default) test
+        // data directories use a random name that doesn't overlap with other tests.
+        SeedRandomForTest(SeedRand::FIXED_SEED);
 
-        // Print the test directory name if custom.
-        std::cout << "Test directory (will not be deleted): " << m_path_root << std::endl;
-    }
-    m_args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
-    gArgs.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+        const std::string test_name{G_TEST_GET_FULL_NAME ? G_TEST_GET_FULL_NAME() : ""};
+        if (!m_node.args->IsArgSet("-testdatadir")) {
+            // By default, the data directory has a random name on each test run
+            const auto rand_str{g_rng_temp_path.rand256().ToString()};
+            m_path_root = fs::temp_directory_path() / TEST_DIR_PATH_ELEMENT / test_name / rand_str;
+            TryCreateDirectories(m_path_root);
+        } else {
+            // Custom data directory
+            m_has_custom_datadir = true;
+            fs::path root_dir{m_node.args->GetPathArg("-testdatadir")};
+            if (root_dir.empty()) ExitFailure("-testdatadir argument is empty, please specify a path");
 
-    SelectParams(chainType);
-    if (G_TEST_LOG_FUN) LogInstance().PushBackCallback(G_TEST_LOG_FUN);
-    InitLogging(*m_node.args);
-    AppInitParameterInteraction(*m_node.args);
-    LogInstance().StartLogging();
-    m_node.warnings = std::make_unique<node::Warnings>();
-    m_node.kernel = std::make_unique<kernel::Context>();
-    m_node.ecc_context = std::make_unique<ECC_Context>();
-    SetupEnvironment();
+            root_dir = fs::absolute(root_dir);
+            m_path_lock = root_dir / TEST_DIR_PATH_ELEMENT / fs::PathFromString(test_name);
+            m_path_root = m_path_lock / "datadir";
 
-    m_node.chain = interfaces::MakeChain(m_node);
-    static bool noui_connected = false;
-    if (!noui_connected) {
-        noui_connect();
-        noui_connected = true;
+            // Try to obtain the lock; if unsuccessful don't disturb the existing test.
+            TryCreateDirectories(m_path_lock);
+            if (util::LockDirectory(m_path_lock, ".lock", /*probe_only=*/false) != util::LockResult::Success) {
+                ExitFailure("Cannot obtain a lock on test data lock directory " + fs::PathToString(m_path_lock) + '\n' +
+                            "The test executable is probably already running.");
+            }
+
+            // Always start with a fresh data directory; this doesn't delete the .lock file located one level above.
+            fs::remove_all(m_path_root);
+            if (!TryCreateDirectories(m_path_root)) ExitFailure("Cannot create test data directory");
+
+            // Print the test directory name if custom.
+            std::cout << "Test directory (will not be deleted): " << m_path_root << std::endl;
+        }
+        m_args.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+        gArgs.ForceSetArg("-datadir", fs::PathToString(m_path_root));
+
+        SelectParams(chainType);
+        if (G_TEST_LOG_FUN) LogInstance().PushBackCallback(G_TEST_LOG_FUN);
+        InitLogging(*m_node.args);
+        AppInitParameterInteraction(*m_node.args);
+        LogInstance().StartLogging();
+        m_node.warnings = std::make_unique<node::Warnings>();
+        m_node.kernel = std::make_unique<kernel::Context>();
+        m_node.ecc_context = std::make_unique<ECC_Context>();
+        SetupEnvironment();
+
+        m_node.chain = interfaces::MakeChain(m_node);
+        static bool noui_connected = false;
+        if (!noui_connected) {
+            noui_connect();
+            noui_connected = true;
+        }
+    } catch (const std::exception& e) {
+        ExitFailure(strprintf("Error during context setup, message: %s", e.what()));
     }
 }
 
