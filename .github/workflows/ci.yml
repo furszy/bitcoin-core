@@ -199,7 +199,7 @@ jobs:
       - name: Run test suite
         working-directory: build
         run: |
-          ctest --output-on-failure -j $env:NUMBER_OF_PROCESSORS -C Release
+          ctest --output-on-failure --test-output-truncation head --no-compress-output --stop-on-failure -j $env:NUMBER_OF_PROCESSORS -C Release
 
       - name: Run functional tests
         working-directory: build
