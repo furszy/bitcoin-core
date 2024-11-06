@@ -23,6 +23,12 @@ class HeadersSyncSetup : public TestingSetup
 public:
     HeadersSyncSetup(const ChainType chain_type, TestOpts opts) : TestingSetup(chain_type, opts)
     {
+
+    }
+
+    void setup()
+    {
+        TestingSetup::setup();
         PeerManager::Options peerman_opts;
         node::ApplyArgsManOptions(*m_node.args, peerman_opts);
         peerman_opts.max_headers_result = FUZZ_MAX_HEADERS_RESULTS;

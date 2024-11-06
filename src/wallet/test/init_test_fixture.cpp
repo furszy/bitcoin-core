@@ -14,8 +14,10 @@
 #include <wallet/test/init_test_fixture.h>
 
 namespace wallet {
-InitWalletDirTestingSetup::InitWalletDirTestingSetup(const ChainType chainType) : BasicTestingSetup(chainType)
+
+void InitWalletDirTestingSetup::setup()
 {
+    BasicTestingSetup::setup();
     m_wallet_loader = MakeWalletLoader(*m_node.chain, m_args);
 
     const auto sep = fs::path::preferred_separator;
@@ -38,6 +40,10 @@ InitWalletDirTestingSetup::InitWalletDirTestingSetup(const ChainType chainType) 
     fs::create_directories(m_walletdir_path_cases["relative"]);
     std::ofstream f{m_walletdir_path_cases["file"]};
     f.close();
+}
+
+InitWalletDirTestingSetup::InitWalletDirTestingSetup(const ChainType chainType) : BasicTestingSetup(chainType)
+{
 }
 
 InitWalletDirTestingSetup::~InitWalletDirTestingSetup()

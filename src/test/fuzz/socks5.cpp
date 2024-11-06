@@ -22,7 +22,7 @@ decltype(g_socks5_recv_timeout) default_socks5_recv_timeout;
 
 void initialize_socks5()
 {
-    static const auto testing_setup = MakeNoLogFileContext<const BasicTestingSetup>();
+    static const auto testing_setup = MakeNoLogFileContext<BasicTestingSetup>();
     default_socks5_recv_timeout = g_socks5_recv_timeout;
 }
 

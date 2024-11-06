@@ -10,12 +10,18 @@
 
 namespace wallet {
 WalletTestingSetup::WalletTestingSetup(const ChainType chainType)
-    : TestingSetup(chainType),
-      m_wallet_loader{interfaces::MakeWalletLoader(*m_node.chain, *Assert(m_node.args))},
-      m_wallet(m_node.chain.get(), "", CreateMockableWalletDatabase())
+    : TestingSetup(chainType)
 {
-    m_wallet.LoadWallet();
-    m_chain_notifications_handler = m_node.chain->handleNotifications({ &m_wallet, [](CWallet*) {} });
+}
+
+void WalletTestingSetup::setup()
+{
+    TestingSetup::setup();
+
+    m_wallet_loader = interfaces::MakeWalletLoader(*m_node.chain, *Assert(m_node.args));
+    m_wallet = std::make_unique<CWallet>(m_node.chain.get(), "", CreateMockableWalletDatabase());
+    m_wallet->LoadWallet();
+    m_chain_notifications_handler = m_node.chain->handleNotifications({ m_wallet.get(), [](CWallet*) {} });
     m_wallet_loader->registerRpcs();
 }
 

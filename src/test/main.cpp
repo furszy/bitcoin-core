@@ -2,12 +2,31 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <compat/compat.h>
 /**
  * See https://www.boost.org/doc/libs/1_78_0/libs/test/doc/html/boost_test/adv_scenarios/single_header_customizations/multiple_translation_units.html
  */
-#define BOOST_TEST_MODULE Bitcoin Core Test Suite
-
+#define BOOST_TEST_NO_MAIN
+#define BOOST_TEST_MAIN
 #include <boost/test/included/unit_test.hpp>
+
+MAIN_FUNCTION
+{
+    std::cout << "Running custom main function for tests!" << std::endl;
+    bool result = false;
+    try {
+        ::boost::unit_test::framework::master_test_suite().p_name.value = "Bitcoin Core Test Suite";
+        result = ::boost::unit_test::unit_test_main(&init_unit_test_suite, argc, argv);
+    } catch (const std::exception& e) {
+        std::cout << "Exception!" << std::endl;
+        std::cout << "Uncaught exception: " << e.what() << std::endl;
+        std::cerr << "Uncaught exception: " << e.what() << std::endl;
+        exit(EXIT_FAILURE);
+    } catch (...) {
+        std::cout << "Catch all exceptions!" << std::endl;
+    }
+    return result;
+}
 
 #include <test/util/setup_common.h>
 

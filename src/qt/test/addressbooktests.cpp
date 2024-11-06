@@ -73,6 +73,7 @@ void EditAddressAndSubmit(
 void TestAddAddressesToSendBook(interfaces::Node& node)
 {
     TestChain100Setup test;
+    test.setup();
     auto wallet_loader = interfaces::MakeWalletLoader(*test.m_node.chain, *Assert(test.m_node.args));
     test.m_node.wallet_loader = wallet_loader.get();
     node.setContext(&test.m_node);

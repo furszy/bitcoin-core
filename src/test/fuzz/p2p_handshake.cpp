@@ -31,7 +31,7 @@ const TestingSetup* g_setup;
 
 void initialize()
 {
-    static const auto testing_setup = MakeNoLogFileContext<const TestingSetup>(
+    static const auto testing_setup = MakeNoLogFileContext<TestingSetup>(
         /*chain_type=*/ChainType::REGTEST);
     g_setup = testing_setup.get();
 }

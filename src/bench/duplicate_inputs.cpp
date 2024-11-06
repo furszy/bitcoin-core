@@ -28,7 +28,7 @@
 
 static void DuplicateInputs(benchmark::Bench& bench)
 {
-    const auto testing_setup = MakeNoLogFileContext<const TestingSetup>();
+    const auto testing_setup = MakeNoLogFileContext<TestingSetup>();
 
     const CScript SCRIPT_PUB{CScript(OP_TRUE)};
 

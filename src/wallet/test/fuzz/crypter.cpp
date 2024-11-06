@@ -14,7 +14,7 @@ namespace {
 const TestingSetup* g_setup;
 void initialize_crypter()
 {
-    static const auto testing_setup = MakeNoLogFileContext<const TestingSetup>();
+    static const auto testing_setup = MakeNoLogFileContext<TestingSetup>();
     g_setup = testing_setup.get();
 }
 

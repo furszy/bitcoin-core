@@ -35,7 +35,7 @@
  */
 static void LoadExternalBlockFile(benchmark::Bench& bench)
 {
-    const auto testing_setup{MakeNoLogFileContext<const TestingSetup>(ChainType::MAIN)};
+    const auto testing_setup{MakeNoLogFileContext<TestingSetup>(ChainType::MAIN)};
 
     // Create a single block as in the blocks files (magic bytes, block size,
     // block data) as a stream object.

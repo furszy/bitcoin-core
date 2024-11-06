@@ -23,8 +23,10 @@ struct WalletTestingSetup : public TestingSetup {
     explicit WalletTestingSetup(const ChainType chainType = ChainType::MAIN);
     ~WalletTestingSetup();
 
+    void setup();
+
     std::unique_ptr<interfaces::WalletLoader> m_wallet_loader;
-    CWallet m_wallet;
+    std::unique_ptr<CWallet> m_wallet;
     std::unique_ptr<interfaces::Handler> m_chain_notifications_handler;
 };
 } // namespace wallet

@@ -75,6 +75,10 @@ struct BasicTestingSetup {
     explicit BasicTestingSetup(const ChainType chainType = ChainType::MAIN, TestOpts = {});
     ~BasicTestingSetup();
 
+    // Test setup function
+    void setup();
+    void inner_setup();
+
     fs::path m_path_root;
     fs::path m_path_lock;
     bool m_has_custom_datadir{false};
@@ -96,6 +100,8 @@ struct BasicTestingSetup {
      * @see https://github.com/bitcoin/bitcoin/issues/25055 for additional context.
      */
     ArgsManager m_args;
+    TestOpts m_opts;
+    ChainType m_chain_type;
 };
 
 /** Testing setup that performs all steps up until right before
@@ -111,6 +117,8 @@ struct ChainTestingSetup : public BasicTestingSetup {
     explicit ChainTestingSetup(const ChainType chainType = ChainType::MAIN, TestOpts = {});
     ~ChainTestingSetup();
 
+    void setup();
+
     // Supplies a chainstate, if one is needed
     void LoadVerifyActivateChainstate();
 };
@@ -121,6 +129,7 @@ struct TestingSetup : public ChainTestingSetup {
     explicit TestingSetup(
         const ChainType chainType = ChainType::MAIN,
         TestOpts = {});
+    void setup();
 };
 
 /** Identical to TestingSetup, but chain set to regtest */
@@ -140,6 +149,9 @@ struct TestChain100Setup : public TestingSetup {
     TestChain100Setup(
         const ChainType chain_type = ChainType::REGTEST,
         TestOpts = {});
+
+    void setup();
+    void inner_setup();
 
     /**
      * Create a new block with just given transactions, coinbase paying to
@@ -250,7 +262,7 @@ struct TestChain100Setup : public TestingSetup {
  * Make a test setup that has disk access to the debug.log file disabled. Can
  * be used in "hot loops", for example fuzzing or benchmarking.
  */
-template <class T = const BasicTestingSetup>
+template <class T = BasicTestingSetup>
 std::unique_ptr<T> MakeNoLogFileContext(const ChainType chain_type = ChainType::REGTEST, TestOpts opts = {})
 {
     opts.extra_args = Cat(
@@ -260,7 +272,9 @@ std::unique_ptr<T> MakeNoLogFileContext(const ChainType chain_type = ChainType::
         },
         opts.extra_args);
 
-    return std::make_unique<T>(chain_type, opts);
+    auto t = std::make_unique<T>(chain_type, opts);
+    t->setup();
+    return t;
 }
 
 CBlock getBlock13b8a();

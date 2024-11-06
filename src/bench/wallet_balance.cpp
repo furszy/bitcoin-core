@@ -26,7 +26,7 @@
 namespace wallet {
 static void WalletBalance(benchmark::Bench& bench, const bool set_dirty, const bool add_mine)
 {
-    const auto test_setup = MakeNoLogFileContext<const TestingSetup>();
+    const auto test_setup = MakeNoLogFileContext<TestingSetup>();
 
     const auto& ADDRESS_WATCHONLY = ADDRESS_BCRT1_UNSPENDABLE;
 

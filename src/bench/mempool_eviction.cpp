@@ -36,7 +36,7 @@ static void AddTx(const CTransactionRef& tx, const CAmount& nFee, CTxMemPool& po
 // unique transactions for a more meaningful performance measurement.
 static void MempoolEviction(benchmark::Bench& bench)
 {
-    const auto testing_setup = MakeNoLogFileContext<const TestingSetup>();
+    const auto testing_setup = MakeNoLogFileContext<TestingSetup>();
 
     CMutableTransaction tx1 = CMutableTransaction();
     tx1.vin.resize(1);

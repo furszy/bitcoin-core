@@ -30,7 +30,7 @@ const TestingSetup* g_setup;
 
 void initialize_process_messages()
 {
-    static const auto testing_setup = MakeNoLogFileContext<const TestingSetup>(
+    static const auto testing_setup = MakeNoLogFileContext<TestingSetup>(
             /*chain_type=*/ChainType::REGTEST,
             {.extra_args = {"-txreconciliation"}});
     g_setup = testing_setup.get();

@@ -40,7 +40,7 @@ void initialize_process_message()
         Assert(std::count(ALL_NET_MESSAGE_TYPES.begin(), ALL_NET_MESSAGE_TYPES.end(), LIMIT_TO_MESSAGE_TYPE)); // Unknown message type passed
     }
 
-    static const auto testing_setup = MakeNoLogFileContext<const TestingSetup>(
+    static const auto testing_setup = MakeNoLogFileContext<TestingSetup>(
             /*chain_type=*/ChainType::REGTEST,
             {.extra_args = {"-txreconciliation"}});
     g_setup = testing_setup.get();

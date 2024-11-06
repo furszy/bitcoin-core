@@ -39,16 +39,19 @@ struct LogSetup : public BasicTestingSetup {
     std::unordered_map<BCLog::LogFlags, BCLog::Level> prev_category_levels;
     BCLog::Level prev_log_level;
 
-    LogSetup() : prev_log_path{LogInstance().m_file_path},
-                 tmp_log_path{m_args.GetDataDirBase() / "tmp_debug.log"},
-                 prev_reopen_file{LogInstance().m_reopen_file},
-                 prev_print_to_file{LogInstance().m_print_to_file},
-                 prev_log_timestamps{LogInstance().m_log_timestamps},
-                 prev_log_threadnames{LogInstance().m_log_threadnames},
-                 prev_log_sourcelocations{LogInstance().m_log_sourcelocations},
-                 prev_category_levels{LogInstance().CategoryLevels()},
-                 prev_log_level{LogInstance().LogLevel()}
+    void setup()
     {
+        BasicTestingSetup::setup();
+        prev_log_path = LogInstance().m_file_path;
+        tmp_log_path = m_args.GetDataDirBase() / "tmp_debug.log";
+        prev_reopen_file = LogInstance().m_reopen_file;
+        prev_print_to_file = LogInstance().m_print_to_file;
+        prev_log_timestamps = LogInstance().m_log_timestamps;
+        prev_log_threadnames = LogInstance().m_log_threadnames;
+        prev_log_sourcelocations = LogInstance().m_log_sourcelocations;
+        prev_category_levels = LogInstance().CategoryLevels();
+        prev_log_level = LogInstance().LogLevel();
+
         LogInstance().m_file_path = tmp_log_path;
         LogInstance().m_reopen_file = true;
         LogInstance().m_print_to_file = true;

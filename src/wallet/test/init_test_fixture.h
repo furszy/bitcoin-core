@@ -16,6 +16,7 @@ namespace wallet {
 struct InitWalletDirTestingSetup: public BasicTestingSetup {
     explicit InitWalletDirTestingSetup(const ChainType chain_type = ChainType::MAIN);
     ~InitWalletDirTestingSetup();
+    void setup();
     void SetWalletDir(const fs::path& walletdir_path);
 
     fs::path m_datadir;

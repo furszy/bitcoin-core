@@ -43,7 +43,7 @@ MockedDescriptorConverter MOCKED_DESC_CONVERTER;
 
 void initialize_spkm()
 {
-    static const auto testing_setup{MakeNoLogFileContext<const TestingSetup>()};
+    static const auto testing_setup{MakeNoLogFileContext<TestingSetup>()};
     g_setup = testing_setup.get();
     SelectParams(ChainType::MAIN);
     MOCKED_DESC_CONVERTER.Init();

@@ -105,7 +105,7 @@ struct PreSelectInputs {
 
 static void WalletCreateTx(benchmark::Bench& bench, const OutputType output_type, bool allow_other_inputs, std::optional<PreSelectInputs> preset_inputs)
 {
-    const auto test_setup = MakeNoLogFileContext<const TestingSetup>();
+    const auto test_setup = MakeNoLogFileContext<TestingSetup>();
 
     // Set clock to genesis block, so the descriptors/keys creation time don't interfere with the blocks scanning process.
     SetMockTime(test_setup->m_node.chainman->GetParams().GenesisBlock().nTime);
@@ -161,7 +161,7 @@ static void WalletCreateTx(benchmark::Bench& bench, const OutputType output_type
 
 static void AvailableCoins(benchmark::Bench& bench, const std::vector<OutputType>& output_type)
 {
-    const auto test_setup = MakeNoLogFileContext<const TestingSetup>();
+    const auto test_setup = MakeNoLogFileContext<TestingSetup>();
     // Set clock to genesis block, so the descriptors/keys creation time don't interfere with the blocks scanning process.
     SetMockTime(test_setup->m_node.chainman->GetParams().GenesisBlock().nTime);
     CWallet wallet{test_setup->m_node.chain.get(), "", CreateMockableWalletDatabase()};

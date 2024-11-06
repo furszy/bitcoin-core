@@ -22,7 +22,7 @@
 
 static void AssembleBlock(benchmark::Bench& bench)
 {
-    const auto test_setup = MakeNoLogFileContext<const TestingSetup>();
+    const auto test_setup = MakeNoLogFileContext<TestingSetup>();
 
     CScriptWitness witness;
     witness.stack.push_back(WITNESS_STACK_ELEM_OP_TRUE);

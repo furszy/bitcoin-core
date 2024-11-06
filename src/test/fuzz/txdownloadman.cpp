@@ -80,7 +80,7 @@ static std::vector<COutPoint> PickCoins(FuzzedDataProvider& fuzzed_data_provider
 
 void initialize()
 {
-    static const auto testing_setup = MakeNoLogFileContext<const TestingSetup>();
+    static const auto testing_setup = MakeNoLogFileContext<TestingSetup>();
     g_setup = testing_setup.get();
     for (uint32_t i = 0; i < uint32_t{NUM_COINS}; ++i) {
         COINS[i] = COutPoint{Txid::FromUint256((HashWriter() << i).GetHash()), i};
