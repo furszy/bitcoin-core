@@ -554,6 +554,40 @@ BOOST_AUTO_TEST_CASE(ismine_standard)
         BOOST_CHECK_EQUAL(spk_manager, nullptr);
     }
 
+    // P2WSH-P2PK with an uncompressed (invalid under SegWit rules)
+    // The witness Program must not be considered ISMINE_SPENDABLE.
+    {
+        CWallet keystore(chain.get(), "", CreateMockableWalletDatabase());
+        keystore.SetupLegacyScriptPubKeyMan();
+        LOCK(keystore.GetLegacyScriptPubKeyMan()->cs_KeyStore);
+
+        CKey key = uncompressedKey;
+        CScript witnessScript = GetScriptForRawPubKey(key.GetPubKey());
+        CScript witness_program = CScript() << OP_0 << ToByteVector(WitnessV0ScriptHash(witnessScript));
+
+        // Add witness program and witness script but no key
+        BOOST_CHECK(keystore.GetLegacyScriptPubKeyMan()->AddCScript(witness_program));
+        BOOST_CHECK(keystore.GetLegacyScriptPubKeyMan()->AddCScript(witnessScript));
+
+        for (const auto& s : {witness_program, witnessScript}) {
+            BOOST_CHECK_EQUAL(keystore.GetLegacyScriptPubKeyMan()->IsMine(s), ISMINE_NO);
+            BOOST_CHECK(keystore.GetLegacyScriptPubKeyMan()->GetScriptPubKeys().count(s) == 0);
+        }
+
+        // Add key and verify that:
+        // 1) The witness program still return ISMINE_NO. Because uncompress keys are not allowed under segwit rules.
+        // 2) The witness script returns ISMINE_SPENDABLE. Because it could also be a valid redeem script.
+        BOOST_CHECK(keystore.GetLegacyScriptPubKeyMan()->AddKey(key));
+
+        // 1) Witness program
+        BOOST_CHECK_EQUAL(keystore.GetLegacyScriptPubKeyMan()->IsMine(witness_program), ISMINE_NO);
+        BOOST_CHECK(keystore.GetLegacyScriptPubKeyMan()->GetScriptPubKeys().count(witness_program) == 0);
+
+        // 2) Witness script
+        BOOST_CHECK_EQUAL(keystore.GetLegacyScriptPubKeyMan()->IsMine(witnessScript), ISMINE_SPENDABLE);
+        BOOST_CHECK(keystore.GetLegacyScriptPubKeyMan()->GetScriptPubKeys().count(witnessScript) == 1);
+    }
+
     // P2WSH multisig wrapped in P2SH - Legacy
     {
         CWallet keystore(chain.get(), "", CreateMockableWalletDatabase());
