@@ -892,23 +892,43 @@ class WalletMigrationTest(BitcoinTestFramework):
 
         self.old_node.unloadwallet("failed")
         shutil.copytree(self.old_node.wallets_path / "failed", self.master_node.wallets_path / "failed")
-        assert_raises_rpc_error(-4, "Failed to create database", self.master_node.migratewallet, "failed")
 
-        assert "failed" in self.master_node.listwallets()
-        assert "failed_watchonly" not in self.master_node.listwallets()
-        assert "failed_solvables" not in self.master_node.listwallets()
+        def exec_test(load_wallet, expect_loaded):
+            assert "failed" not in self.master_node.listwallets()
+            if load_wallet:
+                self.master_node.loadwallet("failed")
 
-        assert not (self.master_node.wallets_path / "failed_watchonly").exists()
-        # Since the file in failed_solvables is one that we put there, migration shouldn't touch it
-        assert solvables_path.exists()
-        new_shasum = sha256sum_file(solvables_path / "wallet.dat")
-        assert_equal(original_shasum, new_shasum)
+            assert_raises_rpc_error(-4, "Failed to create database", self.master_node.migratewallet, "failed")
 
-        # Check the wallet we tried to migrate is still BDB
-        with open(self.master_node.wallets_path / "failed" / "wallet.dat", "rb") as f:
-            data = f.read(16)
-            _, _, magic = struct.unpack("QII", data)
-            assert_equal(magic, BTREE_MAGIC)
+            loaded_wallets = self.master_node.listwallets()
+            assert_equal("failed" in loaded_wallets, expect_loaded)
+            assert all(wallet not in loaded_wallets for wallet in ["failed_watchonly", "failed_solvables"])
+
+            assert not (self.master_node.wallets_path / "failed_watchonly").exists()
+            # Since the file in failed_solvables is one that we put there, migration shouldn't touch it
+            assert solvables_path.exists()
+            new_shasum = sha256sum_file(solvables_path / "wallet.dat")
+            assert_equal(original_shasum, new_shasum)
+
+            # Check the wallet we tried to migrate is still BDB
+            with open(self.master_node.wallets_path / "failed" / "wallet.dat", "rb") as f:
+                data = f.read(16)
+                _, _, magic = struct.unpack("QII", data)
+                assert_equal(magic, BTREE_MAGIC)
+
+        # Exercise the not loaded wallet scenario.
+        exec_test(load_wallet=False, expect_loaded=False)
+
+        # Perform the same test with a loaded legacy wallet.
+        # The wallet should remain loaded after the failure.
+        #
+        # This applies only when BDB is enabled, as the user
+        # cannot interact with the legacy wallet database
+        # without BDB support.
+        if self.is_bdb_compiled() is not None:
+            # Advance time to generate a different backup name
+            self.master_node.setmocktime(self.master_node.getblockheader(self.master_node.getbestblockhash())['time'] + 100)
+            exec_test(load_wallet=True, expect_loaded=True)
 
     def test_blank(self):
         self.log.info("Test that a blank wallet is migrated")
