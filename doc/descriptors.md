@@ -85,7 +85,7 @@ Descriptors consist of several types of expressions. The top level expression is
 - `sortedmulti_a(k,KEY_1,KEY_2,...,KEY_N)` (only inside `tr`): similar to `multi_a`, but the (x-only) public keys in it will be sorted lexicographically.
 - `tr(KEY)` or `tr(KEY,TREE)` (top level only): P2TR output with the specified key as internal key, and optionally a tree of script paths.
 - `addr(ADDR)` (top level only): the script which ADDR expands to.
-- `raw(HEX)` (top level only): the script whose hex encoding is HEX.
+- `raw(HEX)`: the script whose hex encoding is HEX.
 - `rawtr(KEY)` (top level only): P2TR output with the specified key as output key. NOTE: while it's possible to use this to construct wallets, it has several downsides, like being unable to prove no hidden script path exists. Use at your own risk.
 
 `KEY` expressions:

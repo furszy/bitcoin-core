@@ -990,4 +990,36 @@ BOOST_AUTO_TEST_CASE(descriptor_test)
     CheckInferDescriptor("4104032540df1d3c7070a8ab3a9cdd304dfc7fd1e6541369c53c4c3310b2537d91059afc8b8e7673eb812a32978dabb78c40f2e423f7757dca61d11838c7aeeb5220ac", "pk(04032540df1d3c7070a8ab3a9cdd304dfc7fd1e6541369c53c4c3310b2537d91059afc8b8e7673eb812a32978dabb78c40f2e423f7757dca61d11838c7aeeb5220)", {}, {{"04032540df1d3c7070a8ab3a9cdd304dfc7fd1e6541369c53c4c3310b2537d91059afc8b8e7673eb812a32978dabb78c40f2e423f7757dca61d11838c7aeeb5220", ""}});
 }
 
+template <typename T>
+const auto& CheckRaw = [](const std::string& str_desc) {
+    FlatSigningProvider out_keys;
+    std::string error;
+    std::vector<std::unique_ptr<Descriptor>> descs = Parse(str_desc, out_keys, error);
+    BOOST_CHECK_MESSAGE(error.empty(), strprintf("Parse failed for %s", str_desc));
+
+    assert(descs.size() == 1);
+    auto& desc = descs.front();
+    assert(desc != nullptr);
+    std::vector<CScript> scripts_temp;
+    BOOST_CHECK(desc->Expand(/*pos=*/0, out_keys, scripts_temp, out_keys));
+    assert(scripts_temp.size() == 1);
+
+    CTxDestination dest;
+    BOOST_CHECK(ExtractDestination(scripts_temp.front(), dest));
+    BOOST_CHECK(std::get_if<T>(&dest) != nullptr);
+};
+
+BOOST_AUTO_TEST_CASE(raw_descriptor_test)
+{
+    // Verify raw() can be wrapped inside other contexts
+    std::string hex_script = "5387"; // OP_3 OP_EQUAL dummy redeem script
+    CheckRaw<ScriptHash>(strprintf("sh(raw(%s))", hex_script));
+    CheckRaw<ScriptHash>(strprintf("sh(wsh(raw(%s)))", hex_script));
+    CheckRaw<WitnessV0ScriptHash>(strprintf("wsh(raw(%s))", hex_script));
+    CheckRaw<WitnessV1Taproot>(strprintf("tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd,raw(%s))", hex_script));
+    CheckRaw<WitnessV1Taproot>(strprintf("tr(a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5bd,{pk(03a34b99f22c790c4e36b2b3c2c35a36db06226e41c692fc82b8b56ac1c540c5),raw(%s)})", hex_script));
+
+    // TODO: add check for raw() in the tr key path.
+}
+
 BOOST_AUTO_TEST_SUITE_END()

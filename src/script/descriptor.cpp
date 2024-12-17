@@ -2072,7 +2072,7 @@ std::vector<std::unique_ptr<DescriptorImpl>> ParseScript(uint32_t& key_exp_index
         error = "Can only have rawtr at top level";
         return {};
     }
-    if (ctx == ParseScriptContext::TOP && Func("raw", expr)) {
+    if (Func("raw", expr)) {
         std::string str(expr.begin(), expr.end());
         if (!IsHex(str)) {
             error = "Raw script is not hex";
@@ -2081,10 +2081,8 @@ std::vector<std::unique_ptr<DescriptorImpl>> ParseScript(uint32_t& key_exp_index
         auto bytes = ParseHex(str);
         ret.emplace_back(std::make_unique<RawDescriptor>(CScript(bytes.begin(), bytes.end())));
         return ret;
-    } else if (Func("raw", expr)) {
-        error = "Can only have raw() at top level";
-        return {};
     }
+
     // Process miniscript expressions.
     {
         const auto script_ctx{ctx == ParseScriptContext::P2WSH ? miniscript::MiniscriptContext::P2WSH : miniscript::MiniscriptContext::TAPSCRIPT};
@@ -2314,12 +2312,10 @@ std::unique_ptr<DescriptorImpl> InferScript(const CScript& script, ParseScriptCo
         }
     }
 
-    // The following descriptors are all top-level only descriptors.
-    // So if we are not at the top level, return early.
-    if (ctx != ParseScriptContext::TOP) return nullptr;
-
+    // Prioritize addr() descriptors only if we are at the top level.
+    // In all other cases, use raw() as it allow us store more information about the output.
     CTxDestination dest;
-    if (ExtractDestination(script, dest)) {
+    if (ctx == ParseScriptContext::TOP && ExtractDestination(script, dest)) {
         if (GetScriptForDestination(dest) == script) {
             return std::make_unique<AddressDescriptor>(std::move(dest));
         }
