@@ -657,6 +657,8 @@ public:
         std::string extra = ToStringExtra();
         size_t pos = extra.size() > 0 ? 1 : 0;
         std::string ret = m_name + "(" + extra;
+        bool is_taproot = m_name == "tr";
+        bool has_all_keys = true;
         for (const auto& pubkey : m_pubkey_args) {
             if (pos++) ret += ",";
             std::string tmp;
@@ -665,7 +667,17 @@ public:
                     if (!pubkey->ToNormalizedString(*arg, tmp, cache)) return false;
                     break;
                 case StringType::PRIVATE:
-                    if (!pubkey->ToPrivateString(*arg, tmp)) return false;
+                    if (!pubkey->ToPrivateString(*arg, tmp)) {
+                        // When parsing a taproot descriptor, we might not have the key material for the key
+                        // spending path but could have the material for one of the script spending paths.
+                        // In any other case, return false.
+                        if (!is_taproot) return false;
+                        // At this point, we are dealing only with a taproot scenario.
+                        // We don't have the private key for the key spending path;
+                        // show the public key and expect to have key material for one of the script spending paths.
+                        tmp = pubkey->ToString();
+                        has_all_keys = false;
+                    }
                     break;
                 case StringType::PUBLIC:
                     tmp = pubkey->ToString();
@@ -678,6 +690,10 @@ public:
         }
         std::string subscript;
         if (!ToStringSubScriptHelper(arg, subscript, type, cache)) return false;
+
+        // If the caller requested private information, and we have no subscript string nor sk information, return error.
+        if (subscript.empty() && type == StringType::PRIVATE && !has_all_keys) return false;
+
         if (pos && subscript.size()) ret += ',';
         out = std::move(ret) + std::move(subscript) + ")";
         return true;
