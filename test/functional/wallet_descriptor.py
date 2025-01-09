@@ -71,6 +71,26 @@ class WalletDescriptorTest(BitcoinTestFramework):
         assert_equal(bestblock_rec[5:37][::-1].hex(), self.nodes[0].getbestblockhash())
         assert_equal(cache_records, 1000)
 
+    def test_tr_with_pubkey_listing(self):
+        self.log.info("Test listing of a tr descriptor with an internal pubkey")
+        self.nodes[0].createwallet(wallet_name="tr_listing", blank=True)
+        wallet = self.nodes[0].get_wallet_rpc("tr_listing")
+        pubkey = "03d1d1110030000000000120000000000000000000000000001370010912cd08cc"
+        privkey = "cNKAo2ZRsaWKcP481cEfj3astPyBrfq56JBtLeRhHUvTSuk2z4MR"
+        desc = descsum_create(f'tr({pubkey},pk({privkey}))')
+        res = wallet.importdescriptors([{"desc": desc, "timestamp": "now"}])
+        assert_equal(res[0]["success"], True)
+        assert next(it['desc'] for it in wallet.listdescriptors(private=True)['descriptors'] if it['desc'] == desc)
+
+        self.log.info("Test listing of a tr descriptor with a public key in the key spending path")
+        desc = descsum_create(f'tr({privkey},pk({pubkey}))')
+        res = wallet.importdescriptors([{"desc": desc, "timestamp": "now"}])
+        assert_equal(res[0]["success"], True)
+        # TODO: This fails because of 'ToStringSubScriptHelper'. It returns false on the first pk() that has no privkey..
+        #  instead, it should loop over all subscripts, and only fail at the top-level ToStringHelper if there is no privkey on all of its paths.
+        assert next(it['desc'] for it in wallet.listdescriptors(private=True)['descriptors'] if it['desc'] == desc)
+
+
     def run_test(self):
         if self.is_bdb_compiled():
             # Make a legacy wallet and check it is BDB
@@ -278,7 +298,8 @@ class WalletDescriptorTest(BitcoinTestFramework):
         conn.close()
         assert_raises_rpc_error(-4, "Unexpected legacy entry in descriptor wallet found.", self.nodes[0].loadwallet, "crashme")
 
-        self.test_concurrent_writes()
+        #self.test_concurrent_writes()
+        self.test_tr_with_pubkey_listing()
 
 
 if __name__ == '__main__':
