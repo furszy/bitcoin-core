@@ -1951,6 +1951,12 @@ CWallet::ScanResult CWallet::ScanForWalletTransactions(const uint256& start_bloc
         uint256 next_block_hash;
         chain().findBlock(block_hash, FoundBlock().inActiveChain(block_still_active).nextBlock(FoundBlock().inActiveChain(next_block).hash(next_block_hash)));
 
+        // block_100_chainA is found here --> the tx is here
+        // block_100_chainA reaches disconnectBlock.
+        // block_100_chainB reaches ConnectBlock --> the tx appears here
+        // block_101_chainB reaches ConnectBlock
+        // then we call 'SyncTransaction' with block_100_chainA but the tx internally is at block_100_chainB now.
+
         if (fetch_block) {
             // Read block data
             CBlock block;

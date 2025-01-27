@@ -191,6 +191,7 @@ class ChainTiebreaksTest(BitcoinTestFramework):
         assert_equal(wallet.getwalletinfo()['lastprocessedblock']['hash'], chain1_block2.hash)
         # Verify we have two chains at the same height
         assert all(chain['height'] == 2 for chain in node.getchaintips())
+        assert_equal(wallet.getbalances()['mine']['immature'], 0)
 
         # At this point, chain1 is the active chain, and it has the same amount of work than chain0.
         # Restart node and see if chain0 becomes the active chain once more. And if that happens, create another
@@ -203,6 +204,7 @@ class ChainTiebreaksTest(BitcoinTestFramework):
             self.restart_node(0, extra_args=['-checkblocks=0'])
             # Check the transaction is still abandoned upon restart
             wallet = node.get_wallet_rpc("wallet")
+            assert_greater_than(wallet.getbalances()['mine']['immature'], 0)
             assert_equal(wallet.gettransaction(blocks[0].vtx[0].hash)['details'][0]['abandoned'], True)
             # If for some reason the first chain gets activated again, and become the main chain, this is an issue for the wallet
             if node.getbestblockhash() == chain0_block2.hash:
