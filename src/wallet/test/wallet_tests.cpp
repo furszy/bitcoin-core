@@ -1021,5 +1021,41 @@ BOOST_FIXTURE_TEST_CASE(wallet_sync_tx_invalid_state_test, TestingSetup)
                           HasReason("DB error adding transaction to wallet, write failed"));
 }
 
+/**
+ * Verify the wallet does not crash when the same block is disconnected twice due to an incompatible coinbase transaction state.
+ */
+BOOST_FIXTURE_TEST_CASE(wallet_crash_during_disconnectBlock, TestChain100Setup)
+{
+    const auto& chainman = Assert(m_node.chainman);
+    const int64_t BLOCK_TIME = WITH_LOCK(chainman->GetMutex(), return chainman->ActiveChain().Tip()->GetBlockTimeMax() + 5);
+    SetMockTime(BLOCK_TIME);  // to by-pass the wallet birth time.
+
+    CKey key;
+    key.MakeNewKey(true);
+    CreateAndProcessBlock({}, GetScriptForRawPubKey(key.GetPubKey()));
+    auto wallet = CreateSyncedWallet(*m_node.chain, WITH_LOCK(chainman->GetMutex(), return chainman->ActiveChain()), key);
+    BOOST_CHECK(GetBalance(*wallet, /*min_depth=*/0, false).m_mine_immature == 50 * COIN);
+
+    // Fetch the latest block data.
+    CBlockIndex* tip = WITH_LOCK(chainman->GetMutex(), return chainman->ActiveChain().Tip());
+    CBlock block_data;
+    m_node.chain->findBlock(tip->GetBlockHash(), interfaces::FoundBlock().data(block_data));
+
+    // Construct block info for disconnection
+    interfaces::BlockInfo info(*tip->phashBlock);
+    info.data = &block_data;
+    info.prev_hash = tip->phashBlock;
+    info.height = tip->nHeight;
+    info.chain_time_max = tip->GetBlockTimeMax();
+
+    // Disconnect block twice
+    wallet->blockDisconnected(info);
+    wallet->blockDisconnected(info);
+
+    // Ensure the balance was updated correctly.
+    BOOST_CHECK(GetBalance(*wallet, /*min_depth=*/0, false).m_mine_immature == 0 * COIN);
+}
+
+
 BOOST_AUTO_TEST_SUITE_END()
 } // namespace wallet
