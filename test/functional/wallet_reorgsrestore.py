@@ -38,6 +38,11 @@ class ReorgsRestoreTest(BitcoinTestFramework):
         # part of the best chain.
         # TODO: need to also verify that any descendant of this coinbase transaction is also marked as abandoned..
         # TODO: The code to fix this is to copy paste AddToWallet into LoadToWallet
+        # TODO: hmm, thinking further about what was doing this morning..
+        # After chain replacement, because the coinbase tx is not marked abandoned during startup, their descendants
+        # will not be marked as abandoned neither.. so the wallet will continue broadcasting them over the network.
+        # Which will fill all the connected peers mempool for no reason because the node will not broadcast the parent
+        # (because it is a coinbase tx)
         ##########################################################################################################
         # Sync nodes for the coming test and assert all are at the same block
         for i, j in [(0, 1), (1, 2), (2, 0)]:
@@ -56,12 +61,16 @@ class ReorgsRestoreTest(BitcoinTestFramework):
         self.generatetoaddress(self.nodes[0], 1, wallet0.getnewaddress(), sync_fun=self.no_op)
         node0_coinbase_tx_hash = wallet0.getblock(wallet0.getbestblockhash(), verbose=1)['tx'][0]
 
+        # Mine 100 blocks on top to mature the coinbase and create a descendant
+        self.generate(self.nodes[0], 101, sync_fun=self.no_op)
+        # Make descendant, send-to-self
+        descendant_tx_id = wallet0.sendtoaddress(wallet0.getnewaddress(), 1)
+
         # Verify balance is greater than 0.
         wallet0.syncwithvalidationinterfacequeue()
-        assert(wallet0.getbalances()['mine']['immature'] > 0)
+        assert(wallet0.getbalances()['mine']['trusted'] > 0)
 
-        # Now create another block in node1 at the same tip as the one we just created for node0
-        # This will be used to replace the node0 chain later.
+        # Now create a fork in node1. This will be used to replace node0's chain later.
         self.nodes[1].createwallet(wallet_name="w1", load_on_startup=True)
         wallet1 = self.nodes[1].get_wallet_rpc("w1")
         self.generatetoaddress(self.nodes[1], 1, wallet1.getnewaddress(), sync_fun=self.no_op)
@@ -87,10 +96,10 @@ class ReorgsRestoreTest(BitcoinTestFramework):
 
         # Verify the coinbase tx was marked as abandoned and balance correctly computed
         assert_equal(wallet0.gettransaction(node0_coinbase_tx_hash)['details'][0]['abandoned'], True)
-        assert(wallet0.getbalances()['mine']['immature'] == 0)
+        assert(wallet0.getbalances()['mine']['trusted'] == 0)
+        # Verify the coinbase descendant was also marked as abandoned
+        assert_equal(wallet0.gettransaction(descendant_tx_id)['details'][0]['abandoned'], True)
 
-        # TODO: need to also verify that any descendant of this coinbase transaction is also marked as abandoned..
-        # TODO: The code to fix this is to copy paste AddToWallet into LoadToWallet
 
     def run_test(self):
         # Send a tx from which to conflict outputs later
