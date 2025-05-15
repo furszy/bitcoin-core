@@ -37,6 +37,7 @@ from .util import (
     delete_cookie_file,
     get_auth_cookie,
     get_rpc_proxy,
+    is_file_lockable,
     rpc_url,
     wait_until_helper_internal,
     p2p_port,
@@ -449,6 +450,18 @@ class TestNode():
         self.rpc_connected = False
         self.rpc = None
         self.log.debug("Node stopped")
+
+        # Verify we can acquire the app's lock before returning
+        # This ensures the process can be re-initiated at any time.
+        lock_file = os.path.join(self.chain_path, ".lock")
+        attempts_num = 0
+        while not is_file_lockable(lock_file) and attempts_num < 100:
+            attempts_num +=1
+            time.sleep(0.05)
+
+        if attempts_num >= 100:
+           raise AssertionError("Error: Cannot acquire lock after node's shutdown")
+
         return True
 
     def wait_until_stopped(self, *, timeout=BITCOIND_PROC_WAIT_TIMEOUT, expect_error=False, **kwargs):

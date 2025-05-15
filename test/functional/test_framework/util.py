@@ -7,6 +7,8 @@
 from base64 import b64encode
 from decimal import Decimal
 from subprocess import CalledProcessError
+import errno
+import fcntl
 import hashlib
 import inspect
 import json
@@ -342,6 +344,25 @@ def util_xor(data, key, *, offset):
     for i in range(len(data)):
         data[i] ^= key[(i + offset) % len(key)]
     return bytes(data)
+
+def is_file_lockable(file_path):
+    """
+    Returns True if the lock is acquired and released successfully,
+    False if the file is already locked by another process.
+    Raises OSError for other I/O-related errors.
+    """
+    try:
+        with open(file_path, 'w') as file:
+            # Attempt lock
+            fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Release lock
+            fcntl.flock(file, fcntl.LOCK_UN)
+            return True
+    except OSError as e:
+        if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
+            return False
+        else:
+            raise
 
 
 # RPC/P2P connection constants and functions
