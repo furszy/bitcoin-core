@@ -130,6 +130,12 @@ bool BaseIndex::Init()
     return true;
 }
 
+// Returns the next block to process during initial sync.
+// Possible return values:
+// 1) The genesis block if pindex_prev=nullptr
+// 2) The next block after pindex_prev, if pindex_prev is on the active chain (null if it reached the tip).
+// 3) The block immediately following the fork point between pindex_prev and the active chain,
+//    if pindex_prev is not part of the active chain -> the caller must perform a rewind if this happens.
 static const CBlockIndex* NextSyncBlock(const CBlockIndex* pindex_prev, CChain& chain) EXCLUSIVE_LOCKS_REQUIRED(cs_main)
 {
     AssertLockHeld(cs_main);
