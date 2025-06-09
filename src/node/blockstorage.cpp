@@ -691,6 +691,31 @@ bool BlockManager::ReadBlockUndo(CBlockUndo& blockundo, const CBlockIndex& index
     return true;
 }
 
+bool BlockManager::ReadTx(const FlatFilePos& pos_block, const unsigned int offset_tx,
+                          const uint256& expected_hash, CTransactionRef& tx, uint256& block_hash) const
+{
+    AutoFile file{OpenBlockFile(pos_block, true)};
+    if (file.IsNull()) {
+        LogError("%s: OpenBlockFile failed\n", __func__);
+        return false;
+    }
+    CBlockHeader header;
+    try {
+        file >> header;
+        file.seek(offset_tx, SEEK_CUR);
+        file >> TX_WITH_WITNESS(tx);
+    } catch (const std::exception& e) {
+        LogError("%s: Deserialize or I/O error - %s\n", __func__, e.what());
+        return false;
+    }
+    if (tx->GetHash() != expected_hash) {
+        LogError("%s: txid mismatch\n", __func__);
+        return false;
+    }
+    block_hash = header.GetHash();
+    return true;
+}
+
 bool BlockManager::FlushUndoFile(int block_file, bool finalize)
 {
     FlatFilePos undo_pos_old(block_file, m_blockfile_info[block_file].nUndoSize);

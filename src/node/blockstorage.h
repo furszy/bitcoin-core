@@ -410,12 +410,15 @@ public:
      */
     void UnlinkPrunedFiles(const std::set<int>& setFilesToPrune) const;
 
-    /** Functions for disk access for blocks */
+    /** Functions for disk access for blocks and transactions */
     bool ReadBlock(CBlock& block, const FlatFilePos& pos, const std::optional<uint256>& expected_hash = {}) const;
     bool ReadBlock(CBlock& block, const CBlockIndex& index) const;
     bool ReadRawBlock(std::vector<uint8_t>& block, const FlatFilePos& pos) const;
 
     bool ReadBlockUndo(CBlockUndo& blockundo, const CBlockIndex& index) const;
+
+    bool ReadTx(const FlatFilePos& pos_block, const unsigned int offset_tx,
+                const uint256& expected_hash, CTransactionRef& tx, uint256& block_hash) const;
 
     void CleanupBlockRevFiles() const;
 };
