@@ -668,6 +668,9 @@ void CTxMemPool::removeForBlock(const std::vector<CTransactionRef>& vtx, unsigne
 {
     AssertLockHeld(cs);
     Assume(!m_have_changeset);
+    // Check if there's anything to do here
+    if (mapTx.empty() && mapNextTx.empty() && mapDeltas.empty()) return;
+
     std::vector<RemovedMempoolTransactionInfo> txs_removed_for_block;
     txs_removed_for_block.reserve(vtx.size());
     for (const auto& tx : vtx)
