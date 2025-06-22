@@ -104,7 +104,7 @@ private:
     bool Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip);
 
     std::any ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
-    std::vector<std::any> ProcessBlocks(const CBlockIndex* start, const CBlockIndex* end);
+    std::vector<std::any> ProcessBlocks(bool process_in_order, const CBlockIndex* start, const CBlockIndex* end);
 
     virtual bool AllowPrune() const = 0;
 
