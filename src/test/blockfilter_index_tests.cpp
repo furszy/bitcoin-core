@@ -43,6 +43,9 @@ static bool CheckFilterLookups(BlockFilterIndex& filter_index, const CBlockIndex
     std::vector<BlockFilter> filters;
     std::vector<uint256> filter_hashes;
 
+    if (!filter_index.LookupFilter(block_index, filter)) {
+        std::cout << "ERROR: failed to find filter for block " << block_index->nHeight << std::endl;
+    }
     BOOST_CHECK(filter_index.LookupFilter(block_index, filter));
     BOOST_CHECK(filter_index.LookupFilterHeader(block_index, filter_header));
     BOOST_CHECK(filter_index.LookupFilterRange(block_index->nHeight, block_index, filters));
