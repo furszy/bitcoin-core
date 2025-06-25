@@ -100,6 +100,12 @@ class InitTest(BitcoinTestFramework):
         check_clean_start()
         self.stop_node(0)
 
+        # Ensure we are index wise synced
+        self.start_node(0, extra_args=args)
+        height = node.getblockcount()
+        self.wait_until(lambda: all(i["synced"] and i["best_block_height"]==height for i in node.getindexinfo().values()))
+        self.stop_node(0)
+
         self.log.info("Test startup errors after removing certain essential files")
 
         deletion_rounds = [
