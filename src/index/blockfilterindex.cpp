@@ -54,44 +54,20 @@ struct DBVal {
     SERIALIZE_METHODS(DBVal, obj) { READWRITE(obj.hash, obj.header, obj.pos); }
 };
 
-struct DBHeightKey {
-    int height;
-
-    explicit DBHeightKey(int height_in) : height(height_in) {}
-
-    template<typename Stream>
-    void Serialize(Stream& s) const
-    {
-        ser_writedata8(s, DB_BLOCK_HEIGHT);
-        ser_writedata32be(s, height);
-    }
-
-    template<typename Stream>
-    void Unserialize(Stream& s)
-    {
-        const uint8_t prefix{ser_readdata8(s)};
-        if (prefix != DB_BLOCK_HEIGHT) {
-            throw std::ios_base::failure("Invalid format for block filter index DB height key");
-        }
-        height = ser_readdata32be(s);
-    }
-};
-
-struct DBHashKey {
-    uint256 hash;
-
-    explicit DBHashKey(const uint256& hash_in) : hash(hash_in) {}
-
-    SERIALIZE_METHODS(DBHashKey, obj) {
-        uint8_t prefix{DB_BLOCK_HASH};
+template<uint8_t Prefix, typename T>
+struct DBKey {
+    T value;
+    explicit DBKey(const T& v) : value(v) {}
+    SERIALIZE_METHODS(DBKey, obj) {
+        uint8_t prefix = Prefix;
         READWRITE(prefix);
-        if (prefix != DB_BLOCK_HASH) {
-            throw std::ios_base::failure("Invalid format for block filter index DB hash key");
-        }
-
-        READWRITE(obj.hash);
+        if (prefix != Prefix) throw std::ios_base::failure("Invalid DB key format");
+        READWRITE(obj.value);
     }
 };
+
+using DBHeightKey = DBKey<DB_BLOCK_HEIGHT, int>;
+using DBHashKey   = DBKey<DB_BLOCK_HASH, uint256>;
 
 }; // namespace
 
@@ -305,7 +281,7 @@ bool BlockFilterIndex::Write(const BlockFilter& filter, uint32_t block_height, c
     DBHeightKey key(height);
     db_it.Seek(key);
 
-    if (!db_it.GetKey(key) || key.height != height) {
+    if (!db_it.GetKey(key) || key.value != height) {
         LogError("%s: unexpected key in %s: expected (%c, %d)\n",
                  __func__, index_name, DB_BLOCK_HEIGHT, height);
         return false;
@@ -383,7 +359,7 @@ static bool LookupRange(CDBWrapper& db, const std::string& index_name, int start
     std::unique_ptr<CDBIterator> db_it(db.NewIterator());
     db_it->Seek(DBHeightKey(start_height));
     for (int height = start_height; height <= stop_index->nHeight; ++height) {
-        if (!db_it->Valid() || !db_it->GetKey(key) || key.height != height) {
+        if (!db_it->Valid() || !db_it->GetKey(key) || key.value != height) {
             return false;
         }
 
