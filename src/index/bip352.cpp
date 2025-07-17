@@ -114,6 +114,13 @@ bool BIP352Index::GetSilentPaymentKeys(const std::vector<CTransactionRef>& txs, 
     return true;
 }
 
+interfaces::Chain::NotifyOptions BIP352Index::CustomOptions()
+{
+    interfaces::Chain::NotifyOptions options;
+    options.connect_undo_data = true;
+    return options;
+}
+
 bool BIP352Index::CustomAppend(const interfaces::BlockInfo& block)
 {
     // Exclude genesis block transaction because outputs are not spendable. This
@@ -123,26 +130,8 @@ bool BIP352Index::CustomAppend(const interfaces::BlockInfo& block)
     // Exclude pre-taproot
     if (block.height < m_start_height) return true;
 
-    assert(block.data);
-
-    std::vector<std::pair<uint256, CPubKey>> items;
-
-    const CBlockIndex* block_index = WITH_LOCK(cs_main, return m_chainstate->m_blockman.LookupBlockIndex(block.hash));
-    // TODO: fix sloppy rebase, DANGER!
-    assert(block_index != nullptr);
-
-
-    CBlockUndo block_undo;
-
-    if (!(m_chainstate->m_blockman.ReadBlockUndo(block_undo, *block_index))) {
-        // Should be impossible on an unpruned node
-        LogError("Failed to read undo file for %s", GetName());
-        return false;
-    };
-
     tweak_index_entry index_entry;
-    GetSilentPaymentKeys(block.data->vtx, block_undo, index_entry);
-
+    GetSilentPaymentKeys(Assert(block.data)->vtx, *Assert(block.undo_data), index_entry);
     return m_db->WriteSilentPayments(make_pair(block.hash, index_entry));
 }
 

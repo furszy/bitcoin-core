@@ -58,6 +58,8 @@ private:
     bool GetSilentPaymentKeys(const std::vector<CTransactionRef>& txs, const CBlockUndo& block_undo, tweak_index_entry& index_entry) const;
 
 protected:
+    interfaces::Chain::NotifyOptions CustomOptions() override;
+
     bool CustomAppend(const interfaces::BlockInfo& block) override;
 
     BaseIndex::DB& GetDB() const override;
