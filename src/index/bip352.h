@@ -62,6 +62,10 @@ protected:
 
     bool CustomAppend(const interfaces::BlockInfo& block) override;
 
+    std::any CustomProcessBlock(const interfaces::BlockInfo& block) override {
+        return CustomAppend(block);
+    }
+
     BaseIndex::DB& GetDB() const override;
 public:
 
@@ -69,6 +73,8 @@ public:
 
     // Destructor is declared because this class contains a unique_ptr to an incomplete type.
     virtual ~BIP352Index() override;
+
+    bool AllowParallelSync() override { return true; }
 
     bool FindSilentPayment(const uint256& block_hash, tweak_index_entry& index_entry) const;
 };
