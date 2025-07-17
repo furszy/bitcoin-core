@@ -302,7 +302,7 @@ static bool LookupRange(CDBWrapper& db, const std::string& index_name, int start
     std::unique_ptr<CDBIterator> db_it(db.NewIterator());
     db_it->Seek(DBHeightKey(start_height));
     for (int height = start_height; height <= stop_index->nHeight; ++height) {
-        if (!db_it->Valid() || !db_it->GetKey(key) || key.height != height) {
+        if (!db_it->Valid() || !db_it->GetKey(key) || key.value != height) {
             return false;
         }
 

@@ -13,44 +13,32 @@
 static constexpr uint8_t DB_BLOCK_HASH{'s'};
 static constexpr uint8_t DB_BLOCK_HEIGHT{'t'};
 
-struct DBHeightKey {
-    int height;
+template<uint8_t Prefix, typename T, auto SerializeFunc, auto UnserializeFunc>
+struct DBKey {
+    T value;
+    explicit DBKey(const T& v) : value(v) {}
 
-    explicit DBHeightKey(int height_in) : height(height_in) {}
-
-    template<typename Stream>
-    void Serialize(Stream& s) const
-    {
-        ser_writedata8(s, DB_BLOCK_HEIGHT);
-        ser_writedata32be(s, height);
+    template<typename S>
+    void Serialize(S& s) const {
+        ser_writedata8(s, Prefix);
+        SerializeFunc(s, value);
     }
 
-    template<typename Stream>
-    void Unserialize(Stream& s)
-    {
-        const uint8_t prefix{ser_readdata8(s)};
-        if (prefix != DB_BLOCK_HEIGHT) {
-            throw std::ios_base::failure("Invalid format for index DB height key");
-        }
-        height = ser_readdata32be(s);
+    template<typename S>
+    void Unserialize(S& s) {
+        if (ser_readdata8(s) != Prefix)
+            throw std::ios_base::failure("Invalid DB key prefix");
+        UnserializeFunc(s, value);
     }
 };
 
-struct DBHashKey {
-    uint256 hash;
+using DBHeightKey = DBKey<DB_BLOCK_HEIGHT, int,
+        [](auto& s, int v) { ser_writedata32be(s, v); },
+        [](auto& s, int& v) { v = ser_readdata32be(s); }>;
 
-    explicit DBHashKey(const uint256& hash_in) : hash(hash_in) {}
-
-    SERIALIZE_METHODS(DBHashKey, obj) {
-        uint8_t prefix{DB_BLOCK_HASH};
-        READWRITE(prefix);
-        if (prefix != DB_BLOCK_HASH) {
-            throw std::ios_base::failure("Invalid format for index DB hash key");
-        }
-
-        READWRITE(obj.hash);
-    }
-};
+using DBHashKey = DBKey<DB_BLOCK_HASH, uint256,
+        [](auto& s, const uint256& v) { ::Serialize(s, const_cast<uint256&>(v)); },
+        [](auto& s, uint256& v) { ::Unserialize(s, v); }>;
 
 template <typename DBVal>
 [[nodiscard]] static bool CopyHeightIndexToHashIndex(CDBIterator& db_it, CDBBatch& batch,
@@ -59,7 +47,7 @@ template <typename DBVal>
     DBHeightKey key(height);
     db_it.Seek(key);
 
-    if (!db_it.GetKey(key) || key.height != height) {
+    if (!db_it.GetKey(key) || key.value != height) {
         LogError("unexpected key in %s: expected (%c, %d)",
                   index_name, DB_BLOCK_HEIGHT, height);
         return false;
