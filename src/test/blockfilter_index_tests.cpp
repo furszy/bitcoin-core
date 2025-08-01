@@ -349,15 +349,15 @@ BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
     std::shared_future<void> blocker(promise.get_future());
     int blocking_height = WITH_LOCK(cs_main, return m_node.chainman->ActiveChain().Tip()->nHeight);
 
-    IndexReorgCrash index(interfaces::MakeChain(m_node), blocker, blocking_height);
-    BOOST_REQUIRE(index.Init());
-    BOOST_REQUIRE(index.StartBackgroundSync());
+    std::unique_ptr<IndexReorgCrash> index = std::make_unique<IndexReorgCrash>(interfaces::MakeChain(m_node), blocker, blocking_height);
+    BOOST_REQUIRE(index->Init());
+    BOOST_REQUIRE(index->StartBackgroundSync());
 
     auto func_wait_until = [&](int height, std::chrono::milliseconds timeout) {
         auto deadline = std::chrono::steady_clock::now() + timeout;
-        while (index.GetSummary().best_block_height < height) {
+        while (index->GetSummary().best_block_height < height) {
             if (std::chrono::steady_clock::now() > deadline) {
-                BOOST_FAIL(strprintf("Timeout waiting for index height %d (current: %d)", height, index.GetSummary().best_block_height));
+                BOOST_FAIL(strprintf("Timeout waiting for index height %d (current: %d)", height, index->GetSummary().best_block_height));
                 return;
             }
             std::this_thread::sleep_for(100ms);
@@ -380,6 +380,8 @@ BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
     promise.set_value();
     // Wait for the index to reach the new tip
     func_wait_until(blocking_height + 2, 5s);
+    // Unregister from validation and wait for the sync thread to finish
+    index->Stop();
 }
 
 BOOST_AUTO_TEST_SUITE_END()
