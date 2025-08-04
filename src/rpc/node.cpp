@@ -386,19 +386,9 @@ static RPCHelpMan getindexinfo()
 {
     UniValue result(UniValue::VOBJ);
     const std::string index_name = request.params[0].isNull() ? "" : request.params[0].get_str();
-
-    if (g_txindex) {
-        result.pushKVs(SummaryToJSON(g_txindex->GetSummary(), index_name));
+    for (const auto& index : EnsureAnyNodeContext(request.context).indexes) {
+        result.pushKVs(SummaryToJSON(index->GetSummary(), index_name));
     }
-
-    if (g_coin_stats_index) {
-        result.pushKVs(SummaryToJSON(g_coin_stats_index->GetSummary(), index_name));
-    }
-
-    ForEachBlockFilterIndex([&result, &index_name](const BlockFilterIndex& index) {
-        result.pushKVs(SummaryToJSON(index.GetSummary(), index_name));
-    });
-
     return result;
 },
     };
