@@ -371,25 +371,16 @@ public:
     bool AllowPrune() const override { return false; }
     BaseIndex::DB& GetDB() const override { return *m_db; }
 
-    bool CustomAppend(const interfaces::BlockInfo& block) override
+    bool CustomCommit(CDBBatch& batch) override
     {
         // Simulate a delay so new blocks can get connected during the initial sync
-        if (block.height == m_blocking_height) m_blocker.wait();
-
-        // Move mock time forward so the best index gets updated only when we are not at the blocking height
-        if (block.height == m_blocking_height - 1 || block.height > m_blocking_height) {
-            SetMockTime(GetTime<std::chrono::seconds>() + 31s);
-        }
-
+        if (GetSummary().best_block_height == m_blocking_height) m_blocker.wait();
         return true;
     }
 };
 
 BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
 {
-    // Enable mock time
-    SetMockTime(GetTime<std::chrono::minutes>());
-
     std::promise<void> promise;
     std::shared_future<void> blocker(promise.get_future());
     int blocking_height = WITH_LOCK(cs_main, return m_node.chainman->ActiveChain().Tip()->nHeight);
@@ -405,14 +396,14 @@ BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
                 BOOST_FAIL(strprintf("Timeout waiting for index height %d (current: %d)", height, index.GetSummary().best_block_height));
                 return;
             }
-            std::this_thread::sleep_for(100ms);
+            std::this_thread::sleep_for(150ms);
         }
     };
 
-    // Wait until the index is one block before the fork point
-    func_wait_until(blocking_height - 1, /*timeout=*/5s);
+    // Wait until the index is at the fork point
+    func_wait_until(blocking_height, /*timeout=*/5s);
 
-    // Create a fork to trigger the reorg
+    // Create a fork to trigger the reorg at the end of initial sync process
     std::vector<std::shared_ptr<CBlock>> fork;
     const CBlockIndex* prev_tip = WITH_LOCK(cs_main, return m_node.chainman->ActiveChain().Tip()->pprev);
     BOOST_REQUIRE(BuildChain(prev_tip, GetScriptForDestination(PKHash(GenerateRandomKey().GetPubKey())), 3, fork));
@@ -425,6 +416,8 @@ BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
     promise.set_value();
     // Wait for the index to reach the new tip
     func_wait_until(blocking_height + 2, 5s);
+    const auto& tip_hash = WITH_LOCK(cs_main, return m_node.chainman->ActiveChain().Tip()->GetBlockHash());
+    BOOST_CHECK(index.GetSummary().best_block_hash == tip_hash);
     index.Stop();
 }
 
