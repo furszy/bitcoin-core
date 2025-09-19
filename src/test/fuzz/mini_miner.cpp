@@ -79,7 +79,7 @@ FUZZ_TARGET(mini_miner, .init = initialize_miner)
         if (fuzzed_data_provider.ConsumeBool() && !tx->vout.empty()) {
             // Add outpoint from this tx (may or not be spent by a later tx)
             outpoints.emplace_back(tx->GetHash(),
-                                          (uint32_t)fuzzed_data_provider.ConsumeIntegralInRange<size_t>(0, tx->vout.size()));
+                                   fuzzed_data_provider.ConsumeIntegralInRange<uint32_t>(0, tx->vout.size() - 1));
         } else {
             // Add some random outpoint (will be interpreted as confirmed or not yet submitted
             // to mempool).
