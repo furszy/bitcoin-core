@@ -47,27 +47,40 @@ FUZZ_TARGET(mini_miner, .init = initialize_miner)
     CTxMemPool pool{CTxMemPool::Options{}, error};
     Assert(error.empty());
     std::vector<COutPoint> outpoints;
+    outpoints.reserve(128);
+    // Avoid slow dup checks
+    std::unordered_set<COutPoint, SaltedOutpointHasher> outpoint_seen;
+    outpoint_seen.reserve(256);
+
     std::deque<COutPoint> available_coins = g_available_coins;
+
+    // Reuse helper
+    TestMemPoolEntryHelper entry_helper;
+
     LOCK2(::cs_main, pool.cs);
     // Cluster size cannot exceed 500
     LIMITED_WHILE(!available_coins.empty(), 500)
     {
-        CMutableTransaction mtx = CMutableTransaction();
         const size_t num_inputs = fuzzed_data_provider.ConsumeIntegralInRange<size_t>(1, available_coins.size());
         const size_t num_outputs = fuzzed_data_provider.ConsumeIntegralInRange<size_t>(1, 50);
+
+        CMutableTransaction mtx;
+        mtx.vin.reserve(num_inputs);
+        mtx.vout.reserve(num_outputs);
+
         for (size_t n{0}; n < num_inputs; ++n) {
             auto prevout = available_coins.front();
             mtx.vin.emplace_back(prevout, CScript());
             available_coins.pop_front();
         }
-        for (uint32_t n{0}; n < num_outputs; ++n) {
+        for (size_t n{0}; n < num_outputs; ++n) {
             mtx.vout.emplace_back(100, P2WSH_OP_TRUE);
         }
-        CTransactionRef tx = MakeTransactionRef(mtx);
-        TestMemPoolEntryHelper entry;
+        CTransactionRef tx = MakeTransactionRef(std::move(mtx));
+
         const CAmount fee{ConsumeMoney(fuzzed_data_provider, /*max=*/MAX_MONEY/100000)};
         assert(MoneyRange(fee));
-        AddToMempool(pool, entry.Fee(fee).FromTx(tx));
+        AddToMempool(pool, entry_helper.Fee(fee).FromTx(tx));
 
         // All outputs are available to spend
         for (uint32_t n{0}; n < num_outputs; ++n) {
@@ -78,18 +91,23 @@ FUZZ_TARGET(mini_miner, .init = initialize_miner)
 
         if (fuzzed_data_provider.ConsumeBool() && !tx->vout.empty()) {
             // Add outpoint from this tx (may or not be spent by a later tx)
-            outpoints.emplace_back(tx->GetHash(),
-                                   fuzzed_data_provider.ConsumeIntegralInRange<uint32_t>(0, tx->vout.size() - 1));
+            COutPoint outpoint{tx->GetHash(), fuzzed_data_provider.ConsumeIntegralInRange<uint32_t>(0, tx->vout.size() - 1)};
+            if (!outpoint_seen.contains(outpoint)) {
+                outpoints.emplace_back(outpoint);
+                outpoint_seen.insert(outpoint);
+            }
         } else {
             // Add some random outpoint (will be interpreted as confirmed or not yet submitted
             // to mempool).
             auto outpoint = ConsumeDeserializable<COutPoint>(fuzzed_data_provider);
-            if (outpoint.has_value() && std::find(outpoints.begin(), outpoints.end(), *outpoint) == outpoints.end()) {
+            if (outpoint.has_value() && !outpoint_seen.contains(*outpoint)) {
+                outpoint_seen.insert(*outpoint);
                 outpoints.push_back(*outpoint);
             }
         }
-
     }
+    // Sanity-check because we are going to use 'outpoint_seen' to speed up some checks
+    assert(outpoint_seen.size() == outpoints.size());
 
     const CFeeRate target_feerate{CFeeRate{ConsumeMoney(fuzzed_data_provider, /*max=*/MAX_MONEY/1000)}};
     std::optional<CAmount> total_bumpfee;
@@ -98,11 +116,10 @@ FUZZ_TARGET(mini_miner, .init = initialize_miner)
         node::MiniMiner mini_miner{pool, outpoints};
         assert(mini_miner.IsReadyToCalculate());
         const auto bump_fees = mini_miner.CalculateBumpFees(target_feerate);
-        for (const auto& outpoint : outpoints) {
-            auto it = bump_fees.find(outpoint);
-            assert(it != bump_fees.end());
-            assert(it->second >= 0);
-            sum_fees += it->second;
+        for (const auto& [out, amount] : bump_fees) {
+            assert(outpoint_seen.contains(out));
+            assert(amount >= 0);
+            sum_fees += amount;
         }
         assert(!mini_miner.IsReadyToCalculate());
     }
@@ -130,22 +147,29 @@ FUZZ_TARGET(mini_miner_selection, .init = initialize_miner)
     std::deque<COutPoint> available_coins = g_available_coins;
     std::vector<CTransactionRef> transactions;
 
+    // Reuse helper
+    TestMemPoolEntryHelper entry_helper;
+
     LOCK2(::cs_main, pool.cs);
     LIMITED_WHILE(fuzzed_data_provider.ConsumeBool(), 100)
     {
-        CMutableTransaction mtx = CMutableTransaction();
         assert(!available_coins.empty());
         const size_t num_inputs = std::min(size_t{2}, available_coins.size());
         const size_t num_outputs = fuzzed_data_provider.ConsumeIntegralInRange<size_t>(2, 5);
+
+        CMutableTransaction mtx;
+        mtx.vin.reserve(num_inputs);
+        mtx.vout.reserve(num_outputs);
+
         for (size_t n{0}; n < num_inputs; ++n) {
-            auto prevout = available_coins.at(0);
+            auto prevout = available_coins.front();
             mtx.vin.emplace_back(prevout, CScript());
             available_coins.pop_front();
         }
-        for (uint32_t n{0}; n < num_outputs; ++n) {
+        for (size_t n{0}; n < num_outputs; ++n) {
             mtx.vout.emplace_back(100, P2WSH_OP_TRUE);
         }
-        CTransactionRef tx = MakeTransactionRef(mtx);
+        CTransactionRef tx = MakeTransactionRef(std::move(mtx));
 
         // First 2 outputs are available to spend. The rest are added to outpoints to calculate bumpfees.
         // There is no overlap between spendable coins and outpoints passed to MiniMiner because the
@@ -162,13 +186,14 @@ FUZZ_TARGET(mini_miner_selection, .init = initialize_miner)
         // Stop if pool reaches block_adjusted_max_weight because BlockAssembler will stop when the
         // block template reaches that, but the MiniMiner will keep going.
         if (pool.GetTotalTxSize() + GetVirtualTransactionSize(*tx) >= block_adjusted_max_weight) break;
-        TestMemPoolEntryHelper entry;
+
         const CAmount fee{ConsumeMoney(fuzzed_data_provider, /*max=*/MAX_MONEY/100000)};
         assert(MoneyRange(fee));
-        AddToMempool(pool, entry.Fee(fee).FromTx(tx));
+        AddToMempool(pool, entry_helper.Fee(fee).FromTx(tx));
         transactions.push_back(tx);
     }
     std::vector<COutPoint> outpoints;
+    outpoints.reserve(g_available_coins.size() + transactions.size() * 2);
     for (const auto& coin : g_available_coins) {
         if (!pool.GetConflictTx(coin)) outpoints.push_back(coin);
     }
