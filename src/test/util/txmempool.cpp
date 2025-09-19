@@ -209,12 +209,14 @@ void CheckMempoolTRUCInvariants(const CTxMemPool& tx_pool)
     }
 }
 
-void AddToMempool(CTxMemPool& tx_pool, const CTxMemPoolEntry& entry)
+void AddToMempool(CTxMemPool& tx_pool, const std::list<CTxMemPoolEntry>& entries)
 {
     LOCK2(cs_main, tx_pool.cs);
     auto changeset = tx_pool.GetChangeSet();
-    changeset->StageAddition(entry.GetSharedTx(), entry.GetFee(),
-            entry.GetTime().count(), entry.GetHeight(), entry.GetSequence(),
-            entry.GetSpendsCoinbase(), entry.GetSigOpCost(), entry.GetLockPoints());
+    for (const auto& entry : entries) {
+        changeset->StageAddition(entry.GetSharedTx(), entry.GetFee(),
+                                 entry.GetTime().count(), entry.GetHeight(), entry.GetSequence(),
+                                 entry.GetSpendsCoinbase(), entry.GetSigOpCost(), entry.GetLockPoints());
+    }
     changeset->Apply();
 }

@@ -54,7 +54,7 @@ FUZZ_TARGET(mini_miner, .init = initialize_miner)
 
     std::deque<COutPoint> available_coins = g_available_coins;
 
-    // Reuse helper
+    std::list<CTxMemPoolEntry> mempool_entries;
     TestMemPoolEntryHelper entry_helper;
 
     LOCK2(::cs_main, pool.cs);
@@ -80,7 +80,7 @@ FUZZ_TARGET(mini_miner, .init = initialize_miner)
 
         const CAmount fee{ConsumeMoney(fuzzed_data_provider, /*max=*/MAX_MONEY/100000)};
         assert(MoneyRange(fee));
-        AddToMempool(pool, entry_helper.Fee(fee).FromTx(tx));
+        mempool_entries.emplace_back(CTxMemPoolEntry::ExplicitCopy, entry_helper.Fee(fee).FromTx(tx));
 
         // All outputs are available to spend
         for (uint32_t n{0}; n < num_outputs; ++n) {
@@ -108,6 +108,9 @@ FUZZ_TARGET(mini_miner, .init = initialize_miner)
     }
     // Sanity-check because we are going to use 'outpoint_seen' to speed up some checks
     assert(outpoint_seen.size() == outpoints.size());
+
+    // Fill mempool all at once
+    AddToMempool(pool, mempool_entries);
 
     const CFeeRate target_feerate{CFeeRate{ConsumeMoney(fuzzed_data_provider, /*max=*/MAX_MONEY/1000)}};
     std::optional<CAmount> total_bumpfee;
@@ -147,7 +150,7 @@ FUZZ_TARGET(mini_miner_selection, .init = initialize_miner)
     std::deque<COutPoint> available_coins = g_available_coins;
     std::vector<CTransactionRef> transactions;
 
-    // Reuse helper
+    std::list<CTxMemPoolEntry> mempool_entries;
     TestMemPoolEntryHelper entry_helper;
 
     LOCK2(::cs_main, pool.cs);
@@ -189,9 +192,13 @@ FUZZ_TARGET(mini_miner_selection, .init = initialize_miner)
 
         const CAmount fee{ConsumeMoney(fuzzed_data_provider, /*max=*/MAX_MONEY/100000)};
         assert(MoneyRange(fee));
-        AddToMempool(pool, entry_helper.Fee(fee).FromTx(tx));
+        mempool_entries.emplace_back(CTxMemPoolEntry::ExplicitCopy, entry_helper.Fee(fee).FromTx(tx));
         transactions.push_back(tx);
     }
+
+    // Fill mempool all at once
+    AddToMempool(pool, mempool_entries);
+
     std::vector<COutPoint> outpoints;
     outpoints.reserve(g_available_coins.size() + transactions.size() * 2);
     for (const auto& coin : g_available_coins) {

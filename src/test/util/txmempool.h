@@ -65,6 +65,13 @@ void CheckMempoolTRUCInvariants(const CTxMemPool& tx_pool);
 
 /** One-line wrapper for creating a mempool changeset with a single transaction
  *  and applying it. */
-void AddToMempool(CTxMemPool& tx_pool, const CTxMemPoolEntry& entry);
+void AddToMempool(CTxMemPool& tx_pool, const std::list<CTxMemPoolEntry>& entries);
+inline void AddToMempool(CTxMemPool& tx_pool, const CTxMemPoolEntry& entry)
+{
+    std::list<CTxMemPoolEntry> entries;
+    entries.emplace_back(CTxMemPoolEntry::ExplicitCopy, entry);
+    AddToMempool(tx_pool, entries);
+}
+
 
 #endif // BITCOIN_TEST_UTIL_TXMEMPOOL_H
