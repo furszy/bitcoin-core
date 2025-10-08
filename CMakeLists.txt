@@ -334,6 +334,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   endif()
 endif()
 
+# Minimum Clang version check
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  set(MIN_CLANG_VERSION "16.0")
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS MIN_CLANG_VERSION)
+    message(FATAL_ERROR "Clang version must be at least ${MIN_CLANG_VERSION}!")
+  endif()
+endif()
+
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 target_link_libraries(core_interface INTERFACE
