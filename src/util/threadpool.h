@@ -132,7 +132,14 @@ public:
         }
         m_cv.notify_all();
         for (auto& worker : threads_to_join) worker.join();
-        // m_interrupt is left true until next Start()
+        {
+            // Ensure queue is cleared (release any std::function captured shared_ptrs)
+            LOCK(m_mutex);
+            std::queue<std::function<void()>> empty;
+            m_work_queue.swap(empty);
+        }
+
+        // Note: m_interrupt is left true until next Start()
     }
 
     /**
@@ -152,8 +159,9 @@ public:
             if (m_workers.empty() || m_interrupt) {
                 throw std::runtime_error("No active workers; cannot accept new tasks");
             }
-            m_work_queue.emplace([ptr_task]() {
+            m_work_queue.emplace([ptr_task]() mutable {
                 (*ptr_task)();
+                ptr_task.reset(); // explicitly release the packaged_task and the stored function object
             });
         }
         m_cv.notify_one();
