@@ -3,6 +3,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <common/system.h>
+#include <logging.h>
 #include <util/threadpool.h>
 
 #include <test/fuzz/FuzzedDataProvider.h>
@@ -34,7 +35,13 @@ static void get_future(std::future<void>& future, uint32_t& fail_counter) {
     }
 }
 
-FUZZ_TARGET(threadpool)
+static void setup_threadpool_test()
+{
+    // Disable logging entirely. It seems to be causing memory leaks
+    LogInstance().DisableLogging();
+}
+
+FUZZ_TARGET(threadpool, .init = setup_threadpool_test)
 {
     FuzzedDataProvider fuzzed_data_provider(buffer.data(), buffer.size());
 
