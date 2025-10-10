@@ -185,6 +185,11 @@ public:
         task();
     }
 
+    void Interrupt() EXCLUSIVE_LOCKS_REQUIRED(!m_mutex)
+    {
+        WITH_LOCK(m_mutex, m_interrupt = true);
+    }
+
     size_t WorkQueueSize() EXCLUSIVE_LOCKS_REQUIRED(!m_mutex)
     {
         return WITH_LOCK(m_mutex, return m_work_queue.size());

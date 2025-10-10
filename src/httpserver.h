@@ -164,7 +164,7 @@ std::optional<std::string> GetQueryParameterFromUri(const char* uri, const std::
 class HTTPClosure
 {
 public:
-    virtual void operator()() = 0;
+    virtual void operator()() const = 0;
     virtual ~HTTPClosure() = default;
 };
 

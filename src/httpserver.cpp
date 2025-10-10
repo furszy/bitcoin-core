@@ -17,6 +17,7 @@
 #include <util/signalinterrupt.h>
 #include <util/strencodings.h>
 #include <util/threadnames.h>
+#include <util/threadpool.h>
 #include <util/translation.h>
 
 #include <condition_variable>
@@ -57,7 +58,7 @@ public:
         req(std::move(_req)), path(_path), func(_func)
     {
     }
-    void operator()() override
+    void operator()() const override
     {
         func(req.get(), path);
     }
@@ -67,63 +68,6 @@ public:
 private:
     std::string path;
     HTTPRequestHandler func;
-};
-
-/** Simple work queue for distributing work over multiple threads.
- * Work items are simply callable objects.
- */
-template <typename WorkItem>
-class WorkQueue
-{
-private:
-    Mutex cs;
-    std::condition_variable cond GUARDED_BY(cs);
-    std::deque<std::unique_ptr<WorkItem>> queue GUARDED_BY(cs);
-    bool running GUARDED_BY(cs){true};
-    const size_t maxDepth;
-
-public:
-    explicit WorkQueue(size_t _maxDepth) : maxDepth(_maxDepth)
-    {
-    }
-    /** Precondition: worker threads have all stopped (they have been joined).
-     */
-    ~WorkQueue() = default;
-    /** Enqueue a work item */
-    bool Enqueue(WorkItem* item) EXCLUSIVE_LOCKS_REQUIRED(!cs)
-    {
-        LOCK(cs);
-        if (!running || queue.size() >= maxDepth) {
-            return false;
-        }
-        queue.emplace_back(std::unique_ptr<WorkItem>(item));
-        cond.notify_one();
-        return true;
-    }
-    /** Thread function */
-    void Run() EXCLUSIVE_LOCKS_REQUIRED(!cs)
-    {
-        while (true) {
-            std::unique_ptr<WorkItem> i;
-            {
-                WAIT_LOCK(cs, lock);
-                while (running && queue.empty())
-                    cond.wait(lock);
-                if (!running && queue.empty())
-                    break;
-                i = std::move(queue.front());
-                queue.pop_front();
-            }
-            (*i)();
-        }
-    }
-    /** Interrupt and exit loops */
-    void Interrupt() EXCLUSIVE_LOCKS_REQUIRED(!cs)
-    {
-        LOCK(cs);
-        running = false;
-        cond.notify_all();
-    }
 };
 
 struct HTTPPathHandler
@@ -145,13 +89,14 @@ static struct event_base* eventBase = nullptr;
 static struct evhttp* eventHTTP = nullptr;
 //! List of subnets to allow RPC connections from
 static std::vector<CSubNet> rpc_allow_subnets;
-//! Work queue for handling longer requests off the event loop thread
-static std::unique_ptr<WorkQueue<HTTPClosure>> g_work_queue{nullptr};
 //! Handlers for (sub)paths
 static GlobalMutex g_httppathhandlers_mutex;
 static std::vector<HTTPPathHandler> pathHandlers GUARDED_BY(g_httppathhandlers_mutex);
 //! Bound listening sockets
 static std::vector<evhttp_bound_socket *> boundSockets;
+//! Http thread pool - Ideally, this should be encapsulated somewhere.
+static ThreadPool g_threadpool_http("http");
+static int g_max_queue_depth{100};
 
 /**
  * @brief Helps keep track of open `evhttp_connection`s with active `evhttp_requests`
@@ -327,13 +272,12 @@ static void http_request_cb(struct evhttp_request* req, void* arg)
 
     // Dispatch to worker thread
     if (i != iend) {
-        std::unique_ptr<HTTPWorkItem> item(new HTTPWorkItem(std::move(hreq), path, i->handler));
-        assert(g_work_queue);
-        if (g_work_queue->Enqueue(item.get())) {
-            item.release(); /* if true, queue took ownership */
+        HTTPWorkItem item(std::move(hreq), path, i->handler);
+        if ((int) g_threadpool_http.WorkQueueSize() < g_max_queue_depth) {
+            g_threadpool_http.Submit([work = std::move(item)](){ work(); });
         } else {
             LogPrintf("WARNING: request rejected because http work queue depth exceeded, it can be increased with the -rpcworkqueue= setting\n");
-            item->req->WriteReply(HTTP_SERVICE_UNAVAILABLE, "Work queue depth exceeded");
+            item.req->WriteReply(HTTP_SERVICE_UNAVAILABLE, "Work queue depth exceeded");
         }
     } else {
         hreq->WriteReply(HTTP_NOT_FOUND);
@@ -412,13 +356,6 @@ static bool HTTPBindAddresses(struct evhttp* http)
     return !boundSockets.empty();
 }
 
-/** Simple wrapper to set thread name and run work queue */
-static void HTTPWorkQueueRun(WorkQueue<HTTPClosure>* queue, int worker_num)
-{
-    util::ThreadRename(strprintf("httpworker.%i", worker_num));
-    queue->Run();
-}
-
 /** libevent event log callback */
 static void libevent_log_cb(int severity, const char *msg)
 {
@@ -477,10 +414,9 @@ bool InitHTTPServer(const util::SignalInterrupt& interrupt)
     }
 
     LogDebug(BCLog::HTTP, "Initialized HTTP server\n");
-    int workQueueDepth = std::max((long)gArgs.GetIntArg("-rpcworkqueue", DEFAULT_HTTP_WORKQUEUE), 1L);
-    LogDebug(BCLog::HTTP, "creating work queue of depth %d\n", workQueueDepth);
+    g_max_queue_depth = std::max((long)gArgs.GetIntArg("-rpcworkqueue", DEFAULT_HTTP_WORKQUEUE), 1L);
+    LogDebug(BCLog::HTTP, "set work queue of depth %d\n", g_max_queue_depth);
 
-    g_work_queue = std::make_unique<WorkQueue<HTTPClosure>>(workQueueDepth);
     // transfer ownership to eventBase/HTTP via .release()
     eventBase = base_ctr.release();
     eventHTTP = http_ctr.release();
@@ -496,7 +432,6 @@ void UpdateHTTPServerLogging(bool enable) {
 }
 
 static std::thread g_thread_http;
-static std::vector<std::thread> g_thread_http_workers;
 
 void StartHTTPServer()
 {
@@ -504,9 +439,7 @@ void StartHTTPServer()
     LogInfo("Starting HTTP server with %d worker threads\n", rpcThreads);
     g_thread_http = std::thread(ThreadHTTP, eventBase);
 
-    for (int i = 0; i < rpcThreads; i++) {
-        g_thread_http_workers.emplace_back(HTTPWorkQueueRun, g_work_queue.get(), i);
-    }
+    g_threadpool_http.Start(rpcThreads);
 }
 
 void InterruptHTTPServer()
@@ -516,21 +449,17 @@ void InterruptHTTPServer()
         // Reject requests on current connections
         evhttp_set_gencb(eventHTTP, http_reject_request_cb, nullptr);
     }
-    if (g_work_queue) {
-        g_work_queue->Interrupt();
-    }
+
+    g_threadpool_http.Interrupt();
 }
 
 void StopHTTPServer()
 {
     LogDebug(BCLog::HTTP, "Stopping HTTP server\n");
-    if (g_work_queue) {
-        LogDebug(BCLog::HTTP, "Waiting for HTTP worker threads to exit\n");
-        for (auto& thread : g_thread_http_workers) {
-            thread.join();
-        }
-        g_thread_http_workers.clear();
-    }
+
+    LogDebug(BCLog::HTTP, "Waiting for HTTP worker threads to exit\n");
+    g_threadpool_http.Stop();
+
     // Unlisten sockets, these are what make the event loop running, which means
     // that after this and all connections are closed the event loop will quit.
     for (evhttp_bound_socket *socket : boundSockets) {
@@ -558,7 +487,6 @@ void StopHTTPServer()
         event_base_free(eventBase);
         eventBase = nullptr;
     }
-    g_work_queue.reset();
     LogDebug(BCLog::HTTP, "Stopped HTTP server\n");
 }
 
