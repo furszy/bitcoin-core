@@ -182,12 +182,49 @@ std::any BaseIndex::ProcessBlock(const CBlockIndex* pindex, const CBlock* block_
     return any_obj;
 }
 
+std::vector<std::any> BaseIndex::ProcessBlocks(bool process_in_order, const CBlockIndex* start, const CBlockIndex* end)
+{
+    std::vector<std::any> results;
+    results.reserve(end->nHeight - start->nHeight + 1);
+    if (process_in_order) {
+        // When ordering is required, collect all block indexes from [end..start] in order
+        std::vector<const CBlockIndex*> ordered_blocks;
+        for (const CBlockIndex* block = end; block && start->pprev != block; block = block->pprev) {
+            ordered_blocks.emplace_back(block);
+        }
+
+        // And process blocks in forward order: from start to end
+        for (auto it = ordered_blocks.rbegin(); it != ordered_blocks.rend(); ++it) {
+            auto op_res = ProcessBlock(*it);
+            if (!op_res.has_value()) return {};
+            results.emplace_back(std::move(op_res));
+        }
+        return results;
+    }
+
+    // If ordering is not required, process blocks directly from end to start
+    for (const CBlockIndex* block = end; block && start->pprev != block; block = block->pprev) {
+        auto op_res = ProcessBlock(block);
+        if (!op_res.has_value()) return {};
+        results.emplace_back(std::move(op_res));
+    }
+
+    return results;
+}
+
 void BaseIndex::Sync()
 {
     const CBlockIndex* pindex = m_best_block_index.load();
     if (!m_synced) {
         auto last_log_time{NodeClock::now()};
         auto last_locator_write_time{last_log_time};
+        const bool process_in_order = OrderingRequired();
+
+        // Post-Processing helper
+        const auto fn_post_process = [this](auto begin, auto end) {
+            return std::all_of(begin, end, [this](const auto& data) { return CustomPostProcessBlocks(data); });
+        };
+
         while (true) {
             if (m_interrupt) {
                 LogInfo("%s: m_interrupt set; exiting ThreadSync", GetName());
@@ -229,12 +266,19 @@ void BaseIndex::Sync()
             // Two-phase processing: first 'ProcessBlock' digests block data on the child class, then
             // 'CustomPostProcessBlocks' links to previous records (if needed) and batch-dumps to disk.
             // This will enable parallel data processing while keeping sequentiality when needed.
-            const std::any& result = ProcessBlock(pindex);
-            if (!result.has_value()) return; // error logged internally
-
-            if (!CustomPostProcessBlocks(result)) {
+            const std::vector<std::any>& result = ProcessBlocks(process_in_order, /*start=*/pindex, /*end=*/pindex);
+            if (result.empty()) {
+                // Empty result indicates an internal error (logged internally).
                 m_interrupt();
-                FatalErrorf("Index %s: Failed to post process block %s", GetName(), pindex->GetBlockHash().GetHex());
+                return;
+            }
+
+            bool complete = process_in_order ?
+                            fn_post_process(result.begin(), result.end()) :
+                            fn_post_process(result.rbegin(), result.rend());
+            if (!complete) {
+                m_interrupt();
+                FatalErrorf("Index %s: Failed to post process blocks", GetName());
                 return;
             }
 
