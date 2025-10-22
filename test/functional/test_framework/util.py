@@ -444,6 +444,8 @@ def write_config(config_path, *, n, chain, extra_config="", disable_autoconnect=
         # Disable server-side timeouts to avoid intermittent issues
         f.write("rpcservertimeout=99000\n")
         f.write("rpcdoccheck=1\n")
+        # Bound number of RPC server threads
+        f.write("rpcthreads=" + str(2) + "\n")
         f.write("fallbackfee=0.0002\n")
         f.write("server=1\n")
         f.write("keypool=1\n")
