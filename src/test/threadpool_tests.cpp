@@ -263,6 +263,24 @@ BOOST_AUTO_TEST_CASE(threadpool_basic)
         // Pool should be stopped and no workers remaining
         BOOST_CHECK_EQUAL(threadPool.WorkersCount(), 0);
     }
+
+    // Testing multi-task submission.
+    // Note: Tasks can even return different types!
+    {
+        ThreadPool threadPool(POOL_NAME);
+        threadPool.Start(NUM_WORKERS_DEFAULT);
+
+        const auto futures = threadPool.SubmitMany(
+                []() { std::cout << "Hi" << std::endl; },
+                []() { std::cout << "Andrew" << std::endl; },
+                []() { return 1; },
+                []() { return "different return type"; }
+        );
+
+        for (auto& fut : futures) {
+            fut.wait();
+        }
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

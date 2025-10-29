@@ -161,6 +161,31 @@ public:
         return future;
     }
 
+    template<class... Fs> EXCLUSIVE_LOCKS_REQUIRED(!m_mutex)
+    auto SubmitMany(Fs&&... fns)
+    {
+        std::vector<std::future<void>> futures;
+        futures.reserve(sizeof...(Fs));
+
+        {
+            LOCK(m_mutex);
+            if (m_interrupt || m_workers.empty()) {
+                throw std::runtime_error("No active workers; cannot accept new tasks");
+            }
+
+            auto enqueue = [&](auto&& fn) EXCLUSIVE_LOCKS_REQUIRED(m_mutex) {
+                std::packaged_task<void()> task{std::forward<decltype(fn)>(fn)};
+                futures.emplace_back(task.get_future());
+                m_work_queue.emplace(std::move(task));
+            };
+
+            (enqueue(std::forward<Fs>(fns)), ...);
+        }
+
+        m_cv.notify_all();
+        return futures;
+    }
+
     /**
      * @brief Execute a single queued task synchronously.
      * Removes one task from the queue and executes it on the calling thread.
