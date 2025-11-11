@@ -2590,7 +2590,7 @@ util::Result<CTxDestination> ReserveDestination::GetReservedDestination(bool int
 
     if (nIndex == -1) {
         int64_t index;
-        auto op_address = m_spk_man->GetReservedDestination(type, internal, index);
+        auto op_address = m_spk_man->GetReservedDestination(type, index);
         if (!op_address) return op_address;
         nIndex = index;
         address = *op_address;
@@ -2610,7 +2610,7 @@ void ReserveDestination::KeepDestination()
 void ReserveDestination::ReturnDestination()
 {
     if (nIndex != -1) {
-        m_spk_man->ReturnDestination(nIndex, fInternal, address);
+        m_spk_man->ReturnDestination(nIndex, address);
     }
     nIndex = -1;
     address = CNoDestination();

@@ -92,9 +92,9 @@ public:
     virtual bool CheckDecryptionKey(const CKeyingMaterial& master_key) { return false; }
     virtual bool Encrypt(const CKeyingMaterial& master_key, WalletBatch* batch) { return false; }
 
-    virtual util::Result<CTxDestination> GetReservedDestination(const OutputType type, bool internal, int64_t& index) { return util::Error{Untranslated("Not supported")}; }
+    virtual util::Result<CTxDestination> GetReservedDestination(const OutputType type, int64_t& index) { return util::Error{Untranslated("Not supported")}; }
     virtual void KeepDestination(int64_t index, const OutputType& type) {}
-    virtual void ReturnDestination(int64_t index, bool internal, const CTxDestination& addr) {}
+    virtual void ReturnDestination(int64_t index, const CTxDestination& addr) {}
 
     /** Fills internal address pool. Use within ScriptPubKeyMan implementations should be used sparingly and only
       * when something from the address pool is removed, excluding GetNewDestination and GetReservedDestination.
@@ -343,8 +343,8 @@ public:
     bool CheckDecryptionKey(const CKeyingMaterial& master_key) override;
     bool Encrypt(const CKeyingMaterial& master_key, WalletBatch* batch) override;
 
-    util::Result<CTxDestination> GetReservedDestination(const OutputType type, bool internal, int64_t& index) override;
-    void ReturnDestination(int64_t index, bool internal, const CTxDestination& addr) override;
+    util::Result<CTxDestination> GetReservedDestination(const OutputType type, int64_t& index) override;
+    void ReturnDestination(int64_t index, const CTxDestination& addr) override;
 
     // Tops up the descriptor cache and m_map_script_pub_keys. The cache is stored in the wallet file
     // and is used to expand the descriptor in GetNewDestination. DescriptorScriptPubKeyMan relies

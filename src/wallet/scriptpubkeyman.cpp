@@ -922,7 +922,7 @@ bool DescriptorScriptPubKeyMan::Encrypt(const CKeyingMaterial& master_key, Walle
     return true;
 }
 
-util::Result<CTxDestination> DescriptorScriptPubKeyMan::GetReservedDestination(const OutputType type, bool internal, int64_t& index)
+util::Result<CTxDestination> DescriptorScriptPubKeyMan::GetReservedDestination(const OutputType type, int64_t& index)
 {
     LOCK(cs_desc_man);
     auto op_dest = GetNewDestination(type);
@@ -930,7 +930,7 @@ util::Result<CTxDestination> DescriptorScriptPubKeyMan::GetReservedDestination(c
     return op_dest;
 }
 
-void DescriptorScriptPubKeyMan::ReturnDestination(int64_t index, bool internal, const CTxDestination& addr)
+void DescriptorScriptPubKeyMan::ReturnDestination(int64_t index, const CTxDestination& addr)
 {
     LOCK(cs_desc_man);
     // Only return when the index was the most recent
