@@ -62,9 +62,9 @@ bool ScriptIsChange(const CWallet& wallet, const CScript& script)
     if (wallet.IsMine(script))
     {
         CTxDestination address;
-        if (!ExtractDestination(script, address))
-            return true;
-        if (!wallet.FindAddressBookEntry(address)) {
+        if (!ExtractDestination(script, address)) return false;
+        auto entry = wallet.FindAddressBookEntry(address);
+        if (!entry || entry->IsChange()) {
             return true;
         }
     }
