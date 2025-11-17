@@ -245,7 +245,8 @@ BOOST_AUTO_TEST_CASE(task_submitted_while_busy_completes)
 
     // Wait a short moment before unblocking the threads to mimic a concurrent shutdown
     std::thread thread_unblocker([&blocker]() {
-        UninterruptibleSleep(std::chrono::milliseconds{300});
+        UninterruptibleSleep(std::chrono::seconds{5});
+        std::cout << "unlocking threads" << std::endl;
         blocker.set_value();
     });
 

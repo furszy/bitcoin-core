@@ -64,10 +64,14 @@ private:
             std::packaged_task<void()> task;
             {
                 // Wait only if needed; avoid sleeping when a new task was submitted while we were processing another one.
-                if (!m_interrupt && m_work_queue.empty()) {
+                //if (!m_interrupt && m_work_queue.empty()) {
                     // Block until the pool is interrupted or a task is available.
-                    m_cv.wait(wait_lock, [&]() EXCLUSIVE_LOCKS_REQUIRED(m_mutex) { return m_interrupt || !m_work_queue.empty(); });
-                }
+                    std::cout << "locking thread: " << std::this_thread::get_id() << std::endl;
+                    m_cv.wait(wait_lock, [&]() EXCLUSIVE_LOCKS_REQUIRED(m_mutex) {
+                        std::cout << "check executed, thread: " << std::this_thread::get_id() << std::endl;
+                        return m_interrupt || !m_work_queue.empty(); });
+                std::cout << "unlocked thread: " << std::this_thread::get_id() << std::endl;
+                //}
 
                 // If stopped and no work left, exit worker
                 if (m_interrupt && m_work_queue.empty()) {
@@ -130,6 +134,7 @@ public:
         std::vector<std::thread> threads_to_join;
         {
             LOCK(m_mutex);
+            if (m_workers.empty()) return; // nothing to do
             // Ensure 'Stop()' isn't called from any worker thread to avoid deadlocks
             auto id = std::this_thread::get_id();
             for (const auto& worker : m_workers) assert(worker.get_id() != id);
@@ -138,6 +143,7 @@ public:
             threads_to_join.swap(m_workers);
         }
         m_cv.notify_all();
+        std::cout << "post notify" << std::endl;
         for (auto& worker : threads_to_join) worker.join();
         // Since we currently wait for tasks completion, sanity-check empty queue
         WITH_LOCK(m_mutex, Assume(m_work_queue.empty()));
