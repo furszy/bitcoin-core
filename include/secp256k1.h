@@ -6,6 +6,7 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <stdint.h>
 
 /** Unless explicitly stated all pointer arguments must not be NULL.
  *
