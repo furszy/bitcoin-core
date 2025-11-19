@@ -405,7 +405,7 @@ SECP256K1_API void secp256k1_context_set_error_callback(
 ) SECP256K1_ARG_NONNULL(1);
 
 /* TODO: add description */
-typedef void (*fn_sha256_transform)(uint32_t* s, const unsigned char* buf, uint32_t n);
+typedef void (*fn_sha256_transform)(uint32_t* s, const unsigned char* buf, size_t n);
 void secp256k1_set_sha256_transform_callback(fn_sha256_transform fn_transform);
 
 /** Parse a variable-length public key into the pubkey object.
