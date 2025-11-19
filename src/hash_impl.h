@@ -127,7 +127,7 @@ static void secp256k1_sha256_transform_impl(uint32_t* s, const unsigned char* bu
     s[7] += h;
 }
 
-static void secp256k1_sha256_transform(uint32_t* s, const unsigned char* buf, uint32_t n) {
+static void secp256k1_sha256_transform(uint32_t* s, const unsigned char* buf, size_t n) {
     while (n--) secp256k1_sha256_transform_impl(s, buf);
 }
 
