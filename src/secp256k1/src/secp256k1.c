@@ -220,6 +220,10 @@ void secp256k1_context_set_error_callback(secp256k1_context* ctx, void (*fun)(co
     ctx->error_callback.data = data;
 }
 
+void secp256k1_set_sha256_transform_callback(fn_sha256_transform fn_transform) {
+    secp256k1_set_sha256_transform(fn_transform);
+}
+
 static secp256k1_scratch_space* secp256k1_scratch_space_create(const secp256k1_context* ctx, size_t max_size) {
     VERIFY_CHECK(ctx != NULL);
     return secp256k1_scratch_create(&ctx->error_callback, max_size);
