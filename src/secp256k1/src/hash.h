@@ -22,8 +22,7 @@ static void secp256k1_sha256_finalize(secp256k1_sha256 *hash, unsigned char *out
 static void secp256k1_sha256_clear(secp256k1_sha256 *hash);
 
 /* TODO: Add description */
-typedef void (*fn_sha256_transform_)(uint32_t* s, const unsigned char* buf, size_t n);
-static void secp256k1_set_sha256_transform(fn_sha256_transform_ fn_transform);
+static int secp256k1_set_sha256_transform(fn_sha256_transform fn_transform);
 
 typedef struct {
     secp256k1_sha256 inner, outer;
