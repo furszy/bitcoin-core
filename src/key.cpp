@@ -569,7 +569,7 @@ bool ECC_InitSanityCheck() {
 }
 
 /** Initialize the elliptic curve support. May not be called twice without calling ECC_Stop first. */
-static void ECC_Start() {
+static void ECC_Start(bool use_new_sign = false) {
     assert(secp256k1_context_sign == nullptr);
 
     secp256k1_context *ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
@@ -583,7 +583,7 @@ static void ECC_Start() {
         assert(ret);
     }
 
-    secp256k1_set_sha256_transform_callback(GetSha256TransformFn());
+    if (use_new_sign) secp256k1_set_sha256_transform_callback(GetSha256TransformFn());
     secp256k1_context_sign = ctx;
 }
 
@@ -597,9 +597,9 @@ static void ECC_Stop() {
     }
 }
 
-ECC_Context::ECC_Context()
+ECC_Context::ECC_Context(bool use_new_sign)
 {
-    ECC_Start();
+    ECC_Start(use_new_sign);
 }
 
 ECC_Context::~ECC_Context()

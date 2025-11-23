@@ -46,6 +46,7 @@ enum PriorityLevel : uint8_t
 {
     LOW = 1 << 0,
     HIGH = 1 << 2,
+    SPECIAL = 1 << 4,
 };
 
 // List priority labels, comma-separated and sorted by increasing priority

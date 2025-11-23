@@ -325,7 +325,7 @@ bool ECC_InitSanityCheck();
 class ECC_Context
 {
 public:
-    ECC_Context();
+    ECC_Context(bool use_new_sign = false);
     ~ECC_Context();
 };
 

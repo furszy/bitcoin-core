@@ -698,7 +698,7 @@ CSHA256::CSHA256()
 CSHA256& CSHA256::Write(const unsigned char* data, size_t len)
 {
     const unsigned char* end = data + len;
-    size_t bufsize = bytes % 64;
+    size_t bufsize = bytes & 0x3F;
     if (bufsize && bufsize + len >= 64) {
         // Fill the buffer, and process it.
         memcpy(buf + bufsize, data, 64 - bufsize);

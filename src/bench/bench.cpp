@@ -73,6 +73,7 @@ namespace benchmark {
 std::map<std::string, uint8_t> map_label_priority = {
     {"high", PriorityLevel::HIGH},
     {"low", PriorityLevel::LOW},
+    {"special", PriorityLevel::SPECIAL},
     {"all", 0xff}
 };
 
