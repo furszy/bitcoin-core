@@ -435,7 +435,6 @@ void TransformD64(unsigned char* out, const unsigned char* in)
 
 } // namespace sha256
 
-typedef void (*TransformType)(uint32_t*, const unsigned char*, size_t);
 typedef void (*TransformD64Type)(unsigned char*, const unsigned char*);
 
 template<TransformType tr>
@@ -779,3 +778,5 @@ void SHA256D64(unsigned char* out, const unsigned char* in, size_t blocks)
         --blocks;
     }
 }
+
+TransformType GetSha256TransformFn() { return Transform; }
