@@ -265,7 +265,7 @@ static void generate_scalar(uint32_t num, secp256k1_scalar* scalar) {
     c[7] = num >> 8;
     c[8] = num >> 16;
     c[9] = num >> 24;
-    secp256k1_sha256_initialize(&sha256);
+    secp256k1_sha256_initialize(&sha256, /*fn_transform=*/NULL);
     secp256k1_sha256_write(&sha256, c, sizeof(c));
     secp256k1_sha256_finalize(&sha256, buf);
     secp256k1_scalar_set_b32(scalar, buf, &overflow);
@@ -334,7 +334,7 @@ int main(int argc, char **argv) {
     }
 
     data.ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
-    scratch_size = secp256k1_strauss_scratch_size(POINTS) + STRAUSS_SCRATCH_OBJECTS*16;
+    scratch_size = secp256k1_strauss_scratch_size(POINTS) + STRAUSS_SCRATCH_OBJECTS*ALIGNMENT;
     if (!have_flag(argc, argv, "simple")) {
         data.scratch = secp256k1_scratch_space_create(data.ctx, scratch_size);
     } else {

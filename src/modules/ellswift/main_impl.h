@@ -382,8 +382,8 @@ static void secp256k1_ellswift_elligatorswift_var(unsigned char *u32, secp256k1_
 }
 
 /** Set hash state to the BIP340 tagged hash midstate for "secp256k1_ellswift_encode". */
-static void secp256k1_ellswift_sha256_init_encode(secp256k1_sha256* hash) {
-    secp256k1_sha256_initialize(hash);
+static void secp256k1_ellswift_sha256_init_encode(const secp256k1_context *ctx, secp256k1_sha256* hash) {
+    secp256k1_sha256_initialize(hash, ctx->hash_context.fn_sha256_transform);
     hash->s[0] = 0xd1a6524bul;
     hash->s[1] = 0x028594b3ul;
     hash->s[2] = 0x96e42f4eul;
@@ -412,7 +412,7 @@ int secp256k1_ellswift_encode(const secp256k1_context *ctx, unsigned char *ell64
 
         /* Set up hasher state; the used RNG is H(pubkey || "\x00"*31 || rnd32 || cnt++), using
          * BIP340 tagged hash with tag "secp256k1_ellswift_encode". */
-        secp256k1_ellswift_sha256_init_encode(&hash);
+        secp256k1_ellswift_sha256_init_encode(ctx, &hash);
         ser_ret = secp256k1_eckey_pubkey_serialize(&p, p64, &ser_size, 1);
 #ifdef VERIFY
         VERIFY_CHECK(ser_ret && ser_size == 33);
@@ -433,8 +433,8 @@ int secp256k1_ellswift_encode(const secp256k1_context *ctx, unsigned char *ell64
 }
 
 /** Set hash state to the BIP340 tagged hash midstate for "secp256k1_ellswift_create". */
-static void secp256k1_ellswift_sha256_init_create(secp256k1_sha256* hash) {
-    secp256k1_sha256_initialize(hash);
+static void secp256k1_ellswift_sha256_init_create(const secp256k1_context *ctx, secp256k1_sha256* hash) {
+    secp256k1_sha256_initialize(hash, ctx->hash_context.fn_sha256_transform);
     hash->s[0] = 0xd29e1bf5ul;
     hash->s[1] = 0xf7025f42ul;
     hash->s[2] = 0x9b024773ul;
@@ -470,7 +470,7 @@ int secp256k1_ellswift_create(const secp256k1_context *ctx, unsigned char *ell64
 
     /* Set up hasher state. The used RNG is H(privkey || "\x00"*32 [|| auxrnd32] || cnt++),
      * using BIP340 tagged hash with tag "secp256k1_ellswift_create". */
-    secp256k1_ellswift_sha256_init_create(&hash);
+    secp256k1_ellswift_sha256_init_create(ctx, &hash);
     secp256k1_sha256_write(&hash, seckey32, 32);
     secp256k1_sha256_write(&hash, zero32, sizeof(zero32));
     secp256k1_declassify(ctx, &hash, sizeof(hash)); /* private key is hashed now */
@@ -501,10 +501,10 @@ int secp256k1_ellswift_decode(const secp256k1_context *ctx, secp256k1_pubkey *pu
     return 1;
 }
 
-static int ellswift_xdh_hash_function_prefix(unsigned char *output, const unsigned char *x32, const unsigned char *ell_a64, const unsigned char *ell_b64, void *data) {
+static int ellswift_xdh_hash_function_prefix(const secp256k1_context *ctx, unsigned char *output, const unsigned char *x32, const unsigned char *ell_a64, const unsigned char *ell_b64, void *data) {
     secp256k1_sha256 sha;
 
-    secp256k1_sha256_initialize(&sha);
+    secp256k1_sha256_initialize(&sha, ctx->hash_context.fn_sha256_transform);
     secp256k1_sha256_write(&sha, data, 64);
     secp256k1_sha256_write(&sha, ell_a64, 64);
     secp256k1_sha256_write(&sha, ell_b64, 64);
@@ -516,8 +516,8 @@ static int ellswift_xdh_hash_function_prefix(unsigned char *output, const unsign
 }
 
 /** Set hash state to the BIP340 tagged hash midstate for "bip324_ellswift_xonly_ecdh". */
-static void secp256k1_ellswift_sha256_init_bip324(secp256k1_sha256* hash) {
-    secp256k1_sha256_initialize(hash);
+static void secp256k1_ellswift_sha256_init_bip324(const secp256k1_context *ctx, secp256k1_sha256* hash) {
+    secp256k1_sha256_initialize(hash, ctx->hash_context.fn_sha256_transform);
     hash->s[0] = 0x8c12d730ul;
     hash->s[1] = 0x827bd392ul;
     hash->s[2] = 0x9e4fb2eeul;
@@ -530,12 +530,12 @@ static void secp256k1_ellswift_sha256_init_bip324(secp256k1_sha256* hash) {
     hash->bytes = 64;
 }
 
-static int ellswift_xdh_hash_function_bip324(unsigned char* output, const unsigned char *x32, const unsigned char *ell_a64, const unsigned char *ell_b64, void *data) {
+static int ellswift_xdh_hash_function_bip324(const secp256k1_context *ctx, unsigned char* output, const unsigned char *x32, const unsigned char *ell_a64, const unsigned char *ell_b64, void *data) {
     secp256k1_sha256 sha;
 
     (void)data;
 
-    secp256k1_ellswift_sha256_init_bip324(&sha);
+    secp256k1_ellswift_sha256_init_bip324(ctx, &sha);
     secp256k1_sha256_write(&sha, ell_a64, 64);
     secp256k1_sha256_write(&sha, ell_b64, 64);
     secp256k1_sha256_write(&sha, x32, 32);
@@ -580,7 +580,7 @@ int secp256k1_ellswift_xdh(const secp256k1_context *ctx, unsigned char *output, 
     secp256k1_fe_get_b32(sx, &px);
 
     /* Invoke hasher */
-    ret = hashfp(output, sx, ell_a64, ell_b64, data);
+    ret = hashfp(ctx, output, sx, ell_a64, ell_b64, data);
 
     secp256k1_memclear_explicit(sx, sizeof(sx));
     secp256k1_fe_clear(&px);
