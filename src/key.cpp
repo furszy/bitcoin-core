@@ -583,6 +583,8 @@ static void ECC_Start() {
         assert(ret);
     }
 
+    SHA256AutoDetect();
+    secp256k1_context_set_sha256_transform_callback(ctx, GetSha256TransformFn());
     secp256k1_context_sign = ctx;
 }
 
