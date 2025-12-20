@@ -132,6 +132,11 @@ SQLiteDatabase::SQLiteDatabase(const fs::path& dir_path, const fs::path& file_pa
         if (ret != SQLITE_OK) {
             throw std::runtime_error(strprintf("SQLiteDatabase: Failed to initialize SQLite: %s\n", sqlite3_errstr(ret)));
         }
+
+        static std::once_flag flag_version;
+        std::call_once(flag_version, []() {
+            LogInfo("Using SQLite Version %s", SQLiteDatabaseVersion());
+        });
     }
 
     try {
