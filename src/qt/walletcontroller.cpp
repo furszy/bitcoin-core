@@ -461,7 +461,11 @@ void MigrateWalletActivity::do_migrate(const std::string& name)
             if (res->solvables_wallet_name) {
                 m_success_message += QChar(' ') + tr("Solvable but not watched scripts have been migrated to a new wallet named '%1'.").arg(GUIUtil::HtmlEscape(GUIUtil::WalletDisplayName(res->solvables_wallet_name.value())));
             }
-            m_wallet_model = m_wallet_controller->getOrCreateWallet(std::move(res->wallet));
+            if (!res->wallet) {
+                m_error_message = _("Null main wallet output from migration");
+            } else {
+                m_wallet_model = m_wallet_controller->getOrCreateWallet(std::move(res->wallet));
+            }
         } else {
             m_error_message = util::ErrorString(res);
         }
