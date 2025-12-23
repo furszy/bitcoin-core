@@ -123,6 +123,11 @@ SQLiteDatabase::SQLiteDatabase(const fs::path& dir_path, const fs::path& file_pa
                 throw std::runtime_error(strprintf("SQLiteDatabase: Failed to setup error log: %s\n", sqlite3_errstr(ret)));
             }
             // Force serialized threading mode
+            if (sqlite3_threadsafe() == 0) {
+                throw std::runtime_error("SQLiteDatabase: SQLite was compiled with SQLITE_THREADSAFE=0. "
+                                         "This build disables all internal mutexes and is not supported. "
+                                         "Please use a SQLite build with mutexing code enabled\n");
+            }
             ret = sqlite3_config(SQLITE_CONFIG_SERIALIZED);
             if (ret != SQLITE_OK) {
                 throw std::runtime_error(strprintf("SQLiteDatabase: Failed to configure serialized threading mode: %s\n", sqlite3_errstr(ret)));
