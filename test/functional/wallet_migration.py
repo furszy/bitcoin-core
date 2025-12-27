@@ -706,8 +706,10 @@ class WalletMigrationTest(BitcoinTestFramework):
             _, _, magic = struct.unpack("QII", data)
             assert_equal(magic, BTREE_MAGIC)
 
-        # Test cleanup: Clear unnamed default wallet from old node
+        # Test cleanup: Clear unnamed default wallet for next test
         os.remove(self.old_node.wallets_path / "wallet.dat")
+        os.remove(self.master_node.wallets_path / "wallet.dat")
+        os.remove(self.master_node.wallets_path / f"default_wallet_{mocked_time}.legacy.bak")
 
     def test_direct_file(self):
         self.log.info("Test migration of a wallet that is not in a wallet directory")
