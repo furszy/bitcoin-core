@@ -3764,6 +3764,13 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
         return false;
     }
 
+    // Check parent directory and db file are writable
+    const auto& file_path = fs::PathFromString(m_database->Filename());
+    if (!IsFileWritable(file_path) || !IsDirWritable(file_path.parent_path())) {
+        error = _("Error: Wallet db cannot be updated. Adjust directory or file permissions to proceed with migration.");
+        return false;
+    }
+
     // Get all of the records for DB type migration
     std::unique_ptr<DatabaseBatch> batch = m_database->MakeBatch();
     std::unique_ptr<DatabaseCursor> cursor = batch->GetNewCursor();
