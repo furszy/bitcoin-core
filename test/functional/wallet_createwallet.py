@@ -4,6 +4,7 @@
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 """Test createwallet arguments.
 """
+from pathlib import Path
 import os
 import random
 import stat
@@ -28,20 +29,33 @@ class CreateWalletTest(BitcoinTestFramework):
     def skip_test_if_missing_module(self):
         self.skip_if_no_wallet()
 
+    def is_dir_writable(self, dir_path: Path) -> bool:
+        """Return True if we can create a file in the directory, False otherwise"""
+        try:
+            tmp = dir_path / f".tmp_{random.randrange(1 << 32)}"
+            tmp.touch()
+            tmp.unlink()
+            return True
+        except OSError:
+            return False
+
     def test_bad_dir_permissions(self, node):
         self.log.info("Test wallet creation failure due to non-writable directory")
         wallet_name = "bad_permissions"
         dir_path = node.wallets_path / wallet_name
         dir_path.mkdir(parents=True)
-        os.chmod(dir_path, stat.S_IREAD | stat.S_IEXEC)
+        original_dir_perms = dir_path.stat().st_mode
+        os.chmod(dir_path, original_dir_perms & ~(stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH))
         try:
-            (dir_path / f".tmp_{random.randrange(1 << 32)}").touch() # Verify the directory is actually non-writable
-            self.log.warn("Skipping non-writable directory test: unable to enforce read-only permissions")
-            return
-        except PermissionError:
-            pass
-        assert_raises_rpc_error(-4, f"SQLiteDatabase: Failed to open database in directory '{str(dir_path)}': directory is not writable", node.createwallet, wallet_name=wallet_name, descriptors=True)
-        dir_path.chmod(dir_path.stat().st_mode | stat.S_IWRITE)
+            if self.is_dir_writable(dir_path):
+                self.log.warning("Skipping non-writable directory test: unable to enforce read-only permissions")
+            else:
+                # Run actual test
+                assert_raises_rpc_error(-4, f"SQLiteDatabase: Failed to open database in directory '{str(dir_path)}': directory is not writable", node.createwallet, wallet_name=wallet_name, descriptors=True)
+        finally:
+            # Reset directory permissions for cleanup
+            dir_path.chmod(original_dir_perms)
+
 
     def run_test(self):
         node = self.nodes[0]
