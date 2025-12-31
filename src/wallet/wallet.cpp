@@ -3801,18 +3801,20 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
     // Close this database and delete the file
     fs::path db_path = fs::PathFromString(m_database->Filename());
     m_database->Close();
-    fs::remove(db_path);
 
     // Generate the path for the location of the migrated wallet
     // Wallets that are plain files rather than wallet directories will be migrated to be wallet directories.
-    const fs::path wallet_path = fsbridge::AbsPathJoin(GetWalletDir(), fs::PathFromString(m_name));
+    const fs::path dst_wallet_path = fsbridge::AbsPathJoin(GetWalletDir(), fs::PathFromString(m_name));
+    // After importing all records, the new DB at tmp_wallet_path will replace the original wallet at dst_wallet_path.
+    std::string new_db_name = strprintf("%s_sqlite_%d", m_name, FastRandomContext().rand64());
+    const fs::path tmp_wallet_path = fsbridge::AbsPathJoin(GetWalletDir(), fs::PathFromString(new_db_name));
 
     // Make new DB
     DatabaseOptions opts;
     opts.require_create = true;
     opts.require_format = DatabaseFormat::SQLITE;
     DatabaseStatus db_status;
-    std::unique_ptr<WalletDatabase> new_db = MakeDatabase(wallet_path, opts, db_status, error);
+    std::unique_ptr<WalletDatabase> new_db = MakeDatabase(tmp_wallet_path, opts, db_status, error);
     assert(new_db); // This is to prevent doing anything further with this wallet. The original file was deleted, but a backup exists.
     m_database.reset();
     m_database = std::move(new_db);
@@ -3831,6 +3833,12 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
     }
     bool committed = batch->TxnCommit();
     assert(committed); // This is a critical error, the new db could not be written to. The original db exists as a backup, but we should not continue execution.
+
+    // At this point, the new database has all records.
+    // We can remove the old db file and rename the new db to the original wallet name.
+    fs::remove(db_path);
+    fs::rename(tmp_wallet_path, dst_wallet_path);
+
     return true;
 }
 
