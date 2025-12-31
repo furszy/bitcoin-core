@@ -50,7 +50,14 @@ public:
 
     /** Return path to main database file for logs and error messages. */
     std::string Filename() override { return fs::PathToString(m_filepath); }
-    std::vector<fs::path> Files() override { return {m_filepath}; }
+    std::vector<fs::path> Files() override {
+        std::vector<fs::path> files;
+        files.emplace_back(m_filepath.parent_path() / "database");
+        files.emplace_back(m_filepath.parent_path() / "db.log");
+        files.emplace_back(m_filepath.parent_path() / ".walletlock");
+        files.emplace_back(m_filepath);
+        return files;
+    }
 
     std::string Format() override { return "bdb_ro"; }
 

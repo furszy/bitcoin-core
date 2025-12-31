@@ -3798,8 +3798,8 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
         return false;
     }
 
-    // Close this database and delete the file
-    fs::path db_path = fs::PathFromString(m_database->Filename());
+    // Close this database and delete the files.
+    std::vector<fs::path> origin_db_files = m_database->Files();
     m_database->Close();
 
     // Generate the path for the location of the migrated wallet
@@ -3815,20 +3815,20 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
     opts.require_format = DatabaseFormat::SQLITE;
     DatabaseStatus db_status;
     std::unique_ptr<WalletDatabase> new_db = MakeDatabase(tmp_wallet_path, opts, db_status, error);
-    assert(new_db); // This is to prevent doing anything further with this wallet. The original file was deleted, but a backup exists.
+    assert(new_db); // This is to prevent doing anything further with this wallet. The original db is untouched, so we can abort safely.
     m_database.reset();
     m_database = std::move(new_db);
 
     // Write existing records into the new DB
     batch = m_database->MakeBatch();
     bool began = batch->TxnBegin();
-    assert(began); // This is a critical error, the new db could not be written to. The original db exists as a backup, but we should not continue execution.
+    assert(began); // This is a critical error, the new db could not be written to. The original db is untouched, so we can abort safely.
     for (const auto& [key, value] : records) {
         if (!batch->Write(std::span{key}, std::span{value})) {
             batch->TxnAbort();
             m_database->Close();
             fs::remove(m_database->Filename());
-            assert(false); // This is a critical error, the new db could not be written to. The original db exists as a backup, but we should not continue execution.
+            assert(false); // This is a critical error, the new db could not be written to. The original db is untouched, so we can abort safely.
         }
     }
     bool committed = batch->TxnCommit();
@@ -3836,7 +3836,26 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
 
     // At this point, the new database has all records.
     // We can remove the old db file and rename the new db to the original wallet name.
-    fs::remove(db_path);
+
+    // First pass: ensure no directory contains unexpected .dat files.
+    // This is only required for the BDB /database/ directory.
+    // In case the user had the brilliant idea of naming a wallet as "database" or moved .dat files there.
+    for (const auto& path : origin_db_files) {
+        if (fs::is_directory(path)) {
+            for (const auto& entry : fs::directory_iterator(path)) {
+                if (entry.path().extension() == ".dat") {
+                    // Abort by removing the created file and erroring out.
+                    m_database->Close();
+                    fs::remove(m_database->Filename());
+                    error = strprintf(_("Error: Unexpected .dat file '%s' found. Please move it outside the directory being migrated."), fs::PathToString(entry.path()));
+                    return false;
+                }
+            }
+        }
+    }
+
+    // Second pass: remove everything
+    for (const auto& path : origin_db_files) fs::remove_all(path);
     fs::rename(tmp_wallet_path, dst_wallet_path);
 
     return true;
