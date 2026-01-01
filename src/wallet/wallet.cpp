@@ -3853,6 +3853,23 @@ std::optional<MigrationData> CWallet::GetDescriptorsForLegacy(bilingual_str& err
     return res;
 }
 
+static util::Result<void> MigrateTx(CWallet& wallet, const CWalletTx& to_copy_wtx, const std::unique_ptr<WalletBatch>& batch) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet)
+{
+    const Txid& hash = to_copy_wtx.GetHash();
+    if (!wallet.LoadToWallet(hash, [&](CWalletTx& ins_wtx, bool new_tx) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet) {
+        if (!new_tx) return false;
+        ins_wtx.SetTx(to_copy_wtx.tx);
+        ins_wtx.CopyFrom(to_copy_wtx);
+        return true;
+    })) {
+        return util::Error{strprintf(_("Error: Could not add tx %s to wallet %s"), hash.GetHex(), wallet.GetName())};
+    }
+    if (!batch->WriteTx(wallet.mapWallet.at(hash))) {
+        return util::Error{strprintf(_("Error: Could not store tx %s in wallet %s"), hash.GetHex(), wallet.GetName())};
+    }
+    return {};
+}
+
 util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, MigrationData& data)
 {
     AssertLockHeld(cs_wallet);
@@ -3952,20 +3969,10 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
             LOCK(data.watchonly_wallet->cs_wallet);
             if (data.watchonly_wallet->IsMine(*wtx->tx) || data.watchonly_wallet->IsFromMe(*wtx->tx)) {
                 // Add to watchonly wallet
-                const Txid& hash = wtx->GetHash();
-                const CWalletTx& to_copy_wtx = *wtx;
-                if (!data.watchonly_wallet->LoadToWallet(hash, [&](CWalletTx& ins_wtx, bool new_tx) EXCLUSIVE_LOCKS_REQUIRED(data.watchonly_wallet->cs_wallet) {
-                    if (!new_tx) return false;
-                    ins_wtx.SetTx(to_copy_wtx.tx);
-                    ins_wtx.CopyFrom(to_copy_wtx);
-                    return true;
-                })) {
-                    return util::Error{strprintf(_("Error: Could not add watchonly tx %s to watchonly wallet"), wtx->GetHash().GetHex())};
-                }
-                watchonly_batch->WriteTx(data.watchonly_wallet->mapWallet.at(hash));
+                if (auto ret = MigrateTx(*data.watchonly_wallet, *wtx, watchonly_batch); !ret) return ret;
                 // Mark as to remove from the migrated wallet only if it does not also belong to it
                 if (!is_mine) {
-                    txids_to_delete.push_back(hash);
+                    txids_to_delete.push_back(wtx->GetHash());
                 }
                 continue;
             }
