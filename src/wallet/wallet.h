@@ -1042,7 +1042,7 @@ public:
     bool MigrateToSQLite(bilingual_str& error) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
     //! Get all of the descriptors from a legacy wallet
-    std::optional<MigrationData> GetDescriptorsForLegacy(bilingual_str& error) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    std::optional<MigrationData> GetDescriptorsForLegacy(std::shared_ptr<CWallet>& dest_wallet, bilingual_str& error) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
     //! Adds the ScriptPubKeyMans given in MigrationData to this wallet, removes LegacyScriptPubKeyMan,
     //! and where needed, moves tx and address book entries to watchonly_wallet or solvable_wallet
@@ -1122,6 +1122,7 @@ bool RemoveWalletSetting(interfaces::Chain& chain, const std::string& wallet_nam
 struct MigrationResult {
     std::string wallet_name;
     std::shared_ptr<CWallet> wallet;
+    std::shared_ptr<CWallet> spendable_wallet;
     std::shared_ptr<CWallet> watchonly_wallet;
     std::shared_ptr<CWallet> solvables_wallet;
     fs::path backup_path;

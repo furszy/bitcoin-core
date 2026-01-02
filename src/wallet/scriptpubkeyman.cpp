@@ -529,10 +529,10 @@ std::unordered_set<CScript, SaltedSipHasher> LegacyDataSPKM::GetNotMineScriptPub
     return spks;
 }
 
-std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
+std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor(WalletStorage& new_storage)
 {
     LOCK(cs_KeyStore);
-    if (m_storage.IsLocked()) {
+    if (m_storage.IsLocked() || new_storage.IsLocked()) {
         return std::nullopt;
     }
 
@@ -568,7 +568,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
         keyid_it++;
     }
 
-    WalletBatch batch(m_storage.GetDatabase());
+    WalletBatch batch(new_storage.GetDatabase());
     if (!batch.TxnBegin()) {
         LogWarning("Error generating descriptors for migration, cannot initialize db transaction");
         return std::nullopt;
@@ -603,7 +603,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
         WalletDescriptor w_desc(std::move(descs.at(0)), creation_time, 0, 0, 0);
 
         // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
-        auto desc_spk_man = std::make_unique<DescriptorScriptPubKeyMan>(m_storage, w_desc, /*keypool_size=*/0);
+        auto desc_spk_man = std::make_unique<DescriptorScriptPubKeyMan>(new_storage, w_desc, /*keypool_size=*/0);
         WITH_LOCK(desc_spk_man->cs_desc_man, desc_spk_man->AddDescriptorKeyWithDB(batch, key, key.GetPubKey()));
         desc_spk_man->TopUpWithDB(batch);
         auto desc_spks = desc_spk_man->GetScriptPubKeys();
@@ -652,7 +652,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
             WalletDescriptor w_desc(std::move(descs.at(0)), 0, 0, chain_counter, 0);
 
             // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
-            auto desc_spk_man = std::make_unique<DescriptorScriptPubKeyMan>(m_storage, w_desc, /*keypool_size=*/0);
+            auto desc_spk_man = std::make_unique<DescriptorScriptPubKeyMan>(new_storage, w_desc, /*keypool_size=*/0);
             WITH_LOCK(desc_spk_man->cs_desc_man, desc_spk_man->AddDescriptorKeyWithDB(batch, master_key.key, master_key.key.GetPubKey()));
             desc_spk_man->TopUpWithDB(batch);
             auto desc_spks = desc_spk_man->GetScriptPubKeys();
@@ -720,7 +720,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
         // Make the descriptor string with private keys
         std::string desc_str;
         bool watchonly = !desc->ToPrivateString(*this, desc_str);
-        if (watchonly && !m_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
+        if (watchonly && !new_storage.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
             out.watch_descs.emplace_back(desc->ToString(), creation_time);
 
             // Get the scriptPubKeys without writing this to the wallet
@@ -729,7 +729,7 @@ std::optional<MigrationData> LegacyDataSPKM::MigrateToDescriptor()
         } else {
             // Make the DescriptorScriptPubKeyMan and get the scriptPubKeys
             WalletDescriptor w_desc(std::move(desc), creation_time, 0, 0, 0);
-            auto desc_spk_man = std::make_unique<DescriptorScriptPubKeyMan>(m_storage, w_desc, /*keypool_size=*/0);
+            auto desc_spk_man = std::make_unique<DescriptorScriptPubKeyMan>(new_storage, w_desc, /*keypool_size=*/0);
             for (const auto& keyid : privkeyids) {
                 CKey key;
                 if (!GetKey(keyid, key)) {

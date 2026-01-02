@@ -249,9 +249,10 @@ public:
      */
     std::unordered_set<CScript, SaltedSipHasher> GetNotMineScriptPubKeys() const;
 
-    /** Get the DescriptorScriptPubKeyMans (with private keys) that have the same scriptPubKeys as this LegacyScriptPubKeyMan.
-     * Does not modify this ScriptPubKeyMan. */
-    std::optional<MigrationData> MigrateToDescriptor();
+    /** Get the DescriptorScriptPubKeyMans (with private keys) that have the same scriptPubKeys as this LegacyScriptPubKeyMan
+     *  and store them inside 'new_storage'.
+     *  This method does not modify this ScriptPubKeyMan in any way. */
+    std::optional<MigrationData> MigrateToDescriptor(WalletStorage& new_storage);
     /** Delete all the records of this LegacyScriptPubKeyMan from disk*/
     bool DeleteRecordsWithDB(WalletBatch& batch);
 };
@@ -414,6 +415,7 @@ struct MigrationData
     std::vector<std::pair<std::string, int64_t>> watch_descs;
     std::vector<std::pair<std::string, int64_t>> solvable_descs;
     std::vector<std::unique_ptr<DescriptorScriptPubKeyMan>> desc_spkms;
+    std::shared_ptr<CWallet> spendable_wallet{nullptr};
     std::shared_ptr<CWallet> watchonly_wallet{nullptr};
     std::shared_ptr<CWallet> solvable_wallet{nullptr};
 };
