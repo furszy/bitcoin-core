@@ -1046,7 +1046,7 @@ public:
 
     //! Adds the ScriptPubKeyMans given in MigrationData to this wallet, removes LegacyScriptPubKeyMan,
     //! and where needed, moves tx and address book entries to watchonly_wallet or solvable_wallet
-    util::Result<void> ApplyMigrationData(WalletBatch& local_wallet_batch, MigrationData& data) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    friend util::Result<void> ApplyMigrationData(CWallet& src_wallet, WalletBatch& local_wallet_batch, MigrationData& data);
 
     //! Whether the (external) signer performs R-value signature grinding
     bool CanGrindR() const;

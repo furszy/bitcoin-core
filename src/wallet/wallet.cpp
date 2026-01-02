@@ -3870,11 +3870,11 @@ static util::Result<void> MigrateTx(CWallet& wallet, const CWalletTx& to_copy_wt
     return {};
 }
 
-util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, MigrationData& data)
+util::Result<void> ApplyMigrationData(CWallet& src_wallet, WalletBatch& local_wallet_batch, MigrationData& data) EXCLUSIVE_LOCKS_REQUIRED(src_wallet.cs_wallet)
 {
-    AssertLockHeld(cs_wallet);
+    AssertLockHeld(src_wallet.cs_wallet);
 
-    LegacyDataSPKM* legacy_spkm = GetLegacyDataSPKM();
+    LegacyDataSPKM* legacy_spkm = src_wallet.GetLegacyDataSPKM();
     if (!Assume(legacy_spkm)) {
         // This shouldn't happen
         return util::Error{Untranslated(STR_INTERNAL_BUG("Error: Legacy wallet data missing"))};
@@ -3892,16 +3892,16 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
 
     // When the legacy wallet has no spendable scripts, the main wallet will be empty, leaving its script cache empty as well.
     // The watch-only and/or solvable wallet(s) will contain the scripts in their respective caches.
-    if (!data.desc_spkms.empty()) Assume(!m_cached_spks.empty());
+    if (!data.desc_spkms.empty()) Assume(!src_wallet.m_cached_spks.empty());
     if (!data.watch_descs.empty()) Assume(!data.watchonly_wallet->m_cached_spks.empty());
     if (!data.solvable_descs.empty()) Assume(!data.solvable_wallet->m_cached_spks.empty());
 
     for (auto& desc_spkm : data.desc_spkms) {
-        if (m_spk_managers.contains(desc_spkm->GetID())) {
+        if (src_wallet.m_spk_managers.contains(desc_spkm->GetID())) {
             return util::Error{_("Error: Duplicate descriptors created during migration. Your wallet may be corrupted.")};
         }
         uint256 id = desc_spkm->GetID();
-        AddScriptPubKeyMan(id, std::move(desc_spkm));
+        src_wallet.AddScriptPubKeyMan(id, std::move(desc_spkm));
     }
 
     // Remove the LegacyScriptPubKeyMan from disk
@@ -3910,19 +3910,19 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
     }
 
     // Remove the LegacyScriptPubKeyMan from memory
-    m_spk_managers.erase(legacy_spkm->GetID());
-    m_external_spk_managers.clear();
-    m_internal_spk_managers.clear();
+    src_wallet.m_spk_managers.erase(legacy_spkm->GetID());
+    src_wallet.m_external_spk_managers.clear();
+    src_wallet.m_internal_spk_managers.clear();
 
     // Setup new descriptors (only if we are migrating any key material)
-    SetWalletFlagWithDB(local_wallet_batch, WALLET_FLAG_DESCRIPTORS | WALLET_FLAG_LAST_HARDENED_XPUB_CACHED);
-    if (has_spendable_material && !IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
+    src_wallet.SetWalletFlagWithDB(local_wallet_batch, WALLET_FLAG_DESCRIPTORS | WALLET_FLAG_LAST_HARDENED_XPUB_CACHED);
+    if (has_spendable_material && !src_wallet.IsWalletFlagSet(WALLET_FLAG_DISABLE_PRIVATE_KEYS)) {
         // Use the existing master key if we have it
         if (data.master_key.key.IsValid()) {
-            SetupDescriptorScriptPubKeyMans(local_wallet_batch, data.master_key);
+            src_wallet.SetupDescriptorScriptPubKeyMans(local_wallet_batch, data.master_key);
         } else {
             // Setup with a new seed if we don't.
-            SetupOwnDescriptorScriptPubKeyMans(local_wallet_batch);
+            src_wallet.SetupOwnDescriptorScriptPubKeyMans(local_wallet_batch);
         }
     }
 
@@ -3933,8 +3933,8 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
     }
 
     // Update m_txos to match the descriptors remaining in this wallet
-    m_txos.clear();
-    RefreshAllTXOs();
+    src_wallet.m_txos.clear();
+    src_wallet.RefreshAllTXOs();
 
     // Check if the transactions in the wallet are still ours. Either they belong here, or they belong in the watchonly wallet.
     // We need to go through these in the tx insertion order so that lookups to spends works.
@@ -3945,7 +3945,7 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
         if (!watchonly_batch->TxnBegin()) return util::Error{strprintf(_("Error: database transaction cannot be executed for wallet %s"), data.watchonly_wallet->GetName())};
         // Copy the next tx order pos to the watchonly wallet
         LOCK(data.watchonly_wallet->cs_wallet);
-        data.watchonly_wallet->nOrderPosNext = nOrderPosNext;
+        data.watchonly_wallet->nOrderPosNext = src_wallet.nOrderPosNext;
         watchonly_batch->WriteOrderPosNext(data.watchonly_wallet->nOrderPosNext);
         // Write the best block locator to avoid rescanning on reload
         if (!watchonly_batch->WriteBestBlock(best_block_locator)) {
@@ -3961,10 +3961,10 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
             return util::Error{_("Error: Unable to write solvable wallet best block locator record")};
         }
     }
-    for (const auto& [_pos, wtx] : wtxOrdered) {
+    for (const auto& [_pos, wtx] : src_wallet.wtxOrdered) {
         // Check it is the watchonly wallet's
         // solvable_wallet doesn't need to be checked because transactions for those scripts weren't being watched for
-        bool is_mine = IsMine(*wtx->tx) || IsFromMe(*wtx->tx);
+        bool is_mine = src_wallet.IsMine(*wtx->tx) || src_wallet.IsFromMe(*wtx->tx);
         if (data.watchonly_wallet) {
             LOCK(data.watchonly_wallet->cs_wallet);
             if (data.watchonly_wallet->IsMine(*wtx->tx) || data.watchonly_wallet->IsFromMe(*wtx->tx)) {
@@ -3985,7 +3985,7 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
 
     // Do the removes
     if (txids_to_delete.size() > 0) {
-        if (auto res = RemoveTxs(local_wallet_batch, txids_to_delete); !res) {
+        if (auto res = src_wallet.RemoveTxs(local_wallet_batch, txids_to_delete); !res) {
             return util::Error{_("Error: Could not delete watchonly transactions. ") + util::ErrorString(res)};
         }
     }
@@ -4008,10 +4008,10 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
 
     // Check the address book data in the same way we did for transactions
     std::vector<CTxDestination> dests_to_delete;
-    for (const auto& [dest, record] : m_address_book) {
+    for (const auto& [dest, record] : src_wallet.m_address_book) {
         // Ensure "receive" entries that are no longer part of the original wallet are transferred to another wallet
         // Entries for everything else ("send") will be cloned to all wallets.
-        bool require_transfer = record.purpose == AddressPurpose::RECEIVE && !IsMine(dest);
+        bool require_transfer = record.purpose == AddressPurpose::RECEIVE && !src_wallet.IsMine(dest);
         bool copied = false;
         for (auto& [wallet, batch] : wallets_vec) {
             LOCK(wallet->cs_wallet);
@@ -4054,7 +4054,7 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
     // Remove the things to delete in this wallet
     if (dests_to_delete.size() > 0) {
         for (const auto& dest : dests_to_delete) {
-            if (!DelAddressBookWithDB(local_wallet_batch, dest)) {
+            if (!src_wallet.DelAddressBookWithDB(local_wallet_batch, dest)) {
                 return util::Error{_("Error: Unable to remove watchonly address book data")};
             }
         }
@@ -4064,8 +4064,8 @@ util::Result<void> CWallet::ApplyMigrationData(WalletBatch& local_wallet_batch, 
     // This wallet will be discarded at the end of the process. Only wallets that contain the
     // migrated records will be presented to the user.
     if (!has_spendable_material) {
-        if (!m_address_book.empty()) return util::Error{_("Error: Not all address book records were migrated")};
-        if (!mapWallet.empty()) return util::Error{_("Error: Not all transaction records were migrated")};
+        if (!src_wallet.m_address_book.empty()) return util::Error{_("Error: Not all address book records were migrated")};
+        if (!src_wallet.mapWallet.empty()) return util::Error{_("Error: Not all transaction records were migrated")};
     }
 
     return {}; // all good
@@ -4163,7 +4163,7 @@ bool DoMigration(CWallet& wallet, WalletContext& context, bilingual_str& error, 
 
     // Add the descriptors to wallet, remove LegacyScriptPubKeyMan, and cleanup txs and address book data
     return RunWithinTxn(wallet.GetDatabase(), /*process_desc=*/"apply migration process", [&](WalletBatch& batch) EXCLUSIVE_LOCKS_REQUIRED(wallet.cs_wallet){
-        if (auto res_migration = wallet.ApplyMigrationData(batch, *data); !res_migration) {
+        if (auto res_migration = ApplyMigrationData(wallet, batch, *data); !res_migration) {
             error = util::ErrorString(res_migration);
             return false;
         }
