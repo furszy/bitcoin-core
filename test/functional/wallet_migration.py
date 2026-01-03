@@ -1542,9 +1542,40 @@ class WalletMigrationTest(BitcoinTestFramework):
         self.start_node(self.old_node.index)
         self.connect_nodes(1, 0)
 
+    @staticmethod
+    def erase_bdb_record(wallet_dat_path, key):
+        data = bytearray(wallet_dat_path.read_bytes())
+        idx = data.find(key)
+        assert idx != -1, f"{key!r} not found in wallet.dat"
+
+        # Zero the byte immediately after the key (CompactSize vector length)
+        data[idx + len(key)] = 0x00
+
+        wallet_dat_path.write_bytes(data)
+
+    def test_missing_bestblock(self):
+        self.log.info("Test migrating legacy BDB wallet without bestblock record")
+        wallet_name = "nobestblock"
+        wallet = self.create_legacy_wallet(wallet_name)
+        assert self.old_node.getblockcount() == 0
+        wallet.unloadwallet()
+
+        # Erase block locator record like if this would be a pre-#152 wallet
+        self.erase_bdb_record(self.old_node.wallets_path / wallet_name / "wallet.dat", b"bestblock")
+
+        shutil.copytree(self.old_node.wallets_path / wallet_name, self.master_node.wallets_path / wallet_name, dirs_exist_ok=True)
+        self.master_node.migratewallet(wallet_name)
+
+        wallet = self.master_node.get_wallet_rpc(wallet_name)
+        info = wallet.getwalletinfo()
+        assert_equal(info["descriptors"], True)
+        assert_equal(info["format"], "sqlite")
+
     def run_test(self):
         self.master_node = self.nodes[0]
         self.old_node = self.nodes[1]
+
+        self.test_missing_bestblock()
 
         self.generate(self.master_node, 101)
 
