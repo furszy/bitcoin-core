@@ -470,6 +470,8 @@ std::shared_ptr<CWallet> RestoreWallet(WalletContext& context, const fs::path& b
     const fs::path wallet_path = fsbridge::AbsPathJoin(GetWalletDir(), fs::u8path(wallet_name));
     auto wallet_file = wallet_path / "wallet.dat";
     std::shared_ptr<CWallet> wallet;
+    bool wallet_file_copied = false;
+    bool created_parent_dir = false;
 
     try {
         if (!fs::exists(backup_file)) {
@@ -506,9 +508,11 @@ std::shared_ptr<CWallet> RestoreWallet(WalletContext& context, const fs::path& b
                 status = DatabaseStatus::FAILED_ALREADY_EXISTS;
                 return nullptr;
             }
+            created_parent_dir = true;
         }
 
         fs::copy_file(backup_file, wallet_file, fs::copy_options::none);
+        wallet_file_copied = true;
 
         if (load_after_restore) {
             wallet = LoadWallet(context, wallet_name, load_on_start, options, status, error, warnings);
@@ -520,8 +524,14 @@ std::shared_ptr<CWallet> RestoreWallet(WalletContext& context, const fs::path& b
     }
 
     // Remove created wallet path only when loading fails
-    if (load_after_restore && !wallet) {
-        fs::remove_all(wallet_path);
+    if (load_after_restore && !wallet && wallet_file_copied) {
+        fs::remove(wallet_file);
+        // Clean up the parent directory if we created it during restoration.
+        // It must be empty after deleting the wallet file.
+        if (created_parent_dir) {
+            Assert(fs::is_empty(wallet_path));
+            fs::remove(wallet_path);
+        }
     }
 
     return wallet;
