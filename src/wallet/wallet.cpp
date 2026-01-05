@@ -3753,6 +3753,23 @@ util::Result<std::reference_wrapper<DescriptorScriptPubKeyMan>> CWallet::AddWall
     return std::reference_wrapper(*spk_man);
 }
 
+void MoveDirContent(const fs::path& src, const fs::path& dst)
+{
+    Assert(fs::is_directory(src));
+    TryCreateDirectories(dst);
+
+    for (const auto& entry : fs::directory_iterator(src)) {
+        fs::path filename = entry.path().filename();
+        fs::path target = dst / filename;
+
+        if (fs::exists(target)) {
+            throw fs::filesystem_error("destination already exists", entry.path(), target, std::make_error_code(std::errc::file_exists));
+        }
+
+        fs::rename(entry.path(), target);
+    }
+}
+
 bool CWallet::MigrateToSQLite(bilingual_str& error)
 {
     AssertLockHeld(cs_wallet);
@@ -3844,8 +3861,9 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
     fs::remove(origin_db_path);
     m_database.reset(); // reset sqlite connection so it can be moved to the new folder
 
-    // Copy the new sqlite database into the original location
-    fs::copy(tmp_wallet_path, dst_wallet_path, fs::copy_options::recursive | fs::copy_options::overwrite_existing);
+    // Move the new sqlite database into the original location
+    MoveDirContent(tmp_wallet_path, dst_wallet_path);
+    Assert(fs::is_empty(tmp_wallet_path));
     fs::remove_all(tmp_wallet_path);
 
     // Reload sqlite connection
