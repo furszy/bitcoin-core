@@ -39,6 +39,7 @@ from test_framework.test_framework import BitcoinTestFramework
 from test_framework.util import (
     assert_equal,
     assert_raises_rpc_error,
+    sha256sum_file,
 )
 
 
@@ -136,6 +137,49 @@ class WalletBackupTest(BitcoinTestFramework):
         assert_raises_rpc_error(-36, error_message, node.restorewallet, wallet_name, backup_file)
         assert wallet_file.exists()
 
+    def test_restore_existent_dir(self):
+        self.log.info("Test restore on an existent empty directory")
+        node = self.nodes[3]
+        backup_file = self.nodes[0].datadir_path / 'wallet.bak'
+        wallet_name = "restored_wallet"
+        wallet_dir = node.wallets_path / wallet_name
+        os.mkdir(wallet_dir)
+        res = node.restorewallet(wallet_name, backup_file)
+        assert_equal(res['name'], wallet_name)
+        node.unloadwallet(wallet_name)
+
+        self.log.info("Test restore succeeds when the target directory contains non-wallet files")
+        wallet_file = node.wallets_path / wallet_name / "wallet.dat"
+        os.remove(wallet_file)
+        extra_file = node.wallets_path / wallet_name / "not_a_wallet.txt"
+        extra_file.touch()
+        res = node.restorewallet(wallet_name, backup_file)
+        assert_equal(res['name'], wallet_name)
+        assert extra_file.exists() # extra file was not removed by mistake
+
+        self.log.info("Test restore failure due to a .dat file in the destination directory")
+        original_shasum = sha256sum_file(wallet_file)
+        error_message = "Failed to restore wallet. Database file exists in '{}'.".format(wallet_dir)
+        assert_raises_rpc_error(-36, error_message, node.restorewallet, wallet_name, backup_file)
+        # Ensure the wallet file remains untouched
+        assert wallet_dir.exists()
+        assert_equal(original_shasum, sha256sum_file(wallet_file))
+        # Clean for follow-up tests
+        os.remove(wallet_file)
+
+    def test_restore_into_unnamed_wallet(self):
+        self.log.info("Test restore into a default unnamed wallet")
+        # This is also useful to test the migration recovery after failure logic
+        node = self.nodes[3]
+        backup_file = self.nodes[0].datadir_path / 'wallet.bak'
+        wallet_name = ""
+        res = node.restorewallet(wallet_name, backup_file)
+        assert_equal(res['name'], "")
+        assert (node.wallets_path / "wallet.dat").exists()
+        # Clean for follow-up tests
+        node.unloadwallet("")
+        os.remove(node.wallets_path / "wallet.dat")
+
     def test_pruned_wallet_backup(self):
         self.log.info("Test loading backup on a pruned node when the backup was created close to the prune height of the restoring node")
         node = self.nodes[3]
@@ -219,6 +263,8 @@ class WalletBackupTest(BitcoinTestFramework):
         assert_equal(res2_rpc.getbalance(), balance2)
 
         self.restore_wallet_existent_name()
+        self.test_restore_existent_dir()
+        self.test_restore_into_unnamed_wallet()
 
         # Backup to source wallet file must fail
         sourcePaths = [
