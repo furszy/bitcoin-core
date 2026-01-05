@@ -199,6 +199,13 @@ class WalletBackupTest(BitcoinTestFramework):
         # the backup to load successfully this close to the prune height
         node.restorewallet('pruned', node.datadir_path / 'wallet_pruned.bak')
 
+        self.log.info("Test restore on a pruned node when the backup was beyond the pruning point")
+        backup_file = self.nodes[0].datadir_path / 'wallet.bak'
+        wallet_name = ""
+        error_message = "Wallet loading failed. Prune: last wallet synchronisation goes beyond pruned data. You need to -reindex (download the whole blockchain again in case of a pruned node)"
+        assert_raises_rpc_error(-4, error_message, node.restorewallet, wallet_name, backup_file)
+        assert(node.wallets_path.exists()) # ensure the wallets dir exists
+
     def run_test(self):
         self.log.info("Generating initial blockchain")
         self.generate(self.nodes[0], 1)
