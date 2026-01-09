@@ -1466,18 +1466,18 @@ class WalletMigrationTest(BitcoinTestFramework):
 
     def unsynced_wallet_on_pruned_node_fails(self):
         self.log.info("Test migration of an unsynced wallet on a pruned node fails gracefully")
-        wallet_name = "pruned"
+        wallet_name = ""
         wallet = self.create_legacy_wallet(wallet_name, load_on_startup=False)
         last_wallet_synced_block = wallet.getwalletinfo()['lastprocessedblock']['height']
         wallet.unloadwallet()
 
-        shutil.copytree(self.old_node.wallets_path / wallet_name, self.master_node.wallets_path / wallet_name)
+        shutil.copyfile(self.old_node.wallets_path / "wallet.dat", self.master_node.wallets_path / "wallet.dat")
 
         # Generate blocks just so the wallet best block is pruned
         self.restart_node(0, ["-fastprune", "-prune=1", "-nowallet"])
         self.connect_nodes(0, 1)
-        self.generate(self.master_node, 450, sync_fun=self.no_op)
-        self.master_node.pruneblockchain(250)
+        self.generate(self.master_node, 550, sync_fun=self.no_op)
+        self.master_node.pruneblockchain(300)
         # Ensure next block to sync is unavailable
         assert_raises_rpc_error(-1, "Block not available (pruned data)", self.master_node.getblock, self.master_node.getblockhash(last_wallet_synced_block + 1))
 
@@ -1487,15 +1487,13 @@ class WalletMigrationTest(BitcoinTestFramework):
         assert_raises_rpc_error(-4, "last wallet synchronisation goes beyond pruned data. You need to -reindex (download the whole blockchain again in case of pruned node)", self.master_node.migratewallet, wallet_name=wallet_name)
         self.master_node.setmocktime(0)
 
-        # Verify the wallet is stil BDB and backup is there.
-        self.restart_node(0, ["-reindex", "-nowallet"])
-        self.connect_nodes(0, 1)
-        self.master_node.loadwallet(wallet_name)
-        migrated = self.master_node.get_wallet_rpc(wallet_name)
-        info = migrated.getwalletinfo()
-        assert_equal(info["descriptors"], False)
-        assert_equal(info["format"], "bdb")
-        backup_path = self.master_node.wallets_path / wallet_name / f"{wallet_name}_{mocked_time}.legacy.bak"
+        # Verify the wallet
+        with open(self.master_node.wallets_path / "wallet.dat", "rb") as f:
+            data = f.read(16)
+            _, _, magic = struct.unpack("QII", data)
+            assert_equal(magic, BTREE_MAGIC)
+
+        backup_path = self.master_node.wallets_path / f"default_wallet_{mocked_time}.legacy.bak"
         assert backup_path.exists()
 
 
