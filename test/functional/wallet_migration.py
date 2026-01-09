@@ -624,10 +624,7 @@ class WalletMigrationTest(BitcoinTestFramework):
 
         mocked_time = int(time.time())
         self.master_node.setmocktime(mocked_time)
-        if os.path.isabs(wallet_name) or is_default:
-            assert_raises_rpc_error(-1, "filesystem error: cannot copy file: File exists", self.master_node.migratewallet, wallet_name)
-        else:
-            assert_raises_rpc_error(-4, "Failed to create database", self.master_node.migratewallet, wallet_name)
+        assert_raises_rpc_error(-4, "Failed to create database", self.master_node.migratewallet, wallet_name)
         self.master_node.setmocktime(0)
 
         # Verify the /wallets/ path exists.
@@ -643,19 +640,10 @@ class WalletMigrationTest(BitcoinTestFramework):
         backup_path = master_path / f"{backup_prefix}_{mocked_time}.legacy.bak"
         assert backup_path.exists()
 
-        if os.path.isabs(wallet_name) or is_default:
-            # Migration will fail to restore the original wallet
-            # So verify it is now a SQLite wallet
-            wallet_file_path = self.master_node.wallets_path / wallet_name / self.wallet_data_filename
-            with open(wallet_file_path, 'rb') as f:
-                file_magic = f.read(16)
-                assert_equal(file_magic, b'SQLite format 3\x00')
-        else:
-            with open(self.master_node.wallets_path / wallet_name / self.wallet_data_filename, "rb") as f:
-                data = f.read(16)
-                _, _, magic = struct.unpack("QII", data)
-                assert_equal(magic, BTREE_MAGIC)
-
+        with open(self.master_node.wallets_path / wallet_name / self.wallet_data_filename, "rb") as f:
+            data = f.read(16)
+            _, _, magic = struct.unpack("QII", data)
+            assert_equal(magic, BTREE_MAGIC)
 
         # Cleanup
         if is_default:
