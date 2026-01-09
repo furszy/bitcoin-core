@@ -4630,8 +4630,7 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>
         // Migration failed, cleanup
         // Before deleting the wallet's directory, copy the backup file to the top-level wallets dir
         fs::path temp_backup_location = fsbridge::AbsPathJoin(GetWalletDir(), backup_filename);
-        fs::copy_file(backup_path, temp_backup_location, fs::copy_options::none);
-        wallet_files_to_remove.insert(backup_path);
+        fs::rename(backup_path, temp_backup_location);
 
         // Make list of wallets to cleanup
         std::vector<std::shared_ptr<CWallet>> created_wallets;
@@ -4682,8 +4681,7 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>
         }
 
         // The wallet directory has been restored, but just in case, copy the previously created backup to the wallet dir
-        fs::copy_file(temp_backup_location, backup_path, fs::copy_options::none);
-        fs::remove(temp_backup_location);
+        fs::rename(temp_backup_location, backup_path);
 
         // Verify that there is no dangling wallet: when the wallet wasn't loaded before, expect null.
         // This check is performed after restoration to avoid an early error before saving the backup.
