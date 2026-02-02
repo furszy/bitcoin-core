@@ -242,7 +242,17 @@ void BaseIndex::Sync()
                 return;
             }
 
-            const CBlockIndex* pindex_next = WITH_LOCK(cs_main, return NextSyncBlock(pindex, m_chainstate->m_chain));
+            const CBlockIndex* pindex_next;
+            const CBlockIndex* pindex_end = nullptr;
+            {
+                LOCK(cs_main);
+                pindex_next = NextSyncBlock(pindex, m_chainstate->m_chain);
+                if (pindex_next) {
+                    const int remaining = m_chainstate->m_chain.Height() - pindex_next->nHeight;
+                    const int batch_size = std::min(m_num_blocks_batch, remaining + 1);
+                    pindex_end = m_chainstate->m_chain[pindex_next->nHeight + batch_size - 1];
+                }
+            }
             // If pindex_next is null, it means pindex is the chain tip, so
             // commit data indexed so far.
             if (!pindex_next) {
@@ -261,16 +271,16 @@ void BaseIndex::Sync()
                     m_synced = true;
                     break;
                 }
+                pindex_end = pindex_next; // process only one block at time during reorgs
             }
             if (pindex_next->pprev != pindex && !Rewind(pindex, pindex_next->pprev)) {
                 FatalErrorf("Failed to rewind %s to a previous chain tip", GetName());
                 return;
             }
-            pindex = pindex_next;
 
             // Two-phase processing: first 'ProcessBlock' digests block data on the child class, then
             // 'CustomPostProcessBlocks' links to previous records (if needed) and batch-dumps to disk.
-            Task task(/*start=*/pindex, /*end=*/pindex); // for now single block tasks
+            Task task(/*start=*/pindex_next, /*end=*/pindex_end);
             task.result = ProcessBlocks(task.start_index, task.end_index);
             if (task.result.empty()) {
                 // Empty result indicates an internal error (logged internally).
@@ -286,6 +296,9 @@ void BaseIndex::Sync()
                 return;
             }
             GetDB().WriteBatch(batch);
+
+            // Save last processed block for next round
+            pindex = pindex_end;
 
             auto current_time{NodeClock::now()};
             if (current_time - last_log_time >= SYNC_LOG_INTERVAL) {
