@@ -56,9 +56,15 @@ private:
     // Last computed header to avoid disk reads on every new block.
     uint256 m_last_header{};
 
+    struct BlockProcessFilter : BlockProcessResult {
+        BlockFilter filter;
+        int height;
+        BlockProcessFilter(BlockFilter&& f, const int h) : filter(std::move(f)), height(h) {}
+    };
+
     bool AllowPrune() const override { return true; }
 
-    bool Write(const BlockFilter& filter, uint32_t block_height, const uint256& filter_header);
+    bool Write(CDBBatch& batch, const BlockFilter& filter, uint32_t block_height, const uint256& filter_header);
 
     std::optional<uint256> ReadFilterHeader(int height, const uint256& expected_block_hash);
 
@@ -69,11 +75,12 @@ protected:
 
     bool CustomCommit(CDBBatch& batch) override;
 
-    bool CustomAppend(const interfaces::BlockInfo& block) override;
-
     bool CustomRemove(const interfaces::BlockInfo& block) override;
 
     BaseIndex::DB& GetDB() const LIFETIMEBOUND override { return *m_db; }
+
+    util::Result<ProcessResult> CustomProcessBlock(const interfaces::BlockInfo& block_info) override;
+    bool CustomPostProcessBlocks(CDBBatch& batch, ProcessResult obj) override;
 
 public:
     /** Constructs the index, which becomes available to be queried. */
