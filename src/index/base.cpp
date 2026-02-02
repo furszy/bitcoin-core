@@ -165,7 +165,7 @@ static const CBlockIndex* NextSyncBlock(const CBlockIndex* pindex_prev, CChain& 
     return chain.Next(chain.FindFork(pindex_prev));
 }
 
-util::Result<void> BaseIndex::ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data)
+util::Result<BaseIndex::ProcessResult> BaseIndex::ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data)
 {
     interfaces::BlockInfo block_info = kernel::MakeBlockInfo(pindex, block_data);
 
@@ -187,12 +187,13 @@ util::Result<void> BaseIndex::ProcessBlock(const CBlockIndex* pindex, const CBlo
         block_info.undo_data = &block_undo;
     }
 
-    if (!CustomAppend(block_info)) {
+    auto res = CustomProcessBlock(block_info);
+    if (!res.has_value()) {
         return util::Error{Untranslated(strprintf("Failed to write block %s to index database",
                 pindex->GetBlockHash().ToString()))};
     }
 
-    return {};
+    return std::move(res.value());
 }
 
 void BaseIndex::Sync()
@@ -239,9 +240,17 @@ void BaseIndex::Sync()
             }
             pindex = pindex_next;
 
+            // Two-phase processing: first 'ProcessBlock' digests block data on the child class, then
+            // 'CustomPostProcessBlocks' links to previous records (if needed) and batch-dumps to disk.
             auto result = ProcessBlock(pindex);
             if (!result.has_value()) {
                 FatalErrorf("%s", util::ErrorString(result).original);
+                return;
+            }
+
+            if (!CustomPostProcessBlocks(std::move(result.value()))) {
+                m_interrupt();
+                FatalErrorf("Index %s: Failed to post process block %s", GetName(), pindex->GetBlockHash().GetHex());
                 return;
             }
 
@@ -371,6 +380,11 @@ void BaseIndex::BlockConnected(const ChainstateRole& role, const std::shared_ptr
     auto result = ProcessBlock(pindex, block.get());
     if (!result.has_value()) {
         FatalErrorf("%s", util::ErrorString(result).original);
+        return;
+    }
+
+    if (!CustomPostProcessBlocks(std::move(result.value()))) {
+        FatalErrorf("Index %s: Failed to post process block %s", GetName(), block->GetHash().GetHex());
         return;
     }
 

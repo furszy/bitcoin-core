@@ -75,6 +75,11 @@ protected:
         void WriteBestBlock(CDBBatch& batch, const CBlockLocator& locator);
     };
 
+    struct BlockProcessResult {
+        virtual ~BlockProcessResult() = default;
+    };
+    using ProcessResult = std::unique_ptr<BlockProcessResult>;
+
 private:
     /// Whether the index has been initialized or not.
     std::atomic<bool> m_init{false};
@@ -106,7 +111,7 @@ private:
     /// Loop over disconnected blocks and call CustomRemove.
     bool Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip);
 
-    util::Result<void> ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
+    util::Result<ProcessResult> ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
 
     virtual bool AllowPrune() const = 0;
 
@@ -142,6 +147,22 @@ protected:
 
     /// Update the internal best block index as well as the prune lock.
     void SetBestBlockIndex(const CBlockIndex* block);
+
+    /// The result is passed to 'CustomPostProcessBlocks()' so the index can (in the future)
+    /// process async result batches in a synchronous fashion (if required)
+    [[nodiscard]] virtual util::Result<ProcessResult> CustomProcessBlock(const interfaces::BlockInfo& block_info)
+    {
+        if (!CustomAppend(block_info)) {
+            throw std::runtime_error(strprintf("%s: Failed to write block %s to index database",
+                                               __func__, block_info.hash.ToString()));
+        }
+        return ProcessResult{nullptr}; // null means no extra data
+    }
+
+    /// Executed synchronously after processing a batch of 'CustomProcessBlock()' call.
+    /// Intended for work that must preserve block order — for example, linking results to
+    /// previous entries or performing batch database writes.
+    [[nodiscard]] virtual bool CustomPostProcessBlocks(ProcessResult result) { return true; }
 
 public:
     BaseIndex(std::unique_ptr<interfaces::Chain> chain, std::string name);
