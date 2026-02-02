@@ -196,12 +196,40 @@ util::Result<BaseIndex::ProcessResult> BaseIndex::ProcessBlock(const CBlockIndex
     return std::move(res.value());
 }
 
+std::vector<BaseIndex::ProcessResult> BaseIndex::ProcessBlocks(const CBlockIndex* start, const CBlockIndex* end)
+{
+    std::vector<ProcessResult> results;
+    results.reserve(end->nHeight - start->nHeight + 1);
+    // Collect all block indexes from [end...start] in order
+    std::vector<const CBlockIndex*> ordered_blocks;
+    for (const CBlockIndex* block = end; block && start->pprev != block; block = block->pprev) {
+        ordered_blocks.emplace_back(block);
+    }
+
+    // And process blocks in forward order: from start to end
+    for (auto it = ordered_blocks.rbegin(); it != ordered_blocks.rend(); ++it) {
+        auto op_res = ProcessBlock(*it);
+        if (!op_res.has_value()) {
+            FatalErrorf("%s", util::ErrorString(op_res).original);
+            return {};
+        }
+        results.emplace_back(std::move(op_res.value()));
+    }
+    return results;
+}
+
 void BaseIndex::Sync()
 {
     const CBlockIndex* pindex = m_best_block_index.load();
     if (!m_synced) {
         auto last_log_time{NodeClock::now()};
         auto last_locator_write_time{last_log_time};
+
+        // Post-Processing helper
+        const auto fn_post_process = [this](auto begin, auto end) {
+            return std::all_of(begin, end, [this](auto& data) { return CustomPostProcessBlocks(std::move(data)); });
+        };
+
         while (true) {
             if (m_interrupt) {
                 LogInfo("%s: m_interrupt set; exiting ThreadSync", GetName());
@@ -242,15 +270,18 @@ void BaseIndex::Sync()
 
             // Two-phase processing: first 'ProcessBlock' digests block data on the child class, then
             // 'CustomPostProcessBlocks' links to previous records (if needed) and batch-dumps to disk.
-            auto result = ProcessBlock(pindex);
-            if (!result.has_value()) {
-                FatalErrorf("%s", util::ErrorString(result).original);
+            Task task(/*start=*/pindex, /*end=*/pindex); // for now single block tasks
+            task.result = ProcessBlocks(task.start_index, task.end_index);
+            if (task.result.empty()) {
+                // Empty result indicates an internal error (logged internally).
+                m_interrupt();
                 return;
             }
 
-            if (!CustomPostProcessBlocks(std::move(result.value()))) {
+            bool complete = fn_post_process(task.result.begin(), task.result.end());
+            if (!complete) {
                 m_interrupt();
-                FatalErrorf("Index %s: Failed to post process block %s", GetName(), pindex->GetBlockHash().GetHex());
+                FatalErrorf("Index %s: Failed to post process blocks", GetName());
                 return;
             }
 

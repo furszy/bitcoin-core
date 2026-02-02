@@ -98,6 +98,20 @@ private:
     std::thread m_thread_sync;
     CThreadInterrupt m_interrupt;
 
+    struct Task {
+        const CBlockIndex* start_index;
+        const CBlockIndex* end_index;
+        std::vector<ProcessResult> result;
+
+        Task(const CBlockIndex* start, const CBlockIndex* end)
+                : start_index(start), end_index(end) {}
+
+        // Disallow copy
+        Task(const Task&) = delete;
+        Task& operator=(const Task&) = delete;
+        Task(Task&&) noexcept = default;
+    };
+
     /// Write the current index state (eg. chain block locator and subclass-specific items) to disk.
     ///
     /// Recommendations for error handling:
@@ -112,6 +126,9 @@ private:
     bool Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip);
 
     util::Result<ProcessResult> ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
+
+    /// Processes blocks in the range [start, end]. Calling 'ProcessBlock'.
+    std::vector<ProcessResult> ProcessBlocks(const CBlockIndex* start, const CBlockIndex* end);
 
     virtual bool AllowPrune() const = 0;
 
