@@ -108,6 +108,9 @@ private:
 
     bool ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
 
+    /// Processes blocks in the range [start, end]. Calling 'ProcessBlock'.
+    bool ProcessBlocks(const CBlockIndex* start, const CBlockIndex* end);
+
     virtual bool AllowPrune() const = 0;
 
     template <typename... Args>
