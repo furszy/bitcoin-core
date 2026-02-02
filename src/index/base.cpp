@@ -226,8 +226,8 @@ void BaseIndex::Sync()
         auto last_locator_write_time{last_log_time};
 
         // Post-Processing helper
-        const auto fn_post_process = [this](auto begin, auto end) {
-            return std::all_of(begin, end, [this](auto& data) { return CustomPostProcessBlocks(std::move(data)); });
+        const auto fn_post_process = [this](CDBBatch& batch, auto begin, auto end) {
+            return std::all_of(begin, end, [this, &batch](auto& data) { return CustomPostProcessBlocks(batch, std::move(data)); });
         };
 
         while (true) {
@@ -278,12 +278,14 @@ void BaseIndex::Sync()
                 return;
             }
 
-            bool complete = fn_post_process(task.result.begin(), task.result.end());
+            CDBBatch batch(GetDB());
+            bool complete = fn_post_process(batch, task.result.begin(), task.result.end());
             if (!complete) {
                 m_interrupt();
                 FatalErrorf("Index %s: Failed to post process blocks", GetName());
                 return;
             }
+            GetDB().WriteBatch(batch);
 
             auto current_time{NodeClock::now()};
             if (current_time - last_log_time >= SYNC_LOG_INTERVAL) {
@@ -414,10 +416,12 @@ void BaseIndex::BlockConnected(const ChainstateRole& role, const std::shared_ptr
         return;
     }
 
-    if (!CustomPostProcessBlocks(std::move(result.value()))) {
+    CDBBatch batch(GetDB());
+    if (!CustomPostProcessBlocks(batch, std::move(result.value()))) {
         FatalErrorf("Index %s: Failed to post process block %s", GetName(), block->GetHash().GetHex());
         return;
     }
+    GetDB().WriteBatch(batch);
 
     // Setting the best block index is intentionally the last step of this
     // function, so BlockUntilSyncedToCurrentChain callers waiting for the

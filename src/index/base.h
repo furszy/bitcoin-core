@@ -179,7 +179,7 @@ protected:
     /// Executed synchronously after processing a batch of 'CustomProcessBlock()' call.
     /// Intended for work that must preserve block order — for example, linking results to
     /// previous entries or performing batch database writes.
-    [[nodiscard]] virtual bool CustomPostProcessBlocks(ProcessResult result) { return true; }
+    [[nodiscard]] virtual bool CustomPostProcessBlocks(CDBBatch& batch, ProcessResult result) { return true; }
 
 public:
     BaseIndex(std::unique_ptr<interfaces::Chain> chain, std::string name);
