@@ -198,6 +198,24 @@ bool BaseIndex::ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data
     return true;
 }
 
+BaseIndex::ProcessStatus BaseIndex::ProcessBlocks(const CBlockIndex* start, const CBlockIndex* end)
+{
+    // Collect all block indexes from [end...start] in order
+    std::vector<const CBlockIndex*> ordered_blocks;
+    ordered_blocks.reserve(end->nHeight - start->nHeight + 1);
+    for (const CBlockIndex* block = end; block && start->pprev != block; block = block->pprev) {
+        ordered_blocks.emplace_back(block);
+    }
+
+    // And process blocks in forward order: from start to end
+    for (auto it = ordered_blocks.rbegin(); it != ordered_blocks.rend(); ++it) {
+        if (m_interrupt) return ProcessStatus::INTERRUPTED;
+        if (!ProcessBlock(*it)) return ProcessStatus::ERROR; // error logged internally
+    }
+
+    return ProcessStatus::OK;
+}
+
 void BaseIndex::Sync()
 {
     const CBlockIndex* pindex = m_best_block_index.load();
@@ -241,7 +259,15 @@ void BaseIndex::Sync()
                 return;
             }
 
-            if (!ProcessBlock(pindex_next)) return; // error logged internally
+            // For now, process a single block at time
+            if (const auto ret = ProcessBlocks(/*start=*/pindex_next, /*end=*/pindex_next); ret != ProcessStatus::OK) {
+                // Let sync loop commit the state before exiting. The next round will
+                // persist the last block range we actually finished. Any blocks we
+                // processed in this range will be redone on restart.
+                if (ret == ProcessStatus::INTERRUPTED) continue;
+                // Not interruption, this is an unrecoverable error and we want to stop.
+                return; // error logged internally
+            }
 
             // Update last processed block for next round
             pindex = pindex_next;
