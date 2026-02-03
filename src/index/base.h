@@ -93,6 +93,18 @@ private:
     std::thread m_thread_sync;
     CThreadInterrupt m_interrupt;
 
+    struct BlockBatch {
+        const CBlockIndex* start_index{nullptr};
+        const CBlockIndex* end_index{nullptr};
+
+        BlockBatch() = default;
+
+        // Disallow copy
+        BlockBatch(const BlockBatch&) = delete;
+        BlockBatch& operator=(const BlockBatch&) = delete;
+        BlockBatch(BlockBatch&&) noexcept = default;
+    };
+
     /// Write the current index state (eg. chain block locator and subclass-specific items) to disk.
     ///
     /// Recommendations for error handling:
