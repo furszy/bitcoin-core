@@ -113,7 +113,7 @@ private:
     /// Loop over disconnected blocks and call CustomRemove.
     bool Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip);
 
-    bool ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
+    bool ProcessBlock(CDBBatch& db_batch, const CBlockIndex* pindex, const CBlock* block_data = nullptr);
 
     enum class ProcessStatus {
         OK,
@@ -122,7 +122,7 @@ private:
     };
 
     /// Processes blocks in the range [start, end]. Calling 'ProcessBlock'.
-    ProcessStatus ProcessBlocks(const CBlockIndex* start, const CBlockIndex* end);
+    ProcessStatus ProcessBlocks(CDBBatch& db_batch, const CBlockIndex* start, const CBlockIndex* end);
 
     virtual bool AllowPrune() const = 0;
 
@@ -142,7 +142,7 @@ protected:
     [[nodiscard]] virtual bool CustomInit(const std::optional<interfaces::BlockRef>& block) { return true; }
 
     /// Write update index entries for a newly connected block.
-    [[nodiscard]] virtual bool CustomAppend(const interfaces::BlockInfo& block) { return true; }
+    [[nodiscard]] virtual bool CustomAppend(CDBBatch& batch, const interfaces::BlockInfo& block) { return true; }
 
     /// Virtual method called internally by Commit that can be overridden to atomically
     /// commit more index state.
