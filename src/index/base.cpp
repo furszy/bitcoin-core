@@ -30,6 +30,7 @@
 #include <validation.h>
 #include <validationinterface.h>
 
+#include <algorithm>
 #include <cassert>
 #include <compare>
 #include <cstdint>
@@ -224,8 +225,17 @@ void BaseIndex::Sync()
         while (!m_interrupt) {
 
             BlockBatch block_batch;
-            block_batch.start_index = WITH_LOCK(cs_main, return NextSyncBlock(pindex, m_chainstate->m_chain));
-            block_batch.end_index = block_batch.start_index;
+            {
+                LOCK(cs_main);
+                block_batch.start_index = NextSyncBlock(pindex, m_chainstate->m_chain);
+                if (block_batch.start_index) {
+                    const int start_height = block_batch.start_index->nHeight;
+                    const int tip_height = m_chainstate->m_chain.Height();
+                    // Compute the last height in the batch without exceeding the chain tip
+                    const int batch_end_height = std::min(start_height + m_num_blocks_batch - 1, tip_height);
+                    block_batch.end_index = m_chainstate->m_chain[batch_end_height];
+                }
+            }
 
             // If pindex_next is null, it means pindex is the chain tip, so
             // commit data indexed so far.
@@ -245,6 +255,8 @@ void BaseIndex::Sync()
                     m_synced = true;
                     break;
                 }
+                // Just process one block in case of tip change
+                block_batch.end_index = block_batch.start_index;
             }
             if (block_batch.start_index->pprev != pindex && !Rewind(pindex, block_batch.start_index->pprev)) {
                 FatalErrorf("Failed to rewind %s to a previous chain tip", GetName());

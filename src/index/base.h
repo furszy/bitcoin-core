@@ -27,6 +27,10 @@ class CBlockIndex;
 class Chainstate;
 
 struct CBlockLocator;
+
+/** Range of blocks to process in batches */
+static constexpr int INDEX_BATCH_SIZE = 500;
+
 struct IndexSummary {
     std::string name;
     bool synced{false};
@@ -92,6 +96,9 @@ private:
 
     std::thread m_thread_sync;
     CThreadInterrupt m_interrupt;
+
+    /// Number of blocks to process in a batch
+    int m_num_blocks_batch{INDEX_BATCH_SIZE};
 
     struct BlockBatch {
         const CBlockIndex* start_index{nullptr};
@@ -191,6 +198,9 @@ public:
 
     /// Stops the instance from staying in sync with blockchain updates.
     void Stop();
+
+    /// Number of blocks to process in a batch
+    void SetProcessingBatchSize(const int blocks_count) { m_num_blocks_batch = blocks_count; }
 
     /// Get a summary of the index and its state.
     IndexSummary GetSummary() const;
