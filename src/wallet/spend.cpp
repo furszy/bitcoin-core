@@ -840,7 +840,12 @@ util::Result<SelectionResult> SelectCoins(const CWallet& wallet, CoinsResult& av
 
     // Return early if we cannot cover the target with the wallet's UTXO.
     // We use the total effective value if we are not subtracting fee from outputs and 'available_coins' contains the data.
-    CAmount available_coins_total_amount = available_coins.GetAppropriateTotal(coin_selection_params.m_subtract_fee_outputs).value_or(0);
+    CAmount available_coins_total_amount = 0;
+    if (coin_selection_params.m_subtract_fee_outputs) {
+        available_coins_total_amount = available_coins.GetTotalAmount();
+    } else if (auto op_eff_amount = available_coins.GetEffectiveTotalAmount(); op_eff_amount.has_value()) {
+        available_coins_total_amount = *op_eff_amount;
+    }
     if (selection_target > available_coins_total_amount) {
         return util::Error(); // Insufficient funds
     }
