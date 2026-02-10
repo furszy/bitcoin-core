@@ -38,7 +38,7 @@ static constexpr int CFCHECKPT_INTERVAL = 1000;
  *
  * This index is used to serve BIP 157 net requests.
  */
-class BlockFilterIndex final : public BaseIndex
+class BlockFilterIndex : public BaseIndex
 {
 private:
     BlockFilterType m_filter_type;
