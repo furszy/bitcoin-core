@@ -18,6 +18,7 @@
 
 #include <boost/test/unit_test.hpp>
 #include <future>
+#include <latch>
 
 using node::BlockAssembler;
 using node::BlockManager;
@@ -341,6 +342,24 @@ public:
     }
 };
 
+template <typename F>
+static bool WaitUntil(F fn, const std::chrono::milliseconds timeout)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    while (!fn()) {
+        if (std::chrono::steady_clock::now() > deadline) return false;
+        std::this_thread::sleep_for(100ms);
+    }
+    return true;
+}
+
+static void WaitForHeight(const BaseIndex* index, const int height, const std::chrono::milliseconds timeout)
+{
+    if (!WaitUntil([index, height]() { return index->GetSummary().best_block_height == height; }, timeout)) {
+        BOOST_FAIL(strprintf("Timeout waiting for index height %d (current: %d)", height, index->GetSummary().best_block_height));
+    }
+}
+
 BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
 {
     // Enable mock time
@@ -355,19 +374,8 @@ BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
     BOOST_REQUIRE(index.Init());
     BOOST_REQUIRE(index.StartBackgroundSync());
 
-    auto func_wait_until = [&](int height, std::chrono::milliseconds timeout) {
-        auto deadline = std::chrono::steady_clock::now() + timeout;
-        while (index.GetSummary().best_block_height < height) {
-            if (std::chrono::steady_clock::now() > deadline) {
-                BOOST_FAIL(strprintf("Timeout waiting for index height %d (current: %d)", height, index.GetSummary().best_block_height));
-                return;
-            }
-            std::this_thread::sleep_for(100ms);
-        }
-    };
-
     // Wait until the index is one block before the fork point
-    func_wait_until(blocking_height - 1, /*timeout=*/5s);
+    WaitForHeight(&index, blocking_height - 1, /*timeout=*/5s);
 
     // Create a fork to trigger the reorg
     std::vector<std::shared_ptr<CBlock>> fork;
@@ -381,7 +389,7 @@ BOOST_FIXTURE_TEST_CASE(index_reorg_crash, BuildChainTestingSetup)
     // Unblock the index thread so it can process the reorg
     promise.set_value();
     // Wait for the index to reach the new tip
-    func_wait_until(blocking_height + 2, 5s);
+    WaitForHeight(&index, blocking_height + 2, 5s);
     index.Stop();
 }
 
@@ -425,6 +433,75 @@ BOOST_FIXTURE_TEST_CASE(initial_sync_batch_window, BuildChainTestingSetup)
         filter_index.Interrupt();
         filter_index.Stop();
     }
+}
+
+// A BlockFilterIndex subclass that simulates delays during 'CustomAppend'.
+// This allows testing more complex scenarios, such as reorgs during initial sync.
+class IndexBlockSim : public BlockFilterIndex
+{
+    std::latch m_reached_block{1};
+    std::latch m_continue_sync{1};
+    int m_blocking_height;
+    // Guards against dup notifications when the blocking height is reprocessed during reorgs
+    std::atomic<bool> m_has_notified{false};
+
+public:
+    IndexBlockSim(std::unique_ptr<interfaces::Chain> chain, bool f_memory, int blocking_height) :
+        BlockFilterIndex(std::move(chain), BlockFilterType::BASIC, /*n_cache_size=*/0, f_memory, /*f_wipe=*/false),
+        m_blocking_height(blocking_height) {}
+
+    void wait_at_blocking_point() const { m_reached_block.wait(); }
+    void allow_continue() { m_continue_sync.count_down(); }
+
+protected:
+    bool CustomAppend(CDBBatch& batch, const interfaces::BlockInfo& block) override {
+        if (block.height == m_blocking_height && !m_has_notified.exchange(true)) {
+            m_reached_block.count_down(); // notify waiters
+            m_continue_sync.wait(); // pause at the blocking height
+        }
+        return BlockFilterIndex::CustomAppend(batch, block);
+    }
+};
+
+// Tests that a BlockFilterIndex can complete its initial sync even if a reorg occurs mid-sync.
+// The index is paused at a specific block while a fork is introduced a few blocks before the tip.
+// Once unblocked, the index should continue syncing and correctly reach the new chain tip.
+BOOST_FIXTURE_TEST_CASE(initial_sync_reorg, BuildChainTestingSetup)
+{
+    const auto& chainman = m_node.chainman;
+
+    // Create a filter index that will block during initial sync
+    const int start_tip_height = WITH_LOCK(::cs_main, return chainman->ActiveChain().Height());
+    const int blocking_height = start_tip_height - 1;
+    IndexBlockSim index(interfaces::MakeChain(m_node), /*f_memory=*/true, blocking_height);
+    index.SetProcessingBatchSize(1);
+    BOOST_REQUIRE(index.Init());
+    BOOST_REQUIRE(index.StartBackgroundSync());
+    // Wait for the index to reach the blocking point
+    index.wait_at_blocking_point();
+
+    // Create a fork starting 3 blocks before the tip
+    const CBlockIndex* fork_point = WITH_LOCK(cs_main, return chainman->ActiveChain()[chainman->ActiveChain().Height() - 3]);
+    constexpr int fork_length = 5;
+    std::vector<std::shared_ptr<CBlock>> fork_chain;
+    BOOST_REQUIRE(BuildChain(fork_point, CScript() << OP_TRUE, fork_length, fork_chain));
+    for (const auto& block : fork_chain) {
+        BOOST_REQUIRE(chainman->ProcessNewBlock(block, /*force_processing=*/true, /*min_pow_checked=*/true, nullptr));
+    }
+    // Ensure we have fully processed the fork
+    m_node.validation_signals->SyncWithValidationInterfaceQueue();
+    const CBlockIndex* tip_block = WITH_LOCK(cs_main, return chainman->ActiveChain().Tip());
+    BOOST_CHECK(start_tip_height != tip_block->nHeight);
+
+    // Unblock the index and let it finish syncing
+    index.allow_continue();
+    index.Stop(); // Wait for background thread to stop
+
+    // Verify index is fully synced with the current tip
+    const auto& summary = index.GetSummary();
+    BOOST_CHECK(index.GetSummary().synced);
+    BOOST_CHECK_EQUAL(summary.best_block_height, tip_block->nHeight);
+    BOOST_CHECK_EQUAL(summary.best_block_hash, tip_block->GetBlockHash());
 }
 
 BOOST_AUTO_TEST_SUITE_END()
