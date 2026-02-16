@@ -98,15 +98,17 @@ public:
      * @brief Start worker threads.
      *
      * Creates and launches `num_workers` threads that begin executing tasks
-     * from the queue. If the pool is already started, throws.
+     * from the queue.
      *
-     * Must be called from a controller (non-worker) thread.
+     * Calling Start() on an already-running pool is a logic error. For lazy
+     * initialization and idle shutdown patterns, callers must provide their
+     * own synchronization.
      */
-    void Start(int num_workers) EXCLUSIVE_LOCKS_REQUIRED(!m_mutex)
+    void Start(const int num_workers) noexcept EXCLUSIVE_LOCKS_REQUIRED(!m_mutex)
     {
         assert(num_workers > 0);
         LOCK(m_mutex);
-        if (!m_workers.empty()) throw std::runtime_error("Thread pool already started");
+        assert(m_workers.empty());
         m_interrupt = false; // Reset
 
         // Create workers
