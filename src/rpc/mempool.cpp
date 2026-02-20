@@ -950,14 +950,9 @@ static RPCHelpMan gettxspendingprevout()
             const bool mempool_only{options.exists("mempool_only") ? options["mempool_only"].get_bool() : !g_txospenderindex};
             const bool return_spending_tx{options.exists("return_spending_tx") ? options["return_spending_tx"].get_bool() : false};
 
-            struct Entry {
-                const COutPoint prevout;
-                const UniValue& input;
-                UniValue output;
-            };
-            std::vector<Entry> prevouts;
-            prevouts.reserve(output_params.size());
-
+            // Worklist of outpoints to resolve
+            std::vector<COutPoint> prevouts_to_process;
+            prevouts_to_process.reserve(output_params.size());
             for (unsigned int idx = 0; idx < output_params.size(); idx++) {
                 const UniValue& o = output_params[idx].get_obj();
 
@@ -972,56 +967,73 @@ static RPCHelpMan gettxspendingprevout()
                 if (nOutput < 0) {
                     throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, vout cannot be negative");
                 }
-                prevouts.emplace_back(COutPoint{txid, uint32_t(nOutput)}, o, UniValue{});
+                prevouts_to_process.emplace_back(txid, static_cast<uint32_t>(nOutput));
             }
 
-            // search the mempool first
-            bool missing_from_mempool{false};
+            auto make_output = [](const COutPoint& prevout, const CTransaction* spending_tx = nullptr, const bool add_spending_tx_hex = false) {
+                UniValue o{UniValue::VOBJ};
+                o.pushKV("txid", prevout.hash.GetHex());
+                o.pushKV("vout", (int)prevout.n);
+                if (spending_tx) {
+                    o.pushKV("spendingtxid", spending_tx->GetHash().ToString());
+                    if (add_spending_tx_hex) {
+                        o.pushKV("spendingtx", EncodeHexTx(*spending_tx));
+                    }
+                }
+                return o;
+            };
+
+            UniValue result{UniValue::VARR};
+
+            // Search the mempool first
             {
                 const CTxMemPool& mempool = EnsureAnyMemPool(request.context);
                 LOCK(mempool.cs);
-                for (auto& entry : prevouts) {
-                    const CTransaction* spendingTx = mempool.GetConflictTx(entry.prevout);
-                    if (spendingTx != nullptr) {
-                        UniValue o{entry.input};
-                        o.pushKV("spendingtxid", spendingTx->GetHash().ToString());
-                        if (return_spending_tx) {
-                            o.pushKV("spendingtx", EncodeHexTx(*spendingTx));
-                        }
-                        entry.output = std::move(o);
-                    } else {
-                        missing_from_mempool = true;
+
+                // Make the result if spending tx appear in the mempool or this is a mempool_only request
+                for (auto it = prevouts_to_process.begin(); it != prevouts_to_process.end(); ) {
+                    const COutPoint& prevout = *it;
+                    const CTransaction* spendingTx = mempool.GetConflictTx(prevout);
+
+                    // If the outpoint is not spent in the mempool and this is not a mempool-only
+                    // request, we cannot answer it yet.
+                    if (!spendingTx && !mempool_only) {
+                        ++it;
+                        continue;
                     }
+
+                    result.push_back(make_output(prevout, spendingTx, return_spending_tx));
+                    it = prevouts_to_process.erase(it);
                 }
             }
-            // if search is not limited to the mempool and no spender was found for an outpoint, search the txospenderindex
-            // we call g_txospenderindex->BlockUntilSyncedToCurrentChain() only if g_txospenderindex is going to be used
-            UniValue result{UniValue::VARR};
-            bool txospenderindex_ready{mempool_only || !missing_from_mempool || (g_txospenderindex && g_txospenderindex->BlockUntilSyncedToCurrentChain())};
-            for (auto& entry : prevouts) {
-                if (!entry.output.isNull()) {
-                    result.push_back(std::move(entry.output));
+
+            // Return early if all requests have been handled by the mempool search
+            if (prevouts_to_process.empty()) {
+                return result;
+            }
+
+            // At this point the request was not limited to the mempool and some outpoints remain
+            // unresolved. We now rely on the index to determine whether they were spent or not.
+            if (!g_txospenderindex || !g_txospenderindex->BlockUntilSyncedToCurrentChain()) {
+                throw JSONRPCError(RPC_MISC_ERROR, "Mempool lacks a relevant spend, and txospenderindex is unavailable.");
+            }
+
+            for (const auto& prevout : prevouts_to_process) {
+                const auto spender{g_txospenderindex->FindSpender(prevout)};
+                if (!spender) {
+                    throw JSONRPCError(RPC_MISC_ERROR, spender.error());
+                }
+
+                const auto& op_info = spender.value();
+                // If info is nullopt, the outpoint was not spent.
+                // Return the input outpoint itself, which indicates it is unspent.
+                if (!op_info.has_value()) {
+                    result.push_back(make_output(prevout));
                     continue;
                 }
-                UniValue o{entry.input};
-                if (mempool_only) {
-                    // do nothing, caller has selected to only query the mempool
-                } else if (!txospenderindex_ready) {
-                    throw JSONRPCError(RPC_MISC_ERROR, strprintf("No spending tx for the outpoint %s:%d in mempool, and txospenderindex is unavailable.", entry.prevout.hash.GetHex(), entry.prevout.n));
-                } else {
-                    // no spending tx in mempool, query txospender index
-                    const auto spender{g_txospenderindex->FindSpender(entry.prevout)};
-                    if (!spender) {
-                        throw JSONRPCError(RPC_MISC_ERROR, spender.error());
-                    }
-                    if (spender.value()) {
-                        o.pushKV("spendingtxid", spender.value()->tx->GetHash().GetHex());
-                        o.pushKV("blockhash", spender.value()->block_hash.GetHex());
-                        if (return_spending_tx) {
-                            o.pushKV("spendingtx", EncodeHexTx(*spender.value()->tx));
-                        }
-                    }
-                }
+
+                UniValue o{make_output(prevout, op_info->tx.get(), return_spending_tx)};
+                o.pushKV("blockhash", op_info->block_hash.GetHex());
                 result.push_back(std::move(o));
             }
 
