@@ -429,20 +429,17 @@ bool BaseIndex::BlockUntilSyncedToCurrentChain() const
         return false;
     }
 
-    {
-        // Skip the queue-draining stuff if we know we're caught up with
-        // m_chain.Tip().
-        LOCK(cs_main);
-        const CBlockIndex* chain_tip = m_chainstate->m_chain.Tip();
-        const CBlockIndex* best_block_index = m_best_block_index.load();
-        if (best_block_index->GetAncestor(chain_tip->nHeight) == chain_tip) {
-            return true;
-        }
-    }
+    // Skip queue-draining if we know we're caught up with the chain tip
+    const auto* tip = WITH_LOCK(::cs_main, return m_chainstate->m_chain.Tip());
+    if (m_best_block_index.load() == tip) return true;
 
     LogInfo("%s is catching up on block notifications", GetName());
     m_chain->context()->validation_signals->SyncWithValidationInterfaceQueue();
-    return true;
+
+    // After processing signals, we should be synced
+    // (unless a block(s) arrived while we were waiting for the validation queue to drain)
+    LOCK(::cs_main);
+    return m_best_block_index.load() == m_chainstate->m_chain.Tip();;
 }
 
 void BaseIndex::Interrupt()
