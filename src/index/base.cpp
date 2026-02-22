@@ -20,6 +20,7 @@
 #include <tinyformat.h>
 #include <uint256.h>
 #include <undo.h>
+#include <util/expected.h>
 #include <util/fs.h>
 #include <util/log.h>
 #include <util/string.h>
@@ -165,31 +166,48 @@ static const CBlockIndex* NextSyncBlock(const CBlockIndex* pindex_prev, CChain& 
     return chain.Next(chain.FindFork(pindex_prev));
 }
 
-bool BaseIndex::ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data)
+// Constructs BlockInfo for the given block index, optionally reading block and undo data from disk.
+// - block_data:    if non-null, used directly without a disk read
+// - block_holder:  if non-null and block_data is null, block will be read from disk into it
+// - undo_holder:   if non-null, undo data will be read from disk into it
+static util::Expected<interfaces::BlockInfo, std::string> MakeBlockInfo(const Chainstate& chainstate, const CBlockIndex* pindex, const CBlock* block_data,
+                                                                        CBlock* block_holder, CBlockUndo* undo_holder)
 {
     interfaces::BlockInfo block_info = kernel::MakeBlockInfo(pindex, block_data);
 
-    CBlock block;
-    if (!block_data) { // disk lookup if block data wasn't provided
-        if (!m_chainstate->m_blockman.ReadBlock(block, *pindex)) {
-            FatalErrorf("Failed to read block %s from disk",
-                        pindex->GetBlockHash().ToString());
-            return false;
+    // Disk lookup if block holder exist and data wasn't provided
+    if (block_holder && !block_data) {
+        if (!chainstate.m_blockman.ReadBlock(*block_holder, *pindex)) {
+            return util::Unexpected{strprintf("Failed to read block %s from disk", pindex->GetBlockHash().ToString())};
         }
-        block_info.data = &block;
+        block_info.data = block_holder;
     }
 
-    CBlockUndo block_undo;
-    if (CustomOptions().connect_undo_data) {
-        if (pindex->nHeight > 0 && !m_chainstate->m_blockman.ReadBlockUndo(block_undo, *pindex)) {
-            FatalErrorf("Failed to read undo block data %s from disk",
-                        pindex->GetBlockHash().ToString());
-            return false;
+    // Disk lookup if undo holder exist and it is not the genesis block
+    if (undo_holder) {
+        if (pindex->nHeight == 0) {
+            *undo_holder = CBlockUndo(); // No undo data for genesis
+        } else if (!chainstate.m_blockman.ReadBlockUndo(*undo_holder, *pindex)) {
+            return util::Unexpected{strprintf("Failed to read undo block data %s from disk", pindex->GetBlockHash().ToString())};
         }
-        block_info.undo_data = &block_undo;
+        block_info.undo_data = undo_holder;
     }
 
-    if (!CustomAppend(block_info)) {
+    return block_info;
+}
+
+bool BaseIndex::ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data)
+{
+    CBlock block_holder;
+    CBlockUndo undo_holder;
+    const auto block_info = MakeBlockInfo(*m_chainstate, pindex, block_data, &block_holder,
+                                                                /*undo_holder=*/CustomOptions().connect_undo_data ? &undo_holder : nullptr);
+    if (!block_info) {
+        FatalErrorf("%s", block_info.error());
+        return false;
+    }
+
+    if (!CustomAppend(*block_info)) {
         FatalErrorf("Failed to write block %s to index database",
                     pindex->GetBlockHash().ToString());
         return false;
@@ -292,22 +310,17 @@ bool BaseIndex::ProcessRewind(const CBlockIndex* pindex)
     CBlock block;
     CBlockUndo block_undo;
 
-    interfaces::BlockInfo block_info = kernel::MakeBlockInfo(pindex);
-    if (CustomOptions().disconnect_data) {
-        if (!m_chainstate->m_blockman.ReadBlock(block, *pindex)) {
-            LogError("Failed to read block %s from disk",
-                     pindex->GetBlockHash().ToString());
-            return false;
-        }
-        block_info.data = &block;
+    const auto& opts = CustomOptions();
+    CBlock* ptr_block_holder = opts.disconnect_data ? &block : nullptr;
+    CBlockUndo* ptr_undo_holder = opts.disconnect_undo_data ? &block_undo : nullptr;
+
+    const auto block_info = MakeBlockInfo(*m_chainstate, pindex, /*block_data=*/nullptr, ptr_block_holder, ptr_undo_holder);
+    if (!block_info) {
+        LogError("%s", block_info.error());
+        return false;
     }
-    if (CustomOptions().disconnect_undo_data && pindex->nHeight > 0) {
-        if (!m_chainstate->m_blockman.ReadBlockUndo(block_undo, *pindex)) {
-            return false;
-        }
-        block_info.undo_data = &block_undo;
-    }
-    if (!CustomRemove(block_info)) {
+
+    if (!CustomRemove(*block_info)) {
         return false;
     }
 
