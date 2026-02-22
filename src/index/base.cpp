@@ -305,7 +305,7 @@ bool BaseIndex::Commit()
     return true;
 }
 
-bool BaseIndex::ProcessRewind(const CBlockIndex* pindex)
+bool BaseIndex::ProcessRewind(const CBlockIndex* pindex, const CBlock* block_data)
 {
     CBlock block;
     CBlockUndo block_undo;
@@ -314,7 +314,7 @@ bool BaseIndex::ProcessRewind(const CBlockIndex* pindex)
     CBlock* ptr_block_holder = opts.disconnect_data ? &block : nullptr;
     CBlockUndo* ptr_undo_holder = opts.disconnect_undo_data ? &block_undo : nullptr;
 
-    const auto block_info = MakeBlockInfo(*m_chainstate, pindex, /*block_data=*/nullptr, ptr_block_holder, ptr_undo_holder);
+    const auto block_info = MakeBlockInfo(*m_chainstate, pindex, block_data, ptr_block_holder, ptr_undo_holder);
     if (!block_info) {
         LogError("%s", block_info.error());
         return false;
@@ -343,6 +343,18 @@ bool BaseIndex::Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_ti
     // throw and lead to a graceful shutdown
     SetBestBlockIndex(new_tip);
     return true;
+}
+
+void BaseIndex::BlockDisconnected(const std::shared_ptr<const CBlock>& block, const CBlockIndex* pindex)
+{
+    // Ignore signals until we have fully indexed the chain
+    if (!m_synced) return;
+
+    // Dispatch block to child class; errors are logged internally and abort the node
+    if (ProcessRewind(pindex, block.get())) {
+        // As blocks are disconnected in order, set best tip to prev block
+        SetBestBlockIndex(pindex->pprev);
+    }
 }
 
 void BaseIndex::BlockConnected(const ChainstateRole& role, const std::shared_ptr<const CBlock>& block, const CBlockIndex* pindex)

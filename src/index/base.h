@@ -108,7 +108,7 @@ private:
 
     bool ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
 
-    bool ProcessRewind(const CBlockIndex* pindex);
+    bool ProcessRewind(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
 
     virtual bool AllowPrune() const = 0;
 
@@ -119,6 +119,8 @@ protected:
     std::unique_ptr<interfaces::Chain> m_chain;
     Chainstate* m_chainstate{nullptr};
     const std::string m_name;
+
+    void BlockDisconnected(const std::shared_ptr<const CBlock>& block, const CBlockIndex* pindex) override;
 
     void BlockConnected(const kernel::ChainstateRole& role, const std::shared_ptr<const CBlock>& block, const CBlockIndex* pindex) override;
 
