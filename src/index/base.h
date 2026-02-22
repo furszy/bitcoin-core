@@ -108,6 +108,8 @@ private:
 
     bool ProcessBlock(const CBlockIndex* pindex, const CBlock* block_data = nullptr);
 
+    bool ProcessRewind(const CBlockIndex* pindex);
+
     virtual bool AllowPrune() const = 0;
 
     template <typename... Args>

@@ -287,32 +287,39 @@ bool BaseIndex::Commit()
     return true;
 }
 
+bool BaseIndex::ProcessRewind(const CBlockIndex* pindex)
+{
+    CBlock block;
+    CBlockUndo block_undo;
+
+    interfaces::BlockInfo block_info = kernel::MakeBlockInfo(pindex);
+    if (CustomOptions().disconnect_data) {
+        if (!m_chainstate->m_blockman.ReadBlock(block, *pindex)) {
+            LogError("Failed to read block %s from disk",
+                     pindex->GetBlockHash().ToString());
+            return false;
+        }
+        block_info.data = &block;
+    }
+    if (CustomOptions().disconnect_undo_data && pindex->nHeight > 0) {
+        if (!m_chainstate->m_blockman.ReadBlockUndo(block_undo, *pindex)) {
+            return false;
+        }
+        block_info.undo_data = &block_undo;
+    }
+    if (!CustomRemove(block_info)) {
+        return false;
+    }
+
+    return true;
+}
+
 bool BaseIndex::Rewind(const CBlockIndex* current_tip, const CBlockIndex* new_tip)
 {
     assert(current_tip->GetAncestor(new_tip->nHeight) == new_tip);
 
-    CBlock block;
-    CBlockUndo block_undo;
-
     for (const CBlockIndex* iter_tip = current_tip; iter_tip != new_tip; iter_tip = iter_tip->pprev) {
-        interfaces::BlockInfo block_info = kernel::MakeBlockInfo(iter_tip);
-        if (CustomOptions().disconnect_data) {
-            if (!m_chainstate->m_blockman.ReadBlock(block, *iter_tip)) {
-                LogError("Failed to read block %s from disk",
-                         iter_tip->GetBlockHash().ToString());
-                return false;
-            }
-            block_info.data = &block;
-        }
-        if (CustomOptions().disconnect_undo_data && iter_tip->nHeight > 0) {
-            if (!m_chainstate->m_blockman.ReadBlockUndo(block_undo, *iter_tip)) {
-                return false;
-            }
-            block_info.undo_data = &block_undo;
-        }
-        if (!CustomRemove(block_info)) {
-            return false;
-        }
+        if (!ProcessRewind(iter_tip)) return false;
     }
 
     // Don't commit here - the committed index state must never be ahead of the
