@@ -348,18 +348,9 @@ void BaseIndex::BlockConnected(const ChainstateRole& role, const std::shared_ptr
             return;
         }
     } else {
-        // Ensure block connects to an ancestor of the current best block. This should be the case
-        // most of the time, but may not be immediately after the sync thread catches up and sets
-        // m_synced. Consider the case where there is a reorg and the blocks on the stale branch are
-        // in the ValidationInterface queue backlog even after the sync thread has caught up to the
-        // new chain tip. In this unlikely event, log a warning and let the queue clear.
-        if (best_block_index->GetAncestor(pindex->nHeight - 1) != pindex->pprev) {
-            LogWarning("Block %s does not connect to an ancestor of "
-                      "known best chain (tip=%s); not updating index",
-                      pindex->GetBlockHash().ToString(),
-                      best_block_index->GetBlockHash().ToString());
-            return;
-        }
+        // For now, ensure pindex extends the current best chain.
+        // This is guaranteed by the cs_main lock at the end of Sync().
+        assert(best_block_index->GetAncestor(pindex->nHeight - 1) == pindex->pprev);
         if (best_block_index != pindex->pprev && !Rewind(best_block_index, pindex->pprev)) {
             FatalErrorf("Failed to rewind %s to a previous chain tip",
                        GetName());
