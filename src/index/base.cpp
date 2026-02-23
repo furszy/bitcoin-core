@@ -373,22 +373,14 @@ void BaseIndex::BlockConnected(const ChainstateRole& role, const std::shared_ptr
     }
 
     const CBlockIndex* best_block_index = m_best_block_index.load();
-    if (!best_block_index) {
-        if (pindex->nHeight != 0) {
-            FatalErrorf("First block connected is not the genesis block (height=%d)",
+    if (!best_block_index && pindex->nHeight != 0) {
+        FatalErrorf("First block connected is not the genesis block (height=%d)",
                        pindex->nHeight);
-            return;
-        }
-    } else {
-        // For now, ensure pindex extends the current best chain.
-        // This is guaranteed by the cs_main lock at the end of Sync().
-        assert(best_block_index->GetAncestor(pindex->nHeight - 1) == pindex->pprev);
-        if (best_block_index != pindex->pprev && !Rewind(best_block_index, pindex->pprev)) {
-            FatalErrorf("Failed to rewind %s to a previous chain tip",
-                       GetName());
-            return;
-        }
+        return;
     }
+
+    // We always connect and disconnect blocks in order
+    assert(best_block_index == pindex->pprev);
 
     // Dispatch block to child class; errors are logged internally and abort the node.
     if (ProcessBlock(pindex, block.get())) {
