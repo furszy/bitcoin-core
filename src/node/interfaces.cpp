@@ -66,6 +66,7 @@
 
 #include <any>
 #include <memory>
+#include <latch>
 #include <optional>
 #include <stdexcept>
 #include <utility>
@@ -779,6 +780,17 @@ public:
     std::unique_ptr<Handler> handleNotifications(std::shared_ptr<Notifications> notifications) override
     {
         return std::make_unique<NotificationsHandlerImpl>(validation_signals(), std::move(notifications));
+    }
+    void disconnectNotifications(std::unique_ptr<interfaces::Handler> handler) override
+    {
+        if (!handler) return;
+        // Stop receiving new notifications
+        handler->disconnect();
+        // Ensure all previously queued events have completed
+        std::latch barrier{1};
+        validation_signals().CallFunctionInValidationInterfaceQueue([&barrier] { barrier.count_down(); });
+        barrier.wait();
+        handler.reset();
     }
     void waitForNotificationsIfTipChanged(const uint256& old_tip) override
     {

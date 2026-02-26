@@ -328,6 +328,9 @@ public:
     //! Register handler for notifications.
     virtual std::unique_ptr<Handler> handleNotifications(std::shared_ptr<Notifications> notifications) = 0;
 
+    //! Disconnect listener safely, waiting for pending notifications up to this point to be processed
+    virtual void disconnectNotifications(std::unique_ptr<interfaces::Handler> handler) = 0;
+
     //! Wait for pending notifications to be processed unless block hash points to the current
     //! chain tip.
     virtual void waitForNotificationsIfTipChanged(const uint256& old_tip) = 0;
