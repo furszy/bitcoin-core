@@ -32,7 +32,6 @@
 #include <validationinterface.h>
 
 #include <algorithm>
-#include <cassert>
 #include <compare>
 #include <cstdint>
 #include <memory>
