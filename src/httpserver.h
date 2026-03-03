@@ -5,6 +5,7 @@
 #ifndef BITCOIN_HTTPSERVER_H
 #define BITCOIN_HTTPSERVER_H
 
+#include <netaddress.h>
 #include <functional>
 #include <optional>
 #include <span>
@@ -73,6 +74,7 @@ private:
     struct evhttp_request* req;
     const util::SignalInterrupt& m_interrupt;
     bool replySent;
+    CService m_peer;
 
 public:
     explicit HTTPRequest(struct evhttp_request* req, const util::SignalInterrupt& interrupt, bool replySent = false);
@@ -92,7 +94,7 @@ public:
 
     /** Get CService (address:ip) for the origin of the http request.
      */
-    CService GetPeer() const;
+    CService GetPeer() const { return m_peer; }
 
     /** Get request method.
      */

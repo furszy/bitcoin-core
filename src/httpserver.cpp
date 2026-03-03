@@ -525,6 +525,19 @@ void HTTPEvent::trigger(struct timeval* tv)
 HTTPRequest::HTTPRequest(struct evhttp_request* _req, const util::SignalInterrupt& interrupt, bool _replySent)
     : req(_req), m_interrupt(interrupt), replySent(_replySent)
 {
+    evhttp_connection* con = evhttp_request_get_connection(req);
+    if (con) {
+        // evhttp retains ownership over returned address string
+        const char* address = "";
+        uint16_t port = 0;
+
+#ifdef HAVE_EVHTTP_CONNECTION_GET_PEER_CONST_CHAR
+        evhttp_connection_get_peer(con, &address, &port);
+#else
+        evhttp_connection_get_peer(con, (char**)&address, &port);
+#endif // HAVE_EVHTTP_CONNECTION_GET_PEER_CONST_CHAR
+        m_peer = MaybeFlipIPv6toCJDNS(LookupNumeric(address, port));
+    }
 }
 
 HTTPRequest::~HTTPRequest()
@@ -608,26 +621,6 @@ void HTTPRequest::WriteReply(int nStatus, std::span<const std::byte> reply)
     ev->trigger(nullptr);
     replySent = true;
     req = nullptr; // transferred back to main thread
-}
-
-CService HTTPRequest::GetPeer() const
-{
-    evhttp_connection* con = evhttp_request_get_connection(req);
-    CService peer;
-    if (con) {
-        // evhttp retains ownership over returned address string
-        const char* address = "";
-        uint16_t port = 0;
-
-#ifdef HAVE_EVHTTP_CONNECTION_GET_PEER_CONST_CHAR
-        evhttp_connection_get_peer(con, &address, &port);
-#else
-        evhttp_connection_get_peer(con, (char**)&address, &port);
-#endif // HAVE_EVHTTP_CONNECTION_GET_PEER_CONST_CHAR
-
-        peer = MaybeFlipIPv6toCJDNS(LookupNumeric(address, port));
-    }
-    return peer;
 }
 
 std::string HTTPRequest::GetURI() const
