@@ -168,19 +168,14 @@ static bool InitHTTPAllowList()
 }
 
 /** HTTP request method as string - use for logging only */
-std::string RequestMethodString(HTTPRequest::RequestMethod m)
+std::string RequestMethodString(HTTPRequestMethod m)
 {
     switch (m) {
-    case HTTPRequest::GET:
-        return "GET";
-    case HTTPRequest::POST:
-        return "POST";
-    case HTTPRequest::HEAD:
-        return "HEAD";
-    case HTTPRequest::PUT:
-        return "PUT";
-    case HTTPRequest::UNKNOWN:
-        return "unknown";
+        case GET: return "GET";
+        case POST: return "POST";
+        case HEAD: return "HEAD";
+        case PUT: return "PUT";
+        case UNKNOWN: return "unknown";
     } // no default case, so the compiler can warn about missing cases
     assert(false);
 }
@@ -222,7 +217,7 @@ static void http_request_cb(struct evhttp_request* req, void* arg)
     }
 
     // Early reject unknown HTTP methods
-    if (hreq->GetRequestMethod() == HTTPRequest::UNKNOWN) {
+    if (hreq->GetRequestMethod() == HTTPRequestMethod::UNKNOWN) {
         LogDebug(BCLog::HTTP, "HTTP request from %s rejected: Unknown HTTP request method\n",
                  hreq->GetPeer().ToStringAddrPort());
         hreq->WriteReply(HTTP_BAD_METHOD);
@@ -527,6 +522,14 @@ HTTPRequest::HTTPRequest(struct evhttp_request* _req, const util::SignalInterrup
 {
     m_uri = evhttp_request_get_uri(req);
 
+    switch (evhttp_request_get_command(req)) {
+        case EVHTTP_REQ_GET:  m_method = GET;  break;
+        case EVHTTP_REQ_POST: m_method = POST; break;
+        case EVHTTP_REQ_HEAD: m_method = HEAD; break;
+        case EVHTTP_REQ_PUT:  m_method = PUT;  break;
+        default:              m_method = UNKNOWN; break;
+    }
+
     evhttp_connection* con = evhttp_request_get_connection(req);
     if (con) {
         // evhttp retains ownership over returned address string
@@ -623,22 +626,6 @@ void HTTPRequest::WriteReply(int nStatus, std::span<const std::byte> reply)
     ev->trigger(nullptr);
     replySent = true;
     req = nullptr; // transferred back to main thread
-}
-
-HTTPRequest::RequestMethod HTTPRequest::GetRequestMethod() const
-{
-    switch (evhttp_request_get_command(req)) {
-    case EVHTTP_REQ_GET:
-        return GET;
-    case EVHTTP_REQ_POST:
-        return POST;
-    case EVHTTP_REQ_HEAD:
-        return HEAD;
-    case EVHTTP_REQ_PUT:
-        return PUT;
-    default:
-        return UNKNOWN;
-    }
 }
 
 std::optional<std::string> HTTPRequest::GetQueryParameter(const std::string& key) const

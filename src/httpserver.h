@@ -65,6 +65,14 @@ void UnregisterHTTPHandler(const std::string &prefix, bool exactMatch);
  */
 struct event_base* EventBase();
 
+enum HTTPRequestMethod {
+    UNKNOWN,
+    GET,
+    POST,
+    HEAD,
+    PUT
+};
+
 /** In-flight HTTP request.
  * Thin C++ wrapper around evhttp_request.
  */
@@ -76,18 +84,11 @@ private:
     bool replySent;
     CService m_peer;
     std::string m_uri;
+    HTTPRequestMethod m_method;
 
 public:
     explicit HTTPRequest(struct evhttp_request* req, const util::SignalInterrupt& interrupt, bool replySent = false);
     ~HTTPRequest();
-
-    enum RequestMethod {
-        UNKNOWN,
-        GET,
-        POST,
-        HEAD,
-        PUT
-    };
 
     /** Get requested URI.
      */
@@ -99,7 +100,7 @@ public:
 
     /** Get request method.
      */
-    RequestMethod GetRequestMethod() const;
+    HTTPRequestMethod GetRequestMethod() const { return m_method; }
 
     /** Get the query parameter value from request uri for a specified key, or std::nullopt if the
      * key is not found.
