@@ -75,6 +75,7 @@ private:
     const util::SignalInterrupt& m_interrupt;
     bool replySent;
     CService m_peer;
+    std::string m_uri;
 
 public:
     explicit HTTPRequest(struct evhttp_request* req, const util::SignalInterrupt& interrupt, bool replySent = false);
@@ -90,7 +91,7 @@ public:
 
     /** Get requested URI.
      */
-    std::string GetURI() const;
+    std::string GetURI() const { return m_uri; }
 
     /** Get CService (address:ip) for the origin of the http request.
      */

@@ -525,6 +525,8 @@ void HTTPEvent::trigger(struct timeval* tv)
 HTTPRequest::HTTPRequest(struct evhttp_request* _req, const util::SignalInterrupt& interrupt, bool _replySent)
     : req(_req), m_interrupt(interrupt), replySent(_replySent)
 {
+    m_uri = evhttp_request_get_uri(req);
+
     evhttp_connection* con = evhttp_request_get_connection(req);
     if (con) {
         // evhttp retains ownership over returned address string
@@ -623,11 +625,6 @@ void HTTPRequest::WriteReply(int nStatus, std::span<const std::byte> reply)
     req = nullptr; // transferred back to main thread
 }
 
-std::string HTTPRequest::GetURI() const
-{
-    return evhttp_request_get_uri(req);
-}
-
 HTTPRequest::RequestMethod HTTPRequest::GetRequestMethod() const
 {
     switch (evhttp_request_get_command(req)) {
@@ -646,9 +643,7 @@ HTTPRequest::RequestMethod HTTPRequest::GetRequestMethod() const
 
 std::optional<std::string> HTTPRequest::GetQueryParameter(const std::string& key) const
 {
-    const char* uri{evhttp_request_get_uri(req)};
-
-    return GetQueryParameterFromUri(uri, key);
+    return GetQueryParameterFromUri(m_uri.c_str(), key);
 }
 
 std::optional<std::string> GetQueryParameterFromUri(const char* uri, const std::string& key)
