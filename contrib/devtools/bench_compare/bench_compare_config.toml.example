@@ -1,0 +1,23 @@
+# bench_compare_config.toml.example
+# ─────────────────────────────────────────────────────────────────────────────
+# SETUP (one-time)
+#
+#   1. Copy this file:
+#        cp bench_compare_config.toml.example ~/.btc_bench.toml
+#
+#   2. Edit the three required fields below (repo, base-ref, jobs).
+#
+#   3. Run:
+#        python3 contrib/devtools/bench_compare/bench_compare.py \
+#            --config     ~/.btc_bench.toml                               \
+#            --pr-ref     yourname/your-branch                            \
+#            --benchmark  VerifyScriptP2WPKH
+# ─────────────────────────────────────────────────────────────────────────────
+
+repo      = "/path/to/bitcoin"   # ← your local Bitcoin Core clone
+base-ref  = "master"             # ← branch or SHA you are comparing against
+jobs      = 7                    # ← parallel build threads (nproc - 1 is a good default)
+
+work-dir    = "/tmp/btc_bench"
+keep-builds = true
+base-label  = "base"
