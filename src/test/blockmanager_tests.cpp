@@ -10,6 +10,7 @@
 #include <node/kernel_notifications.h>
 #include <script/solver.h>
 #include <primitives/block.h>
+#include <undo.h>
 #include <util/chaintype.h>
 #include <validation.h>
 
@@ -298,6 +299,81 @@ BOOST_AUTO_TEST_CASE(blockmanager_flush_block_file)
     // Block 2 was not overwritten:
     BOOST_CHECK(!blockman.ReadBlock(read_block, pos2, {}));
     BOOST_CHECK_EQUAL(read_block.nVersion, 2);
+}
+
+// Verify that block read operations return false (not throw) when the
+// blocks directory is missing (mimicking disk issues).
+BOOST_FIXTURE_TEST_CASE(blockmanager_block_missing_dir, TestChain100Setup)
+{
+    auto& chainman = m_node.chainman;
+    auto& blockman = m_node.chainman->m_blockman;
+    const CBlockIndex* tip;
+    FlatFilePos tip_pos;
+    {
+        LOCK(chainman->GetMutex());
+        tip = chainman->ActiveTip();
+        tip_pos = tip->GetBlockPos();
+    }
+
+    const auto blocks_dir = m_args.GetBlocksDirPath();
+    const auto parent_dir = blocks_dir.parent_path();
+    const auto blocks_bak = parent_dir / "blocks_bak";
+    const auto old_perms = fs::status(parent_dir).permissions();
+
+    // Rename blocks/ away and make the parent read-only so
+    // create_directories cannot re-create it. This mimics an NFS
+    // disconnect where the mount point is gone.
+    fs::rename(blocks_dir, blocks_bak);
+    fs::permissions(parent_dir, fs::perms::owner_read | fs::perms::owner_exec,
+                    fs::perm_options::replace);
+
+    ASSERT_DEBUG_LOG("OpenBlockFile failed");
+    CBlock block;
+    BOOST_CHECK(!blockman.ReadBlock(block, *tip));
+
+    ASSERT_DEBUG_LOG("OpenBlockFile failed");
+    const auto result = blockman.ReadRawBlock(tip_pos);
+    BOOST_CHECK(!result);
+
+    ASSERT_DEBUG_LOG("OpenUndoFile failed");
+    CBlockUndo block_undo;
+    BOOST_CHECK(!blockman.ReadBlockUndo(block_undo, *tip));
+
+    // WriteBlock should return a null position, not throw.
+    // create_directories fails (parent is read-only) so the file
+    // cannot be created.
+    {
+        ASSERT_DEBUG_LOG("Error creating parent directories");
+        CBlock dummy_block;
+        dummy_block.nVersion = 1;
+        const auto write_pos = blockman.WriteBlock(dummy_block, 999);
+        BOOST_CHECK(write_pos.IsNull());
+    }
+
+    // WriteBlockUndo should return false, not throw.
+    // Clear BLOCK_HAVE_UNDO so it actually attempts the write.
+    {
+        LOCK(chainman->GetMutex());
+        auto* mutable_tip = chainman->ActiveTip();
+        mutable_tip->nStatus &= ~BLOCK_HAVE_UNDO;
+
+        ASSERT_DEBUG_LOG("Error creating parent directories");
+        BlockValidationState state;
+        BOOST_CHECK(!blockman.WriteBlockUndo(CBlockUndo{}, state, *mutable_tip));
+
+        mutable_tip->nStatus |= BLOCK_HAVE_UNDO;
+    }
+
+    // Restore and verify recovery: reads must work again after the
+    // directory comes back. Proves no internal state was corrupted
+    // by the transient failure (no stale caches, no broken handles).
+    fs::permissions(parent_dir, old_perms, fs::perm_options::replace);
+    fs::rename(blocks_bak, blocks_dir);
+    {
+        LOCK(chainman->GetMutex());
+        CBlock recovered_block;
+        BOOST_CHECK(blockman.ReadBlock(recovered_block, *chainman->ActiveTip()));
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()
