@@ -130,4 +130,36 @@ BOOST_AUTO_TEST_CASE(flatfile_flush)
     BOOST_CHECK_EQUAL(fs::file_size(seq.FileName(FlatFilePos(0, 1))), 1U);
 }
 
+BOOST_AUTO_TEST_CASE(flatfile_open_readonly_missing_dir)
+{
+    // Open file with read_only=true on a directory that does not exist.
+    // File should be null instead of throwing an exception.
+    const auto data_dir = m_args.GetDataDirBase() / "nonexistent";
+    const FlatFileSeq seq(data_dir, "a", 16 * 1024);
+
+    // TODO future: FlatFileSeq::Open() should return the error msg cause.
+    const AutoFile file{seq.Open(FlatFilePos(0, 0), /*read_only=*/true)};
+    BOOST_CHECK(file.IsNull());
+}
+
+BOOST_AUTO_TEST_CASE(flatfile_open_write_missing_unwritable_parent)
+{
+    // Open with read_only=false when the parent directory cannot be created
+    // (parent of the target dir is read-only).
+    const auto data_dir = m_args.GetDataDirBase();
+    const auto readonly_dir = data_dir / "readonly_parent";
+    fs::create_directories(readonly_dir);
+
+    // Make it read-only so creating subdirectories fails.
+    fs::permissions(readonly_dir, fs::perms::owner_read | fs::perms::owner_exec,
+                    fs::perm_options::replace);
+
+    const FlatFileSeq seq(readonly_dir / "blocks", "a", 16 * 1024);
+    const AutoFile file{seq.Open(FlatFilePos(0, 0), /*read_only=*/false)};
+    BOOST_CHECK(file.IsNull());
+
+    // Restore permissions for cleanup.
+    fs::permissions(readonly_dir, fs::perms::owner_all, fs::perm_options::replace);
+}
+
 BOOST_AUTO_TEST_SUITE_END()
