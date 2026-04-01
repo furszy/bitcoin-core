@@ -10,6 +10,7 @@
 #include <node/kernel_notifications.h>
 #include <script/solver.h>
 #include <primitives/block.h>
+#include <undo.h>
 #include <util/chaintype.h>
 #include <validation.h>
 
@@ -298,6 +299,75 @@ BOOST_AUTO_TEST_CASE(blockmanager_flush_block_file)
     // Block 2 was not overwritten:
     BOOST_CHECK(!blockman.ReadBlock(read_block, pos2, {}));
     BOOST_CHECK_EQUAL(read_block.nVersion, 2);
+}
+
+// Verify that block read operations return false (not throw) when the blocks
+// directory is missing. This matters because callers like DisconnectTip and
+// ActivateBestChain use the return value to trigger FatalError, when needed,
+// for a clean shutdown. If these functions throw instead, the exception
+// bypasses FatalError entirely: on the P2P path it gets caught by
+// ProcessMessage's generic catch-all with only a DEBUG-level log, and every
+// subsequent block arrival retries the same failing read (the same block gets
+// re-processed), leaving the node looking healthy while the chain is stuck.
+BOOST_FIXTURE_TEST_CASE(blockmanager_read_block_missing_dir, TestChain100Setup)
+{
+    auto& chainman = m_node.chainman;
+    auto& blockman = m_node.chainman->m_blockman;
+    auto& chainstate = chainman->ActiveChainstate();
+    const CBlockIndex& tip = WITH_LOCK(chainman->GetMutex(), return *chainman->ActiveTip());
+
+    const auto blocks_dir = m_args.GetBlocksDirPath();
+    const auto blocks_bak = blocks_dir.parent_path() / "blocks_bak";
+    fs::rename(blocks_dir, blocks_bak);
+
+    {
+        ASSERT_DEBUG_LOG("OpenBlockFile failed");
+        CBlock block;
+        BOOST_CHECK(!blockman.ReadBlock(block, tip));
+    }
+
+    {
+        ASSERT_DEBUG_LOG("OpenBlockFile failed");
+        LOCK(chainman->GetMutex());
+        const auto result = blockman.ReadRawBlock(tip.GetBlockPos());
+        BOOST_CHECK(!result);
+    }
+
+    {
+        ASSERT_DEBUG_LOG("OpenUndoFile failed");
+        CBlockUndo block_undo;
+        BOOST_CHECK(!blockman.ReadBlockUndo(block_undo, tip));
+    }
+
+    {
+        // DisconnectTip and ActivateBestChain are the callers that need the
+        // return value to reach their FatalError paths. An exception here
+        // would bypass FatalError and silently freeze the chain.
+        LOCK2(chainman->GetMutex(), chainstate.MempoolMutex());
+        BlockValidationState state;
+
+        {
+            ASSERT_DEBUG_LOG("DisconnectTip(): Failed to read block");
+            BOOST_CHECK(!chainstate.DisconnectTip(state, nullptr));
+        }
+
+        // Restore so we can disconnect two blocks and set up a chain that
+        // ActivateBestChain needs to reconnect.
+        fs::rename(blocks_bak, blocks_dir);
+        BOOST_CHECK(chainstate.DisconnectTip(state, nullptr));
+        BOOST_CHECK(chainstate.DisconnectTip(state, nullptr));
+    }
+
+    // Rename again. ActivateBestChain tries to read blocks from disk
+    // to reconnect them.
+    fs::rename(blocks_dir, blocks_bak);
+    {
+        ASSERT_DEBUG_LOG("Failed to read block");
+        BlockValidationState state;
+        BOOST_CHECK(!chainstate.ActivateBestChain(state));
+    }
+
+    fs::rename(blocks_bak, blocks_dir);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
