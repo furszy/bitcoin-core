@@ -130,4 +130,84 @@ BOOST_AUTO_TEST_CASE(flatfile_flush)
     BOOST_CHECK_EQUAL(fs::file_size(seq.FileName(FlatFilePos(0, 1))), 1U);
 }
 
+BOOST_AUTO_TEST_CASE(flatfile_open_readonly_missing_dir)
+{
+    // Open file with read_only=true on a directory that does not exist.
+    // File should be null instead of throwing an exception.
+    const auto data_dir = m_args.GetDataDirBase() / "nonexistent";
+    const FlatFileSeq seq(data_dir, "a", 16 * 1024);
+
+    const AutoFile file{seq.Open(FlatFilePos(0, 0), /*read_only=*/true)};
+    BOOST_CHECK(file.IsNull());
+}
+
+BOOST_AUTO_TEST_CASE(flatfile_open_write_creates_dir)
+{
+    // Open with read_only=false on a directory that does not yet exist
+    // should create it and succeed.
+    const auto data_dir = m_args.GetDataDirBase() / "new_write_dir";
+    const FlatFileSeq seq(data_dir, "a", 16 * 1024);
+
+    const AutoFile file{seq.Open(FlatFilePos(0, 0), /*read_only=*/false)};
+    BOOST_CHECK(!file.IsNull());
+    BOOST_CHECK(fs::exists(data_dir));
+}
+
+template <typename F>
+static void exec_with_read_only_path(const fs::path& path, F&& func)
+{
+    const auto original_perms = fs::status(path).permissions();
+    fs::permissions(path, fs::perms::owner_read | fs::perms::owner_exec, fs::perm_options::replace);
+    BOOST_CHECK_NO_THROW(func());
+    fs::permissions(path, original_perms, fs::perm_options::replace);
+}
+
+BOOST_AUTO_TEST_CASE(flatfile_open_write_missing_unwritable_parent)
+{
+    // Open with read_only=false when the parent directory cannot be created
+    // (parent of the target dir is read-only).
+    const auto data_dir = m_args.GetDataDirBase();
+    const auto readonly_dir = data_dir / "readonly_parent";
+    fs::create_directories(readonly_dir);
+
+    // Make it read-only so creating subdirectories fails.
+    exec_with_read_only_path(readonly_dir, [&readonly_dir]() {
+        const FlatFileSeq seq(readonly_dir / "blocks", "a", 16 * 1024);
+        const AutoFile file{seq.Open(FlatFilePos(0, 0), /*read_only=*/false)};
+        BOOST_CHECK(file.IsNull());
+    });
+}
+
+BOOST_AUTO_TEST_CASE(flatfile_allocate_unwritable_dir)
+{
+    // Allocate returns 0 when the file cannot be opened for writing.
+    // Note that out_of_space stays false. Callers that only check
+    // out_of_space will miss this failure. The error is caught
+    // downstream when the caller tries to Open the file independently.
+    //
+    // The directory must exist (fs::space() in CheckDiskSpace requires
+    // it), so we create it then make it read-only.
+    const auto data_dir = m_args.GetDataDirBase() / "readonly_alloc_dir";
+    fs::create_directories(data_dir);
+    const FlatFileSeq seq(data_dir, "a", 100);
+
+    exec_with_read_only_path(data_dir, [&seq]() {
+        bool out_of_space;
+        BOOST_CHECK_EQUAL(seq.Allocate(FlatFilePos(0, 0), 1, out_of_space), 0U);
+        BOOST_CHECK(!out_of_space);
+    });
+}
+
+BOOST_AUTO_TEST_CASE(flatfile_flush_unwritable_dir)
+{
+    // Flush returns false when the file cannot be opened for writing.
+    const auto data_dir = m_args.GetDataDirBase() / "readonly_flush_dir";
+    fs::create_directories(data_dir);
+    const FlatFileSeq seq(data_dir, "a", 100);
+
+    exec_with_read_only_path(data_dir, [&seq]() {
+        BOOST_CHECK(!seq.Flush(FlatFilePos(0, 1)));
+    });
+}
+
 BOOST_AUTO_TEST_SUITE_END()
