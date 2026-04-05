@@ -6,6 +6,7 @@
 
 import contextlib
 import os
+import platform
 import re
 import stat
 
@@ -19,7 +20,6 @@ from test_framework.messages import (
 )
 from test_framework.p2p import P2PInterface
 from test_framework.test_framework import BitcoinTestFramework
-from test_framework.util import can_change_perms
 
 
 @contextlib.contextmanager
@@ -97,9 +97,13 @@ class P2PBlockIOErrorTest(BitcoinTestFramework):
             )
 
     def run_test(self):
-        if os.geteuid() == 0 or not can_change_perms(self.nodes[0].blocks_path):
-            self.log.warning("Skipping test: unable to enforce read-only permissions")
-            return
+        # On Windows, open files (like the DB) are locked and prevent renaming
+        # their parent directory, so we can't trigger the expected filesystem error.
+        # Also, when running as root, permission changes don't restrict access, so the
+        # test condition can't be enforced either.
+        if platform.system() == 'Windows' or os.geteuid() == 0:
+           self.log.warning("Skipping test: unable to enforce dir permissions")
+           return
 
         self.test_getdata_on_broken_fs()
         self.test_getblocktxn_fatal_on_block_io_error()
