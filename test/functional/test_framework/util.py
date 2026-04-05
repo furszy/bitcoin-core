@@ -17,7 +17,6 @@ import platform
 import random
 import re
 import shlex
-import stat
 import time
 import types
 
