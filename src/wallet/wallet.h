@@ -312,8 +312,8 @@ private:
 
     bool Unlock(const CKeyingMaterial& vMasterKeyIn);
 
-    std::atomic<bool> fAbortRescan{false};
-    std::atomic<bool> fScanningWallet{false}; // controlled by WalletRescanReserver
+    std::atomic<bool> m_abort_rescan{false};
+    std::atomic<bool> m_is_scanning{false}; // controlled by WalletRescanReserver
     std::atomic<bool> m_scanning_with_passphrase{false};
     std::atomic<SteadyClock::time_point> m_scanning_start{SteadyClock::time_point{}};
     std::atomic<double> m_scanning_progress{0};
@@ -323,7 +323,7 @@ private:
     NodeClock::time_point m_next_resend{GetDefaultNextResend()};
     /** Whether this wallet will submit newly created transactions to the node's mempool and
      * prompt rebroadcasts (see ResendWalletTransactions()). */
-    bool fBroadcastTransactions = false;
+    bool m_can_broadcast_txs = false;
     // Local time that the tip block was received. Used to schedule wallet rebroadcasts.
     std::atomic<int64_t> m_best_block_time {0};
 
@@ -572,12 +572,12 @@ public:
     /*
      * Rescan abort properties
      */
-    void AbortRescan() { fAbortRescan = true; }
-    bool IsAbortingRescan() const { return fAbortRescan; }
-    bool IsScanning() const { return fScanningWallet; }
+    void AbortRescan() { m_abort_rescan = true; }
+    bool IsAbortingRescan() const { return m_abort_rescan; }
+    bool IsScanning() const { return m_is_scanning; }
     bool IsScanningWithPassphrase() const { return m_scanning_with_passphrase; }
-    SteadyClock::duration ScanningDuration() const { return fScanningWallet ? SteadyClock::now() - m_scanning_start.load() : SteadyClock::duration{}; }
-    double ScanningProgress() const { return fScanningWallet ? (double) m_scanning_progress : 0; }
+    SteadyClock::duration ScanningDuration() const { return m_is_scanning ? SteadyClock::now() - m_scanning_start.load() : SteadyClock::duration{}; }
+    double ScanningProgress() const { return m_is_scanning ? (double) m_scanning_progress : 0; }
 
     //! Upgrade DescriptorCaches
     void UpgradeDescriptorCache() EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
@@ -853,9 +853,9 @@ public:
     btcsignals::signal<void (CWallet* wallet)> NotifyStatusChanged;
 
     /** Inquire whether this wallet broadcasts transactions. */
-    bool GetBroadcastTransactions() const { return fBroadcastTransactions; }
+    bool GetBroadcastTransactions() const { return m_can_broadcast_txs; }
     /** Set whether this wallet broadcasts transactions. */
-    void SetBroadcastTransactions(bool broadcast) { fBroadcastTransactions = broadcast; }
+    void SetBroadcastTransactions(bool broadcast) { m_can_broadcast_txs = broadcast; }
 
     /** Return whether transaction can be abandoned */
     bool TransactionCanBeAbandoned(const Txid& hashTx) const;
@@ -1097,7 +1097,7 @@ public:
     bool reserve(bool with_passphrase = false)
     {
         assert(!m_could_reserve);
-        if (m_wallet.fScanningWallet.exchange(true)) {
+        if (m_wallet.m_is_scanning.exchange(true)) {
             return false;
         }
         m_wallet.m_scanning_with_passphrase.exchange(with_passphrase);
@@ -1109,7 +1109,7 @@ public:
 
     bool isReserved() const
     {
-        return (m_could_reserve && m_wallet.fScanningWallet);
+        return (m_could_reserve && m_wallet.m_is_scanning);
     }
 
     Clock::time_point now() const { return m_now ? m_now() : Clock::now(); };
@@ -1119,7 +1119,7 @@ public:
     ~WalletRescanReserver()
     {
         if (m_could_reserve) {
-            m_wallet.fScanningWallet = false;
+            m_wallet.m_is_scanning = false;
             m_wallet.m_scanning_with_passphrase = false;
         }
     }

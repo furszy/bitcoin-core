@@ -1885,7 +1885,7 @@ CWallet::ScanResult CWallet::ScanForWalletTransactions(const uint256& start_bloc
     WalletLogPrintf("Rescan started from block %s... (%s)\n", start_block.ToString(),
                     fast_rescan_filter ? "fast variant using block filters" : "slow variant inspecting all blocks");
 
-    fAbortRescan = false;
+    m_abort_rescan = false;
     ShowProgress(strprintf("[%s] %s", DisplayName(), _("Rescanning…")), 0); // show rescan progress in GUI as dialog or on splashscreen, if rescan required on startup (e.g. due to corruption)
     uint256 tip_hash = WITH_LOCK(cs_wallet, return GetLastBlockHash());
     uint256 end_hash = tip_hash;
@@ -1894,7 +1894,7 @@ CWallet::ScanResult CWallet::ScanForWalletTransactions(const uint256& start_bloc
     double progress_end = chain().guessVerificationProgress(end_hash);
     double progress_current = progress_begin;
     int block_height = start_height;
-    while (!fAbortRescan && !chain().shutdownRequested()) {
+    while (!m_abort_rescan && !chain().shutdownRequested()) {
         if (progress_end - progress_begin > 0.0) {
             m_scanning_progress = (progress_current - progress_begin) / (progress_end - progress_begin);
         } else { // avoid divide-by-zero for single block scan range (i.e. start and stop hashes are equal)
@@ -2007,7 +2007,7 @@ CWallet::ScanResult CWallet::ScanForWalletTransactions(const uint256& start_bloc
         WITH_LOCK(cs_wallet, chain().requestMempoolTransactions(*this));
     }
     ShowProgress(strprintf("[%s] %s", DisplayName(), _("Rescanning…")), 100); // hide progress dialog in GUI
-    if (block_height && fAbortRescan) {
+    if (block_height && m_abort_rescan) {
         WalletLogPrintf("Rescan aborted at block %d. Progress=%f\n", block_height, progress_current);
         result.status = ScanResult::USER_ABORT;
     } else if (block_height && chain().shutdownRequested()) {
@@ -2075,7 +2075,7 @@ std::set<Txid> CWallet::GetTxConflicts(const CWalletTx& wtx) const
 bool CWallet::ShouldResend() const
 {
     // Don't attempt to resubmit if the wallet is configured to not broadcast
-    if (!fBroadcastTransactions) return false;
+    if (!m_can_broadcast_txs) return false;
 
     // During reindex, importing and IBD, old wallet transactions become
     // unconfirmed. Don't resend them as that would spam other nodes.
@@ -2120,7 +2120,7 @@ void CWallet::ResubmitWalletTransactions(node::TxBroadcast broadcast_method, boo
 {
     // Don't attempt to resubmit if the wallet is configured to not broadcast,
     // even if forcing.
-    if (!fBroadcastTransactions) return;
+    if (!m_can_broadcast_txs) return;
 
     int submitted_tx_count = 0;
 
@@ -2352,7 +2352,7 @@ void CWallet::CommitTransaction(CTransactionRef tx, mapValue_t mapValue, std::ve
         NotifyTransactionChanged(coin.GetHash(), CT_UPDATED);
     }
 
-    if (!fBroadcastTransactions) {
+    if (!m_can_broadcast_txs) {
         // Don't submit tx to the mempool
         return;
     }
