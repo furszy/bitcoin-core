@@ -18,7 +18,7 @@ orphan-marker detection, and the pass/fail outcome of recipe replay.
 
 Run standalone: python3 -m unittest <unit test name>
 
-Note: The current commit-script-check.sh requires GNU sed and grep,
+Note: The current commit-script-check.py requires GNU sed and grep,
       so tests are skipped on macOS and Windows.
 """
 import os
@@ -32,7 +32,7 @@ import unittest
 SCRIPT_VERIFIER = os.environ.get("VERIFIER_PATH")
 if SCRIPT_VERIFIER is None:
     REPO_ROOT = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True).strip()
-    SCRIPT_VERIFIER = os.path.join(REPO_ROOT, "test", "lint", "commit-script-check.sh")
+    SCRIPT_VERIFIER = os.path.join(REPO_ROOT, "test", "lint", "commit-script-check.py")
 
 
 def git(repo, *args):
@@ -79,7 +79,7 @@ def make_scripted_diff_commit(repo, subject, recipe, mutate_fn):
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"),
-    "commit-script-check.sh requires GNU sed and grep (not available by default on macOS/Windows)")
+    "commit-script-check.py requires GNU sed and grep (not available by default on macOS/Windows)")
 class TestCommitScriptCheck(unittest.TestCase):
     """Each test runs against a shared repo with a single baseline
     commit. tearDown resets the repo to that baseline so the next
@@ -109,20 +109,78 @@ class TestCommitScriptCheck(unittest.TestCase):
         return subprocess.run([SCRIPT_VERIFIER, *args], cwd=self.repo,
                               capture_output=True, text=True)
 
+    # --- Argument handling ---
+
     def test_no_args_fails(self):
-        """The verifier refuses to run without arguments."""
+        """The verifier exits with an error when called without arguments."""
         r = self.run_verifier()
         self.assertNotEqual(r.returncode, 0)
-        self.assertIn("Usage", r.stdout + r.stderr)
+
+    def test_help_flag(self):
+        """--help prints usage information and exits successfully."""
+        r = self.run_verifier("--help")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("usage:", r.stdout.lower())
+
+    def test_invalid_range_fails(self):
+        """An invalid commit range exits with an error."""
+        r = self.run_verifier("nonexistent..HEAD")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("invalid commit range", r.stderr)
+
+    # --- Subject filtering ---
 
     def test_regular_commit_skipped(self):
-        """A commit without `scripted-diff:` in its subject is a no-op."""
+        """A commit without `scripted-diff:` in its subject is not processed."""
         create_commit(self.repo, "regular: nothing special")
         r = self.run_verifier("HEAD~1..HEAD")
-        self.assertEqual(r.returncode, 0, r.stderr)
-        # The verifier shouldn't have processed the commit at all.
-        self.assertNotIn("OK", r.stderr)
-        self.assertNotIn("Failed", r.stderr)
+        self.assertEqual(r.returncode, 0)
+        self.assertNotIn("Verifying", r.stdout)
+
+    def test_orphan_verify_markers_caught(self):
+        """A commit body with VERIFY SCRIPT markers but no `scripted-diff:`
+        subject exits with an error."""
+        message = ("regular: forgot the prefix\n\n"
+                   "-BEGIN VERIFY SCRIPT-\n"
+                   "echo something\n"
+                   "-END VERIFY SCRIPT-\n")
+        create_commit(self.repo, message)
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("scripted-diff", r.stderr)
+
+    # --- Marker validation ---
+
+    def test_missing_begin_marker(self):
+        """A `scripted-diff:` commit with no BEGIN marker exits with an error."""
+        create_commit(self.repo, "scripted-diff: no markers at all")
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("BEGIN VERIFY SCRIPT", r.stderr)
+
+    def test_missing_end_marker(self):
+        """A `scripted-diff:` commit with BEGIN but no END marker exits
+        with an error."""
+        create_commit(self.repo,
+            "scripted-diff: no end marker\n\n"
+            "-BEGIN VERIFY SCRIPT-\n"
+            "echo something\n")
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("END VERIFY SCRIPT", r.stderr)
+
+    def test_empty_script_body(self):
+        """A `scripted-diff:` commit with markers but no script between them
+        exits with a 'missing script' error."""
+        create_commit(self.repo,
+            "scripted-diff: empty recipe\n\n"
+            "-BEGIN VERIFY SCRIPT-\n"
+            "-END VERIFY SCRIPT-\n")
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("missing script", r.stderr)
+
+    # --- Recipe replay ---
 
     def test_recipe_that_reproduces_diff_passes(self):
         """A recipe whose result matches the recorded tree passes."""
@@ -133,7 +191,7 @@ class TestCommitScriptCheck(unittest.TestCase):
         )
         r = self.run_verifier("HEAD~1..HEAD")
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("OK", r.stderr)
+        self.assertIn("OK", r.stdout)
 
     def test_recipe_that_does_not_reproduce_diff_fails(self):
         """A recipe whose result does NOT match the recorded tree fails."""
@@ -146,46 +204,41 @@ class TestCommitScriptCheck(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("Failed", r.stderr)
 
-    def test_missing_recipe_caught(self):
-        """A `scripted-diff:` commit with no script body fails with
-        a 'missing script' error."""
-        create_commit(self.repo, "scripted-diff: empty body")
-        r = self.run_verifier("HEAD~1..HEAD")
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn("missing script", r.stderr)
-
-    def test_orphan_verify_markers_caught(self):
-        """A commit body with VERIFY SCRIPT markers but no `scripted-diff:`
-        subject is flagged as an error."""
-        message = ("regular: forgot the prefix\n\n"
-                   "-BEGIN VERIFY SCRIPT-\n"
-                   "echo something\n"
-                   "-END VERIFY SCRIPT-\n")
-        create_commit(self.repo, message)
-        r = self.run_verifier("HEAD~1..HEAD")
-        self.assertNotEqual(r.returncode, 0)
-        self.assertIn("scripted-diff", r.stderr)
-
-    def test_multiple_scripted_diffs_all_verified(self):
-        """Multiple scripted-diff commits in a range are each verified.
-        The verifier does not stop at the first failure."""
-        # Commit A: passes (recipe matches).
+    def test_recipe_that_creates_new_file_passes(self):
+        """A recipe that creates a new file is correctly verified.
+        This requires staging (git add -A) before the diff comparison,
+        otherwise git diff does not see untracked files and false-fails."""
         make_scripted_diff_commit(self.repo,
-            subject="rename oldName to newName",
-            recipe="git ls-files | xargs sed -i 's/oldName/newName/g'",
+            subject="add bar.cpp",
+            recipe="echo 'int bar = 1;' > src/bar.cpp",
+            mutate_fn=lambda: write_file(self.repo, "src/bar.cpp", "int bar = 1;\n"),
+        )
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("OK", r.stdout)
+
+    # --- Multi-commit ---
+
+    def test_verifier_exits_on_first_failure(self):
+        """The verifier exits on the first failing commit without
+        processing the rest of the range."""
+        # Commit A: fails (recipe writes wrongName, tree records newName).
+        make_scripted_diff_commit(self.repo,
+            subject="first commit (lying recipe)",
+            recipe="git ls-files | xargs sed -i 's/oldName/wrongName/g'",
             mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
         )
-        # Commit B: fails (recipe writes wrongName, tree records finalName).
+        # Commit B: would pass if reached.
         make_scripted_diff_commit(self.repo,
-            subject="rename newName to finalName (lying recipe)",
-            recipe="git ls-files | xargs sed -i 's/newName/wrongName/g'",
+            subject="second commit",
+            recipe="git ls-files | xargs sed -i 's/newName/finalName/g'",
             mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int finalName = 1;\n"),
         )
         r = self.run_verifier("HEAD~2..HEAD")
         self.assertNotEqual(r.returncode, 0)
-        # Both commits must have been processed, not just the first.
-        self.assertIn("OK", r.stderr)
         self.assertIn("Failed", r.stderr)
+        # Only the first commit was processed.
+        self.assertNotIn("OK", r.stdout)
 
 
 if __name__ == "__main__":

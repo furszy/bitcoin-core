@@ -72,7 +72,7 @@ check-doc.py
 ============
 Check for missing documentation of command line options.
 
-commit-script-check.sh
+commit-script-check.py
 ======================
 Verification of [scripted diffs](/doc/developer-notes.md#scripted-diffs).
 Scripted diffs are only assumed to run on the latest LTS release of Ubuntu. Running them on other operating systems

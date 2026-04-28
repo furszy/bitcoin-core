@@ -1194,7 +1194,7 @@ To create a scripted-diff:
     - `-BEGIN VERIFY SCRIPT-`
     - `-END VERIFY SCRIPT-`
 
-The scripted-diff is verified by the tool `test/lint/commit-script-check.sh`. The tool's default behavior, when supplied
+The scripted-diff is verified by the tool `test/lint/commit-script-check.py`. The tool's default behavior, when supplied
 with a commit is to verify all scripted-diffs from the beginning of time up to said commit. Internally, the tool passes
 the first supplied argument to `git rev-list --reverse` to determine which commits to verify script-diffs for, ignoring
 commits that don't conform to the commit message format described above.
@@ -1202,7 +1202,7 @@ commits that don't conform to the commit message format described above.
 For development, it might be more convenient to verify all scripted-diffs in a range `A..B`, for example:
 
 ```bash
-test/lint/commit-script-check.sh origin/master..HEAD
+test/lint/commit-script-check.py origin/master..HEAD
 ```
 
 ### Suggestions and examples

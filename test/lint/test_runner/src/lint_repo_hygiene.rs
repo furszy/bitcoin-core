@@ -25,7 +25,7 @@ pub fn lint_subtree() -> LintResult {
 }
 
 pub fn lint_scripted_diff() -> LintResult {
-    if Command::new("test/lint/commit-script-check.sh")
+    if Command::new("test/lint/commit-script-check.py")
         .arg(commit_range())
         .status()
         .expect("command error")
