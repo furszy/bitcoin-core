@@ -17,14 +17,10 @@ argument handling, subject filtering, missing-recipe detection,
 orphan-marker detection, and the pass/fail outcome of recipe replay.
 
 Run standalone: python3 -m unittest <unit test name>
-
-Note: The current commit-script-check.py requires GNU sed and grep,
-      so tests are skipped on macOS and Windows.
 """
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 
@@ -78,8 +74,6 @@ def make_scripted_diff_commit(repo, subject, recipe, mutate_fn):
     create_commit(repo, message, mutate_fn)
 
 
-@unittest.skipUnless(sys.platform.startswith("linux"),
-    "commit-script-check.py requires GNU sed and grep (not available by default on macOS/Windows)")
 class TestCommitScriptCheck(unittest.TestCase):
     """Each test runs against a shared repo with a single baseline
     commit. tearDown resets the repo to that baseline so the next
@@ -132,7 +126,7 @@ class TestCommitScriptCheck(unittest.TestCase):
         """A single commit hash (without ..) is treated as a one-commit range."""
         make_scripted_diff_commit(self.repo,
             subject="rename oldName to newName",
-            recipe="git ls-files | xargs sed -i 's/oldName/newName/g'",
+            recipe="RENAME word oldName newName src/foo.cpp",
             mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
         )
         sha = git(self.repo, "rev-parse", "HEAD").strip()
@@ -154,7 +148,7 @@ class TestCommitScriptCheck(unittest.TestCase):
         subject exits with an error."""
         message = ("regular: forgot the prefix\n\n"
                    "-BEGIN VERIFY SCRIPT-\n"
-                   "echo something\n"
+                   "RENAME word foo bar src/*.cpp\n"
                    "-END VERIFY SCRIPT-\n")
         create_commit(self.repo, message)
         r = self.run_verifier("HEAD~1..HEAD")
@@ -176,7 +170,7 @@ class TestCommitScriptCheck(unittest.TestCase):
         create_commit(self.repo,
             "scripted-diff: no end marker\n\n"
             "-BEGIN VERIFY SCRIPT-\n"
-            "echo something\n")
+            "RENAME word foo bar src/*.cpp\n")
         r = self.run_verifier("HEAD~1..HEAD")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("END VERIFY SCRIPT", r.stderr)
@@ -198,7 +192,7 @@ class TestCommitScriptCheck(unittest.TestCase):
         """A recipe whose result matches the recorded tree passes."""
         make_scripted_diff_commit(self.repo,
             subject="rename oldName to newName",
-            recipe="git ls-files | xargs sed -i 's/oldName/newName/g'",
+            recipe="RENAME word oldName newName src/foo.cpp",
             mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
         )
         r = self.run_verifier("HEAD~1..HEAD")
@@ -209,21 +203,90 @@ class TestCommitScriptCheck(unittest.TestCase):
         """A recipe whose result does NOT match the recorded tree fails."""
         make_scripted_diff_commit(self.repo,
             subject="rename oldName to newName (lying recipe)",
-            recipe="git ls-files | xargs sed -i 's/oldName/wrongName/g'",
+            recipe="RENAME word oldName wrongName src/foo.cpp",
             mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
         )
         r = self.run_verifier("HEAD~1..HEAD")
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("Failed", r.stderr)
 
-    def test_recipe_that_creates_new_file_passes(self):
-        """A recipe that creates a new file is correctly verified.
-        This requires staging (git add -A) before the diff comparison,
-        otherwise git diff does not see untracked files and false-fails."""
+    def test_rename_file_passes(self):
+        """RENAME_FILE moves a file and the verifier sees the new path."""
+        def setup():
+            os.makedirs(os.path.join(self.repo, "src/wallet"), exist_ok=True)
+            os.rename(os.path.join(self.repo, "src/foo.cpp"),
+                      os.path.join(self.repo, "src/wallet/foo.cpp"))
         make_scripted_diff_commit(self.repo,
-            subject="add bar.cpp",
-            recipe="echo 'int bar = 1;' > src/bar.cpp",
-            mutate_fn=lambda: write_file(self.repo, "src/bar.cpp", "int bar = 1;\n"),
+            subject="move foo.cpp to wallet/",
+            recipe="RENAME_FILE src/foo.cpp src/wallet/foo.cpp",
+            mutate_fn=setup,
+        )
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("OK", r.stdout)
+
+    def test_rename_literal_passes(self):
+        """RENAME literal replaces exact text, including partial words."""
+        make_scripted_diff_commit(self.repo,
+            subject="literal rename",
+            recipe='RENAME literal "int oldName" "int newName" src/foo.cpp',
+            mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
+        )
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("OK", r.stdout)
+
+    def test_rename_regex_passes(self):
+        """RENAME regex applies a regex substitution with capture groups."""
+        make_scripted_diff_commit(self.repo,
+            subject="regex rename",
+            recipe=r'RENAME regex "old(\w+)" "new\1" src/foo.cpp',
+            mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
+        )
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("OK", r.stdout)
+
+    def test_rename_regex_multiline(self):
+        """RENAME regex with ^ anchor works on lines in the middle of a file,
+        not just the first line."""
+        # Add a forward declaration on line 2.
+        create_commit(self.repo, "add forward decl",
+            lambda: write_file(self.repo, "src/foo.cpp",
+                               "int oldName = 1;\n"
+                               "class Foo;\n"))
+        # The recipe deletes the forward declaration.
+        make_scripted_diff_commit(self.repo,
+            subject="delete forward declaration",
+            recipe='RENAME regex "^class Foo;\\n" "" src/foo.cpp',
+            mutate_fn=lambda: write_file(self.repo, "src/foo.cpp",
+                                         "int oldName = 1;\n"),
+        )
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("OK", r.stdout)
+
+    def test_multi_operation_recipe(self):
+        """A recipe with multiple operations is applied in order."""
+        make_scripted_diff_commit(self.repo,
+            subject="rename and update include",
+            recipe=("RENAME word oldName newName src/foo.cpp\n"
+                    'RENAME literal "= 1" "= 42" src/foo.cpp'),
+            mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 42;\n"),
+        )
+        r = self.run_verifier("HEAD~1..HEAD")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("OK", r.stdout)
+
+    def test_recipe_with_comments_and_blanks(self):
+        """Blank lines and comment lines in a recipe are skipped."""
+        make_scripted_diff_commit(self.repo,
+            subject="rename with comments",
+            recipe=("\n"
+                    "# Rename the identifier\n"
+                    "RENAME word oldName newName src/foo.cpp\n"
+                    "\n"),
+            mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
         )
         r = self.run_verifier("HEAD~1..HEAD")
         self.assertEqual(r.returncode, 0, r.stderr)
@@ -234,16 +297,16 @@ class TestCommitScriptCheck(unittest.TestCase):
     def test_verifier_exits_on_first_failure(self):
         """The verifier exits on the first failing commit without
         processing the rest of the range."""
-        # Commit A: fails (recipe writes wrongName, tree records newName).
+        # Commit A: fails (recipe renames to wrongName, tree records newName).
         make_scripted_diff_commit(self.repo,
             subject="first commit (lying recipe)",
-            recipe="git ls-files | xargs sed -i 's/oldName/wrongName/g'",
+            recipe="RENAME word oldName wrongName src/foo.cpp",
             mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
         )
         # Commit B: would pass if reached.
         make_scripted_diff_commit(self.repo,
             subject="second commit",
-            recipe="git ls-files | xargs sed -i 's/newName/finalName/g'",
+            recipe="RENAME word newName finalName src/foo.cpp",
             mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int finalName = 1;\n"),
         )
         r = self.run_verifier("HEAD~2..HEAD")

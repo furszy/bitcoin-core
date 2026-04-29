@@ -13,8 +13,11 @@ the parent commit, and check that the result matches the recorded diff.
 import argparse
 import os
 import re
+import shlex
 import subprocess
 import sys
+
+TOOL = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools", "scripted_diff.py")
 
 
 def git(*args):
@@ -66,6 +69,22 @@ def parse_args():
     return parser.parse_args()
 
 
+def run_recipe(script):
+    """Run each line of the recipe through the scripted-diff tool.
+    Returns an error string on failure, None on success."""
+    for lineno, line in enumerate(script.splitlines(), start=1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        result = subprocess.run(
+            [sys.executable, TOOL] + shlex.split(line),
+            capture_output=True, text=True)
+        if result.returncode != 0:
+            error = result.stderr.strip()
+            return f"L{lineno}: {error}" if error else f"L{lineno}: operation failed"
+    return None
+
+
 def verify_commit(commit):
     """Verify a single commit. Exits on failure, returns on success/skip."""
     subject = git("log", "-1", "--format=%s", commit).strip()
@@ -86,11 +105,9 @@ def verify_commit(commit):
     print(f"Verifying {commit} ({subject})")
     print(script)
 
-    # Run the recipe in a shell, same as the original (eval "$SCRIPT").
-    subprocess.run(script, shell=True)
+    error = run_recipe(script)
 
-    # Stage all changes (catches new files) and compare to the
-    # recorded commit.
+    # Stage everything (including new files) and compare.
     git("add", "-A")
     diff = subprocess.run(["git", "--no-pager", "diff", "--cached",
                            "--exit-code", commit])
@@ -99,12 +116,13 @@ def verify_commit(commit):
     git("reset", "--quiet", "--hard", "HEAD")
     git("clean", "-fdq")
 
+    if error:
+        sys.exit(error)
     if diff.returncode != 0:
         sys.exit("Failed")
 
 
 def main():
-    os.environ["LC_ALL"] = "C"
     args = parse_args()
 
     # Get starting point so we can return to it.
