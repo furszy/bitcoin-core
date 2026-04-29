@@ -56,12 +56,13 @@ def parse_args():
             "markers is run from the parent commit. If the result matches "
             "the recorded diff, the commit passes.",
         epilog="examples:\n"
-            "  %(prog)s HEAD~1..HEAD     verify the last commit\n"
-            "  %(prog)s origin..HEAD     verify all commits since origin\n"
-            "  %(prog)s abc123..def456   verify a specific range\n",
+            "  %(prog)s HEAD              verify the latest commit\n"
+            "  %(prog)s HEAD~3..HEAD      verify the last three commits\n"
+            "  %(prog)s origin..HEAD      verify all commits since origin\n"
+            "  %(prog)s abc123            verify a specific commit\n",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("commits_range", help="commit range to verify")
+    parser.add_argument("commits_range", help="commit range or single commit hash")
     return parser.parse_args()
 
 
@@ -113,7 +114,10 @@ def main():
         orig_ref = git("rev-parse", "HEAD").strip()
 
     try:
-        commits = git("rev-list", "--reverse", args.commits_range).split()
+        commit_range = args.commits_range
+        if ".." not in commit_range:
+            commit_range = f"{commit_range}^..{commit_range}"
+        commits = git("rev-list", "--reverse", commit_range).split()
     except subprocess.CalledProcessError:
         sys.exit(f"Error: invalid commit range '{args.range}'")
 

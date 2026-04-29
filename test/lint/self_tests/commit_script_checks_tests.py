@@ -128,6 +128,18 @@ class TestCommitScriptCheck(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("invalid commit range", r.stderr)
 
+    def test_single_commit_hash(self):
+        """A single commit hash (without ..) is treated as a one-commit range."""
+        make_scripted_diff_commit(self.repo,
+            subject="rename oldName to newName",
+            recipe="git ls-files | xargs sed -i 's/oldName/newName/g'",
+            mutate_fn=lambda: write_file(self.repo, "src/foo.cpp", "int newName = 1;\n"),
+        )
+        sha = git(self.repo, "rev-parse", "HEAD").strip()
+        r = self.run_verifier(sha)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("OK", r.stdout)
+
     # --- Subject filtering ---
 
     def test_regular_commit_skipped(self):
