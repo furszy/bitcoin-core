@@ -96,6 +96,7 @@ class ListTransactionsTest(BitcoinTestFramework):
         self.run_coinjoin_test()
         self.run_invalid_parameters_test()
         self.test_op_return()
+        self.test_alternate_witness_tx()
         self.test_from_me_status_change()
 
     def run_externally_generated_address_test(self):
@@ -241,6 +242,71 @@ class ListTransactionsTest(BitcoinTestFramework):
             tx_info = wallet.gettransaction(txid)
             assert "fee" in tx_info
             assert_equal(any(detail["category"] == "send" for detail in tx_info["details"]), True)
+
+    def test_alternate_witness_tx(self):
+        self.log.info("Test gettransaction when a transaction with an alternate wtxid is added")
+        self.nodes[0].createwallet("altwit")
+        default_wallet = self.nodes[0].get_wallet_rpc(self.default_wallet_name)
+        wallet = self.nodes[0].get_wallet_rpc("altwit")
+
+        # Import a taproot descriptor with script paths
+        script_path_desc = descsum_create("tr(tpubD6NzVbkrYhZ4YKSWzQhgCCiD9oBFZxvSgUJ85HdBhpLFxvK865U9jF82xCoBAn9nwNZ4uwX7ZKhZbh2iZRPa5s3UHXg3v7d1srFY44SFJVt/*,pk(tprv8ZgxMBicQKsPd3cbrKjE5GKKJLDEidhtzSSmPVtSPyoHQGL2LZw49yt9foZsN9BeiC5VqRaESUSDV2PS9w7zAVBSK6EQH3CZW9sMKxSKDwD/*))")
+        import_res = wallet.importdescriptors([{"desc": script_path_desc, "active": True, "timestamp": "now"}])
+        assert_equal(import_res[0]["success"], True)
+
+        default_wallet.sendtoaddress(wallet.getnewaddress(address_type="bech32m"), 1)
+        self.generate(self.nodes[0], 1, sync_fun=self.no_op)
+        self.disconnect_nodes(0, 1)
+        self.disconnect_nodes(0, 2)
+
+        # Create a script path spend
+        psbt = wallet.walletcreatefundedpsbt(outputs=[{default_wallet.getnewaddress(): 0.5}])["psbt"]
+        script_path_psbt = wallet.walletprocesspsbt(psbt=psbt, finalize=False)["psbt"]
+        dec_psbt = self.nodes[0].decodepsbt(script_path_psbt)
+        assert "taproot_script_path_sigs" in dec_psbt["inputs"][0]
+        assert "taproot_key_path_sig" not in dec_psbt["inputs"][0]
+        script_path_tx = wallet.finalizepsbt(script_path_psbt)["hex"]
+        script_path_wtxid = self.nodes[0].decoderawtransaction(script_path_tx)["hash"]
+        txid = self.nodes[0].sendrawtransaction(script_path_tx)
+        wallet.gettransaction(txid)
+
+        # Make a key path spend separate from the wallet
+        key_path_desc = descsum_create("tr(tprv8ZgxMBicQKsPerQj6m35no46amfKQdjY7AhLnmatHYXs8S4MTgeZYkWAn4edSGwwL3vkSiiGqSZQrmy5D3P5gBoqgvYP2fCUpBwbKTMTAkL/*,pk(tprv8ZgxMBicQKsPd3cbrKjE5GKKJLDEidhtzSSmPVtSPyoHQGL2LZw49yt9foZsN9BeiC5VqRaESUSDV2PS9w7zAVBSK6EQH3CZW9sMKxSKDwD/*))")
+        key_path_psbt = self.nodes[0].descriptorprocesspsbt(psbt=psbt, descriptors=[{"desc": key_path_desc}], finalize=False)["psbt"]
+        dec_psbt = self.nodes[0].decodepsbt(key_path_psbt)
+        assert "taproot_script_path_sigs" not in dec_psbt["inputs"][0]
+        assert "taproot_key_path_sig" in dec_psbt["inputs"][0]
+        key_path_tx = wallet.finalizepsbt(key_path_psbt)["hex"]
+        key_path_wtxid = self.nodes[0].decoderawtransaction(key_path_tx)["hash"]
+        assert_not_equal(script_path_wtxid, key_path_wtxid)
+        txid2 = self.nodes[0].sendrawtransaction(key_path_tx)
+        assert_equal(txid, txid2)
+        self.generateblock(self.nodes[0], default_wallet.getnewaddress(), [key_path_tx], sync_fun=self.no_op)
+        tx_info = wallet.gettransaction(txid)
+
+        # The transaction returned by gettransaction should be the key path as it has a lower weight
+        # And the script path wtxid should be in alternate_txids
+        assert_equal(tx_info["hex"], key_path_tx)
+        assert script_path_wtxid in tx_info["alternate_wtxids"]
+
+        # Check persistence
+        wallet.unloadwallet()
+        self.nodes[0].loadwallet("altwit")
+        tx_info = wallet.gettransaction(txid)
+        assert_equal(tx_info["hex"], key_path_tx)
+        assert script_path_wtxid in tx_info["alternate_wtxids"]
+
+        # Reorging the script path spend to be confirmed will change the canonical tx
+        self.generate(self.nodes[1], 3, sync_fun=self.no_op)
+        self.generateblock(self.nodes[1], default_wallet.getnewaddress(), [script_path_tx], sync_fun=self.no_op)
+        self.connect_nodes(0, 1)
+        self.connect_nodes(0, 2)
+        self.sync_all()
+
+        tx_info = wallet.gettransaction(txid)
+        assert_equal(tx_info["hex"], script_path_tx)
+        assert key_path_wtxid in tx_info["alternate_wtxids"]
+
 
 if __name__ == '__main__':
     ListTransactionsTest(__file__).main()
