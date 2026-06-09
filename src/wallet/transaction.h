@@ -308,6 +308,7 @@ public:
         uint256 serializedHash = TxStateSerializedBlockHash(m_state);
         int serializedIndex = TxStateSerializedIndex(m_state);
         s << TX_WITH_WITNESS(m_txs.at(m_canonical_wtxid)) << serializedHash << dummy_vector1 << serializedIndex << dummy_vector2 << mapValueCopy << vOrderForm << dummy_int << nTimeReceived << dummy_bool << dummy_bool;
+        WriteCompactSize(s, m_txs.size() - 1);
         for (const auto& [wtxid, tx] : m_txs) {
             if (wtxid == m_canonical_wtxid) continue;
             s << TX_WITH_WITNESS(tx);
@@ -329,10 +330,13 @@ public:
         s >> TX_WITH_WITNESS(canonical_tx) >> serialized_block_hash >> dummy_vector1 >> serializedIndex >> dummy_vector2 >> mapValue >> vOrderForm >> dummy_int >> nTimeReceived >> dummy_bool >> dummy_bool;
         m_canonical_wtxid = canonical_tx->GetWitnessHash();
         m_txs.emplace(m_canonical_wtxid, std::move(canonical_tx));
-        while (!s.empty()) {
-            CTransactionRef tx;
-            s >> TX_WITH_WITNESS(tx);
-            m_txs.emplace(tx->GetWitnessHash(), std::move(tx));
+        if (!s.empty()) {
+            size_t wtx_count = ReadCompactSize(s);
+            for (size_t i = 0; i < wtx_count; ++i) {
+                CTransactionRef tx;
+                s >> TX_WITH_WITNESS(tx);
+                m_txs.emplace(tx->GetWitnessHash(), std::move(tx));
+            }
         }
 
         m_state = TxStateInterpretSerialized({serialized_block_hash, serializedIndex});
@@ -350,11 +354,10 @@ public:
 
     CTransactionRef GetTx() const { return m_txs.at(m_canonical_wtxid); }
 
-    void SetTx(CTransactionRef arg)
-    {
-        Assert(arg);
-        m_txs.emplace(arg->GetWitnessHash(), std::move(arg));
-    }
+    // Add tx with the same txid but different wtxid
+    // Returns true if the tx was added
+    // Also updates the canonical wtxid. Txs with witnesses are preferred, followed by least weight
+    bool AddTx(CTransactionRef arg, const TxState& arg_state);
 
     //! make sure balances are recalculated
     void MarkDirty()

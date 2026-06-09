@@ -4,6 +4,7 @@
 
 #include <wallet/transaction.h>
 
+#include <consensus/validation.h>
 #include <interfaces/chain.h>
 
 using interfaces::FoundBlock;
@@ -59,5 +60,35 @@ void CWalletTx::updateState(interfaces::Chain& chain)
 void CWalletTx::CopyFrom(const CWalletTx& _tx)
 {
     *this = _tx;
+}
+
+bool CWalletTx::AddTx(CTransactionRef arg, const TxState& arg_state)
+{
+    Assert(arg);
+    if (!Assume(GetHash() == arg->GetHash())) {
+        return false;
+    }
+    bool ret = false;
+    const auto& [tx_pair, inserted] = m_txs.emplace(arg->GetWitnessHash(), std::move(arg));
+    if (inserted) {
+        ret = true;
+    }
+    const auto& [wtxid, tx] = *tx_pair;
+
+    bool force_canon = false;
+    if (arg_state.index() != m_state.index()) {
+        m_state = arg_state;
+        if (state<TxStateConfirmed>()) {
+            force_canon = true;
+        }
+        ret = true;
+    }
+
+    CTransactionRef canon = GetTx();
+    if (force_canon || (inserted && tx->HasWitness() && (!canon->HasWitness() || (GetTransactionWeight(*tx) < GetTransactionWeight(*canon))))) {
+        m_canonical_wtxid = wtxid;
+    }
+
+    return ret;
 }
 } // namespace wallet
