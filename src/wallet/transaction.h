@@ -344,11 +344,10 @@ public:
 
     CTransactionRef GetTx() const { return m_txs.at(m_canonical_wtxid); }
 
-    void SetTx(CTransactionRef arg)
-    {
-        Assert(arg);
-        m_txs.emplace(arg->GetWitnessHash(), std::move(arg));
-    }
+    // Add tx with the same txid but different wtxid
+    // Returns true if the tx was added
+    // Also updates the canonical wtxid. Txs with witnesses are preferred, followed by least weight
+    bool AddTx(CTransactionRef arg, const TxState& arg_state);
 
     //! make sure balances are recalculated
     void MarkDirty()
