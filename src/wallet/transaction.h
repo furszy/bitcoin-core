@@ -343,6 +343,7 @@ public:
     }
 
     CTransactionRef GetTx() const { return m_txs.at(m_canonical_wtxid); }
+    std::map<Wtxid, CTransactionRef> GetTxs() const { return m_txs; }
 
     // Add tx with the same txid but different wtxid
     // Returns true if the tx was added
