@@ -55,6 +55,10 @@ void CWalletTx::updateState(interfaces::Chain& chain)
     } else if (auto* conf = state<TxStateBlockConflicted>()) {
         lookup_block(conf->conflicting_block_hash, conf->conflicting_block_height, m_state);
     }
+
+    // If the above downgraded a previously-confirmed witness variant back to unconfirmed,
+    // the canonical choice is no longer pinned by confirmation. Re-apply the least-weight rule.
+    if (!isConfirmed()) RecomputeCanonical();
 }
 
 void CWalletTx::CopyFrom(const CWalletTx& _tx)
@@ -75,20 +79,52 @@ bool CWalletTx::AddTx(CTransactionRef arg, const TxState& arg_state)
     }
     const auto& [wtxid, tx] = *tx_pair;
 
-    bool force_canon = false;
     if (arg_state.index() != m_state.index()) {
         m_state = arg_state;
         if (state<TxStateConfirmed>()) {
-            force_canon = true;
+            m_canonical_wtxid = wtxid;
         }
         ret = true;
     }
 
-    CTransactionRef canon = GetTx();
-    if (force_canon || (inserted && tx->HasWitness() && (!canon->HasWitness() || (GetTransactionWeight(*tx) < GetTransactionWeight(*canon))))) {
-        m_canonical_wtxid = wtxid;
+    // While unconfirmed, derive the canonical variant from all known variants
+    if (!isConfirmed()) {
+        const Wtxid prev_canonical = m_canonical_wtxid;
+        RecomputeCanonical();
+        if (m_canonical_wtxid != prev_canonical) {
+            ret = true;
+        }
     }
 
     return ret;
 }
+
+void CWalletTx::RecomputeCanonical()
+{
+    // Recompute the canonical variant among the witness variants. They share
+    // the txid but differ in the wtxid. Prefer variant with witness data and
+    // the least weight.
+    Assert(!m_txs.empty());
+
+    // Returns true if 'a' should be preferred over 'b'
+    auto is_better = [](const CTransactionRef& a, const CTransactionRef& b) {
+        // A witnessed variant always beats a witnessless one
+        if (a->HasWitness() != b->HasWitness()) return a->HasWitness();
+        // Otherwise the lighter one wins
+        return GetTransactionWeight(*a) < GetTransactionWeight(*b);
+    };
+
+    auto it = m_txs.begin();
+    auto best_wtxid = it->first;
+    const CTransactionRef* best = &it->second;
+    it = std::next(it);
+    for (; it != m_txs.end(); it = std::next(it)) {
+        if (is_better(it->second, *best)) {
+            best = &it->second;
+            best_wtxid = it->first;
+        }
+    }
+    m_canonical_wtxid = best_wtxid;
+}
+
 } // namespace wallet
