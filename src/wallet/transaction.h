@@ -388,6 +388,10 @@ private:
     Wtxid m_canonical_wtxid;
     std::map<Wtxid, CTransactionRef> m_txs;
 
+    //! Set m_canonical_wtxid to the best variant under the unconfirmed rule
+    //! (witnessed preferred, then least weight). Ignores state.
+    void RecomputeCanonical();
+
     // Disable copying of CWalletTx objects to prevent bugs where instances get
     // copied in and out of the mapWallet map, and fields are updated in the
     // wrong copy.
