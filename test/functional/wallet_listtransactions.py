@@ -16,6 +16,7 @@ from test_framework.util import (
     assert_not_equal,
     assert_array_result,
     assert_equal,
+    assert_greater_than,
     assert_raises_rpc_error,
     find_vout_for_address,
 )
@@ -243,69 +244,113 @@ class ListTransactionsTest(BitcoinTestFramework):
             assert "fee" in tx_info
             assert_equal(any(detail["category"] == "send" for detail in tx_info["details"]), True)
 
+    def check_tx_variants(self, wallet, txid, canonical_tx_hex, canonical_wtxid, alternate_wtxids):
+        """Assert gettransaction and listtransactions report tx variants properly"""
+        tx_info = wallet.gettransaction(txid)
+        assert_equal(tx_info["hex"], canonical_tx_hex)
+        assert_equal(tx_info["wtxid"], canonical_wtxid)
+        # alternate_wtxids lists the other variants, never the canonical one
+        assert canonical_wtxid not in tx_info["alternate_wtxids"]
+        assert_equal(set(tx_info["alternate_wtxids"]), set(alternate_wtxids))
+
+        # listtransactions exposes the same alternate_wtxids field as gettransaction
+        list_entry = next(entry for entry in wallet.listtransactions() if entry["txid"] == txid)
+        assert_equal(list_entry["alternate_wtxids"], tx_info["alternate_wtxids"])
+
+    # Returns the finalized psbt transaction and its wtxid
+    def finalize_tx_variant(self, wallet, psbt, spend_path):
+        # First check the expected spend path is being used
+        sig_field = {"script": "taproot_script_path_sigs", "key": "taproot_key_path_sig"}
+        present, absent = sig_field[spend_path], sig_field["key" if spend_path == "script" else "script"]
+        psbt_input = self.nodes[0].decodepsbt(psbt)["inputs"][0]
+        assert present in psbt_input and absent not in psbt_input
+
+        # Then finalize and decode
+        tx = wallet.finalizepsbt(psbt)["hex"]
+        return tx, wallet.decoderawtransaction(tx)["hash"]
+
     def test_alternate_witness_tx(self):
-        self.log.info("Test gettransaction when a transaction with an alternate wtxid is added")
+        self.log.info("Test gettransaction and listtransactions report alternate witnesses and canonical variant")
         self.nodes[0].createwallet("altwit")
         default_wallet = self.nodes[0].get_wallet_rpc(self.default_wallet_name)
         wallet = self.nodes[0].get_wallet_rpc("altwit")
 
         # Import a taproot descriptor with script paths
-        script_path_desc = descsum_create("tr(tpubD6NzVbkrYhZ4YKSWzQhgCCiD9oBFZxvSgUJ85HdBhpLFxvK865U9jF82xCoBAn9nwNZ4uwX7ZKhZbh2iZRPa5s3UHXg3v7d1srFY44SFJVt/*,pk(tprv8ZgxMBicQKsPd3cbrKjE5GKKJLDEidhtzSSmPVtSPyoHQGL2LZw49yt9foZsN9BeiC5VqRaESUSDV2PS9w7zAVBSK6EQH3CZW9sMKxSKDwD/*))")
-        import_res = wallet.importdescriptors([{"desc": script_path_desc, "active": True, "timestamp": "now"}])
-        assert_equal(import_res[0]["success"], True)
-
+        desc = descsum_create("tr(tpubD6NzVbkrYhZ4YKSWzQhgCCiD9oBFZxvSgUJ85HdBhpLFxvK865U9jF82xCoBAn9nwNZ4uwX7ZKhZbh2iZRPa5s3UHXg3v7d1srFY44SFJVt/*,pk(tprv8ZgxMBicQKsPd3cbrKjE5GKKJLDEidhtzSSmPVtSPyoHQGL2LZw49yt9foZsN9BeiC5VqRaESUSDV2PS9w7zAVBSK6EQH3CZW9sMKxSKDwD/*))")
+        assert_equal(wallet.importdescriptors([{"desc": desc, "active": True, "timestamp": "now"}])[0]["success"], True)
         default_wallet.sendtoaddress(wallet.getnewaddress(address_type="bech32m"), 1)
         self.generate(self.nodes[0], 1, sync_fun=self.no_op)
+        # Isolate node0 for later reorg coverage
         self.disconnect_nodes(0, 1)
         self.disconnect_nodes(0, 2)
 
-        # Create a script path spend
+        # Create output psbt
         psbt = wallet.walletcreatefundedpsbt(outputs=[{default_wallet.getnewaddress(): 0.5}])["psbt"]
+
+        # Create a script path spend and relay it. With only one variant known it
+        # is trivially canonical and has no alternates
+        self.log.info("Test the only known variant is canonical with no alternates")
         script_path_psbt = wallet.walletprocesspsbt(psbt=psbt, finalize=False)["psbt"]
-        dec_psbt = self.nodes[0].decodepsbt(script_path_psbt)
-        assert "taproot_script_path_sigs" in dec_psbt["inputs"][0]
-        assert "taproot_key_path_sig" not in dec_psbt["inputs"][0]
-        script_path_tx = wallet.finalizepsbt(script_path_psbt)["hex"]
-        script_path_wtxid = self.nodes[0].decoderawtransaction(script_path_tx)["hash"]
+        script_path_tx, script_path_wtxid = self.finalize_tx_variant(wallet, script_path_psbt, spend_path="script")
         txid = self.nodes[0].sendrawtransaction(script_path_tx)
-        wallet.gettransaction(txid)
+        self.check_tx_variants(wallet, txid, script_path_tx, script_path_wtxid, alternate_wtxids=[])
 
         # Make a key path spend separate from the wallet
         key_path_desc = descsum_create("tr(tprv8ZgxMBicQKsPerQj6m35no46amfKQdjY7AhLnmatHYXs8S4MTgeZYkWAn4edSGwwL3vkSiiGqSZQrmy5D3P5gBoqgvYP2fCUpBwbKTMTAkL/*,pk(tprv8ZgxMBicQKsPd3cbrKjE5GKKJLDEidhtzSSmPVtSPyoHQGL2LZw49yt9foZsN9BeiC5VqRaESUSDV2PS9w7zAVBSK6EQH3CZW9sMKxSKDwD/*))")
         key_path_psbt = self.nodes[0].descriptorprocesspsbt(psbt=psbt, descriptors=[{"desc": key_path_desc}], finalize=False)["psbt"]
-        dec_psbt = self.nodes[0].decodepsbt(key_path_psbt)
-        assert "taproot_script_path_sigs" not in dec_psbt["inputs"][0]
-        assert "taproot_key_path_sig" in dec_psbt["inputs"][0]
-        key_path_tx = wallet.finalizepsbt(key_path_psbt)["hex"]
-        key_path_wtxid = self.nodes[0].decoderawtransaction(key_path_tx)["hash"]
+        key_path_tx, key_path_wtxid = self.finalize_tx_variant(wallet, key_path_psbt, spend_path="key")
+
+        # Ensure variants share the same txid but differ in wtxid, and the key path is the lighter of the two
+        assert_equal(txid, self.nodes[0].decoderawtransaction(key_path_tx)["txid"])
         assert_not_equal(script_path_wtxid, key_path_wtxid)
-        txid2 = self.nodes[0].sendrawtransaction(key_path_tx)
-        assert_equal(txid, txid2)
-        self.generateblock(self.nodes[0], default_wallet.getnewaddress(), [key_path_tx], sync_fun=self.no_op)
-        tx_info = wallet.gettransaction(txid)
+        assert_greater_than(
+            self.nodes[0].decoderawtransaction(script_path_tx)["weight"],
+            self.nodes[0].decoderawtransaction(key_path_tx)["weight"],
+        )
 
-        # The transaction returned by gettransaction should be the key path as it has a lower weight
-        # And the script path wtxid should be in alternate_txids
-        assert_equal(tx_info["hex"], key_path_tx)
-        assert script_path_wtxid in tx_info["alternate_wtxids"]
+        # The wallet only learns the key path witness from a block (the mempool
+        # holds one transaction per txid). Mine the key path: a confirmed variant
+        # is canonical, with the script path now listed as its alternate.
+        block = self.generateblock(self.nodes[0], default_wallet.getnewaddress(), [key_path_tx], sync_fun=self.no_op)["hash"]
+        self.check_tx_variants(wallet, txid, key_path_tx, key_path_wtxid, alternate_wtxids=[script_path_wtxid])
 
-        # Check persistence
+        # Reorg that block out so both variants are known and unconfirmed. With no
+        # confirmation to force the choice, the lighter key path is canonical.
+        self.log.info("Test the lighter variant is canonical when both are known and unconfirmed")
+        self.nodes[0].invalidateblock(block)
+        self.nodes[0].syncwithvalidationinterfacequeue()
+        assert_equal(wallet.gettransaction(txid)["confirmations"], 0)
+        self.check_tx_variants(wallet, txid, key_path_tx, key_path_wtxid, alternate_wtxids=[script_path_wtxid])
+
+        # The canonical choice and alternates survive a wallet reload
         wallet.unloadwallet()
         self.nodes[0].loadwallet("altwit")
-        tx_info = wallet.gettransaction(txid)
-        assert_equal(tx_info["hex"], key_path_tx)
-        assert script_path_wtxid in tx_info["alternate_wtxids"]
+        self.check_tx_variants(wallet, txid, key_path_tx, key_path_wtxid, alternate_wtxids=[script_path_wtxid])
 
-        # Reorging the script path spend to be confirmed will change the canonical tx
+        # Now confirm the heavier script path instead, on a longer competing chain
+        # from node1, and reconnect so node0 reorgs onto it. The confirmed variant
+        # is canonical even though it is the heavier one.
+        self.log.info("Test a confirmed variant is canonical even when it is the heavier one")
         self.generate(self.nodes[1], 3, sync_fun=self.no_op)
-        self.generateblock(self.nodes[1], default_wallet.getnewaddress(), [script_path_tx], sync_fun=self.no_op)
+        block = self.generateblock(self.nodes[1], default_wallet.getnewaddress(), [script_path_tx], sync_fun=self.no_op)["hash"]
         self.connect_nodes(0, 1)
         self.connect_nodes(0, 2)
         self.sync_all()
+        self.check_tx_variants(wallet, txid, script_path_tx, script_path_wtxid, alternate_wtxids=[key_path_wtxid])
 
-        tx_info = wallet.gettransaction(txid)
-        assert_equal(tx_info["hex"], script_path_tx)
-        assert key_path_wtxid in tx_info["alternate_wtxids"]
+        # The confirmed-canonical choice survive a reload
+        wallet.unloadwallet()
+        self.nodes[0].loadwallet("altwit")
+        self.check_tx_variants(wallet, txid, script_path_tx, script_path_wtxid, alternate_wtxids=[key_path_wtxid])
+
+        self.log.info("Test canonical reverts to the lighter variant when the confirmed one is reorged out")
+        # Both variants are unconfirmed again, so the lighter key path is canonical once more
+        self.disconnect_nodes(0, 1)
+        self.disconnect_nodes(0, 2)
+        self.nodes[0].invalidateblock(block)
+        self.nodes[0].syncwithvalidationinterfacequeue()
+        assert_equal(wallet.gettransaction(txid)["confirmations"], 0)
+        self.check_tx_variants(wallet, txid, key_path_tx, key_path_wtxid, alternate_wtxids=[script_path_wtxid])
 
 
 if __name__ == '__main__':
