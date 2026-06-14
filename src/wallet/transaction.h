@@ -250,15 +250,20 @@ public:
     mutable bool fChangeCached;
     mutable CAmount nChangeCached;
 
-    CWalletTx(CTransactionRef tx, const TxState& state) : m_state(state), tx(std::move(Assert(tx)))
+    CWalletTx(CTransactionRef tx, const TxState& state) : m_state(state), m_canonical_wtxid(tx->GetWitnessHash())
     {
+        Assert(tx);
+        m_txs.emplace(tx->GetWitnessHash(), std::move(tx));
         Init();
     }
 
     template <typename Stream>
-    CWalletTx(deserialize_type, Stream& s) : m_state(TxStateInactive{})
+    CWalletTx(deserialize_type, Stream& s, const std::map<Wtxid, CTransactionRef>& variants = {}) : m_state(TxStateInactive{})
     {
         Unserialize(s);
+        // Merge witness variants
+        for (const auto& [wtxid, tx] : variants) m_txs.emplace(wtxid, tx);
+        Assert(m_txs.contains(GetWitnessHash()));
     }
 
     void Init()
@@ -305,7 +310,7 @@ public:
         uint32_t dummy_int = 0; // Used to be fTimeReceivedIsTxTime
         uint256 serializedHash = TxStateSerializedBlockHash(m_state);
         int serializedIndex = TxStateSerializedIndex(m_state);
-        s << TX_WITH_WITNESS(tx) << serializedHash << dummy_vector1 << serializedIndex << dummy_vector2 << mapValueCopy << vOrderForm << dummy_int << nTimeReceived << dummy_bool << dummy_bool;
+        s << TX_WITH_WITNESS(m_txs.at(m_canonical_wtxid)) << serializedHash << dummy_vector1 << serializedIndex << dummy_vector2 << mapValueCopy << vOrderForm << dummy_int << nTimeReceived << dummy_bool << dummy_bool;
     }
 
     template<typename Stream>
@@ -319,7 +324,10 @@ public:
         uint32_t dummy_int; // Used to be fTimeReceivedIsTxTime
         uint256 serialized_block_hash;
         int serializedIndex;
-        s >> TX_WITH_WITNESS(tx) >> serialized_block_hash >> dummy_vector1 >> serializedIndex >> dummy_vector2 >> mapValue >> vOrderForm >> dummy_int >> nTimeReceived >> dummy_bool >> dummy_bool;
+        CTransactionRef canonical_tx;
+        s >> TX_WITH_WITNESS(canonical_tx) >> serialized_block_hash >> dummy_vector1 >> serializedIndex >> dummy_vector2 >> mapValue >> vOrderForm >> dummy_int >> nTimeReceived >> dummy_bool >> dummy_bool;
+        m_canonical_wtxid = canonical_tx->GetWitnessHash();
+        m_txs.emplace(m_canonical_wtxid, std::move(canonical_tx));
 
         m_state = TxStateInterpretSerialized({serialized_block_hash, serializedIndex});
 
@@ -334,11 +342,12 @@ public:
         mapValue.erase("timesmart");
     }
 
-    CTransactionRef GetTx() const { return tx; }
+    CTransactionRef GetTx() const { return m_txs.at(m_canonical_wtxid); }
 
     void SetTx(CTransactionRef arg)
     {
-        tx = std::move(arg);
+        Assert(arg);
+        m_txs.emplace(arg->GetWitnessHash(), std::move(arg));
     }
 
     //! make sure balances are recalculated
@@ -371,12 +380,13 @@ public:
     bool isInactive() const { return state<TxStateInactive>(); }
     bool isUnconfirmed() const { return !isAbandoned() && !isBlockConflicted() && !isMempoolConflicted() && !isConfirmed(); }
     bool isConfirmed() const { return state<TxStateConfirmed>(); }
-    const Txid& GetHash() const LIFETIMEBOUND { return tx->GetHash(); }
-    const Wtxid& GetWitnessHash() const LIFETIMEBOUND { return tx->GetWitnessHash(); }
-    bool IsCoinBase() const { return tx->IsCoinBase(); }
+    const Txid& GetHash() const LIFETIMEBOUND { return m_txs.at(m_canonical_wtxid)->GetHash(); }
+    const Wtxid& GetWitnessHash() const LIFETIMEBOUND { return m_txs.at(m_canonical_wtxid)->GetWitnessHash(); }
+    bool IsCoinBase() const { return m_txs.at(m_canonical_wtxid)->IsCoinBase(); }
 
 private:
-    CTransactionRef tx;
+    Wtxid m_canonical_wtxid;
+    std::map<Wtxid, CTransactionRef> m_txs;
 
     // Disable copying of CWalletTx objects to prevent bugs where instances get
     // copied in and out of the mapWallet map, and fields are updated in the
