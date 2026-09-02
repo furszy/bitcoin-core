@@ -1056,12 +1056,11 @@ public:
     //! Add a descriptor to the wallet, return a ScriptPubKeyMan & associated output type
     util::Result<std::reference_wrapper<DescriptorScriptPubKeyMan>> AddWalletDescriptor(WalletDescriptor& desc, const FlatSigningProvider& signing_provider, const std::string& label, bool internal) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
-    /** Move all records from the BDB database to a new SQLite database for storage.
-     * The original BDB file will be deleted and replaced with a new SQLite file.
-     * A backup is not created.
-     * May crash if something unexpected happens in the filesystem.
+    /** Move all records from the BDB database to a new SQLite database that replaces the original file.
+     * A backup is not created. `original_removed` reports whether the original db file no longer exists
+     * (always true on success); when set on failure, the wallet must be restored from the backup.
      */
-    bool MigrateToSQLite(bilingual_str& error) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
+    bool MigrateToSQLite(bilingual_str& error, bool& original_removed) EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);
 
     //! Get all of the descriptors from a legacy wallet
     std::optional<MigrationData> GetDescriptorsForLegacy(bilingual_str& error) const EXCLUSIVE_LOCKS_REQUIRED(cs_wallet);

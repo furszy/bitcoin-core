@@ -3860,9 +3860,10 @@ static std::string MigrationPrefixName(CWallet& wallet)
     return name.empty() ? "default_wallet" : name;
 }
 
-bool CWallet::MigrateToSQLite(bilingual_str& error)
+bool CWallet::MigrateToSQLite(bilingual_str& error, bool& original_removed)
 {
     AssertLockHeld(cs_wallet);
+    original_removed = false;
 
     WalletLogPrintf("Migrating wallet storage database from BerkeleyDB to SQLite.\n");
 
@@ -3956,6 +3957,7 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
         if (perm_issue) err_help = " Adjust directory or file permissions to proceed with migration.";
         return fail(strprintf(_("Error: Wallet db cannot be updated. Path: %s, Error: %s.%s"), fs::PathToString(origin_db_path), err_db.message(), err_help));
     }
+    original_removed = true;
 
     // Move the new sqlite database into the original location
     const auto& tmp_db = fs::PathFromString(new_db->Filename());
@@ -4410,13 +4412,15 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>
     //             migrating only watch-only scripts.
     bool empty_local_wallet = false;
 
-    {
+    bool original_removed{false}; // whether the original db file no longer exists (also true on success)
+    try {
         LOCK(local_wallet->cs_wallet);
         // First change to using SQLite
-        if (!local_wallet->MigrateToSQLite(error)) return util::Error{error};
-
-        // Do the migration of keys and scripts for non-empty wallets, and cleanup if it fails
-        if (HasLegacyRecords(*local_wallet)) {
+        if (!local_wallet->MigrateToSQLite(error, original_removed)) {
+            // Nothing to clean up nor restore when the original db was left untouched
+            if (!original_removed) return util::Error{error};
+        } else if (HasLegacyRecords(*local_wallet)) {
+            // Do the migration of keys and scripts for non-empty wallets, and cleanup if it fails
             success = DoMigration(*local_wallet, context, error, res, load_wallet);
             // No scripts mean empty wallet after migration
             empty_local_wallet = local_wallet->GetAllScriptPubKeyMans().empty();
@@ -4425,6 +4429,9 @@ util::Result<MigrationResult> MigrateLegacyToDescriptor(std::shared_ptr<CWallet>
             local_wallet->SetWalletFlag(WALLET_FLAG_DESCRIPTORS);
             success = true;
         }
+    } catch (const std::exception& e) {
+        error = Untranslated(strprintf("Unexpected exception during migration: %s", e.what()));
+        if (!original_removed) return util::Error{error};
     }
 
     // In case of loading failure, we need to remember the wallet files we have created to remove.
