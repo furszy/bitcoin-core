@@ -203,6 +203,9 @@ std::vector<std::pair<fs::path, std::string>> ListDatabases(const fs::path& path
 void ReadDatabaseArgs(const ArgsManager& args, DatabaseOptions& options);
 std::unique_ptr<WalletDatabase> MakeDatabase(const fs::path& path, const DatabaseOptions& options, DatabaseStatus& status, bilingual_str& error);
 
+/** Moves 'db' to the 'dst_path' folder and reloads it from the new location */
+util::Result<void> MoveDatabase(std::unique_ptr<WalletDatabase>& db, const fs::path& dst_path, DatabaseOptions& opts);
+
 fs::path BDBDataFile(const fs::path& path);
 fs::path SQLiteDataFile(const fs::path& path);
 bool IsBDBFile(const fs::path& path);

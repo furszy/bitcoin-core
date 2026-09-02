@@ -178,4 +178,35 @@ void ReadDatabaseArgs(const ArgsManager& args, DatabaseOptions& options)
     options.use_unsafe_sync = args.GetBoolArg("-unsafesqlitesync", options.use_unsafe_sync);
 }
 
+util::Result<void> MoveDatabase(std::unique_ptr<WalletDatabase>& db, const fs::path& dst_path, DatabaseOptions& opts)
+{
+    const fs::path wallet_file{fs::PathFromString(db->Filename())};
+    const std::vector<fs::path> files{db->Files()};
+    db->Close();
+
+    // Any other file of this db at the destination (e.g. a hot journal) is a leftover of an interrupted write to an
+    // earlier db there. Erase it, as the moved db would apply it when opened, corrupting it.
+    std::error_code ec;
+    for (const fs::path& file : files) {
+        if (file == wallet_file) continue;
+        const fs::path leftover{dst_path / fs::path{file.filename()}};
+        if (fs::remove(leftover, ec)) LogInfo("Removed db leftover during move: %s", fs::PathToString(leftover));
+        if (ec) return util::Error{FileError(leftover, ec)};
+    }
+
+    const fs::path dst_file{dst_path / fs::path{wallet_file.filename()}};
+    fs::create_directories(dst_path, ec);
+    if (!ec) fs::rename(wallet_file, dst_file, ec);
+    if (ec) return util::Error{FileError(dst_file, ec)};
+
+    // Reload db connection
+    DatabaseStatus db_status;
+    opts.require_create = false;
+    opts.require_existing = true;
+    bilingual_str error;
+    db = Assert(MakeDatabase(dst_path, opts, db_status, error));
+
+    return {};
+}
+
 } // namespace wallet

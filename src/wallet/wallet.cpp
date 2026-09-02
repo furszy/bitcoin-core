@@ -3813,9 +3813,18 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
         return false;
     }
 
-    // Close this database and erase its files
-    if (auto res{m_database->Erase()}; !res) {
-        error = util::ErrorString(res);
+    // Close this database. It is replaced once the new one is fully built
+    const fs::path db_file = fsbridge::AbsPathJoin(GetWalletDir(), fs::PathFromString(m_database->Filename()));
+    m_database->Close();
+
+    // Wallets that are plain files rather than wallet directories will be migrated to be wallet directories
+    const fs::path dst_wallet_dir = fsbridge::AbsPathJoin(GetWalletDir(), fs::PathFromString(m_name));
+
+    // Create a temporary database next to the original db file
+    const std::string new_db_name = strprintf("%s_sqlite_%d.tmp", MigrationFilePrefix(*this), GetTime());
+    const fs::path tmp_wallet_path = fs::path{db_file.parent_path()} / fs::PathFromString(new_db_name);
+    if (std::error_code ec; fs::exists(fs::symlink_status(tmp_wallet_path, ec))) {
+        error = strprintf(_("Error: Unable to create the new database for wallet '%s'. Temporary path '%s' already exists."), GetName(), fs::PathToString(tmp_wallet_path));
         return false;
     }
 
@@ -3828,16 +3837,20 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
     opts.require_create = true;
     opts.require_format = DatabaseFormat::SQLITE;
     DatabaseStatus db_status;
-    std::unique_ptr<WalletDatabase> new_db = MakeDatabase(wallet_path, opts, db_status, error);
-    assert(new_db); // This is to prevent doing anything further with this wallet. The original file was deleted, but a backup exists.
+    std::unique_ptr<WalletDatabase> new_db = MakeDatabase(tmp_wallet_path, opts, db_status, error);
 
+    // The temporary dir did not exist before, so it only holds the new db files
     const auto fail = [&](bilingual_str err) {
         error = std::move(err);
-        (void)new_db->Erase();
+        if (new_db) (void)new_db->Erase();
         std::error_code ec;
-        fs::remove(wallet_path, ec);
+        fs::remove(tmp_wallet_path, ec);
         return false;
     };
+
+    if (!new_db) {
+        return fail(strprintf(_("Error: Unable to create the new database for wallet '%s'."), GetName()) + Untranslated(" ") + error);
+    }
 
     // Write existing records into the new DB
     const bool written = RunWithinTxn(*new_db, "migration: write records to new db", [&records](DatabaseBatch& in_batch) {
@@ -3847,11 +3860,22 @@ bool CWallet::MigrateToSQLite(bilingual_str& error)
         return true;
     });
     if (!written) {
-        fail(strprintf(_("Error: Unable to write records into the new database for wallet '%s'"), GetName()));
-        assert(false); // This is a critical error, the new db could not be written to. The original db exists as a backup, but we should not continue execution.
+        return fail(strprintf(_("Error: Unable to write records into the new database for wallet '%s'"), GetName()));
     }
 
-    m_database.reset();
+    // ######################################################################
+    // At this point, the new database has all records.                     #
+    // Move it into the wallet location, replacing the original db file.    #
+    // ######################################################################
+
+    // A plain wallet file (its db file is the wallet path itself) becomes a wallet directory. As a file cannot be
+    // atomically replaced by a directory, the original db is erased first in that case.
+    if (db_file == dst_wallet_dir) {
+        if (auto res{m_database->Erase()}; !res) return fail(util::ErrorString(res));
+    }
+    if (auto res{MoveDatabase(new_db, dst_wallet_dir, opts)}; !res) return fail(util::ErrorString(res));
+    std::error_code ec;
+    fs::remove(tmp_wallet_path, ec); // Empty after the move
     m_database = std::move(new_db);
     return true;
 }
