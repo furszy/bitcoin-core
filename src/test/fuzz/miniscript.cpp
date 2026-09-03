@@ -1196,7 +1196,7 @@ void TestNode(const MsCtx script_ctx, const std::optional<Node>& node, FuzzedDat
 
 void FuzzInit()
 {
-    static ECC_Context ecc_context{};
+    static ECC_Context ecc_context{MakeContextECC()};
     TEST_DATA.Init();
 }
 

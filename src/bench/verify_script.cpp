@@ -45,7 +45,7 @@ static size_t ExpectedWitnessStackSize(ScriptType script_type)
 // Microbenchmark for verification of standard scripts.
 static void VerifyScriptBench(benchmark::Bench& bench, ScriptType script_type)
 {
-    ECC_Context ecc_context{};
+    ECC_Context ecc_context{MakeContextECC()};
 
     // Create deterministic key material needed for output script creation / signing
     CKey privkey;

@@ -499,12 +499,18 @@ static std::vector<unsigned char, secure_allocator<unsigned char>> RandSeed32()
     return rng_seed;
 }
 
-ECC_Context::ECC_Context()
+ECC_Context::ECC_Context(const std::span<const unsigned char>& rng_seed32)
 {
-    ECC_Start(m_ctx, RandSeed32());
+    ECC_Start(m_ctx, rng_seed32);
 }
 
 ECC_Context::~ECC_Context()
 {
     ECC_Stop(m_ctx);
+}
+
+ECC_Context MakeContextECC()
+{
+    // Create signing context
+    return ECC_Context(RandSeed32());
 }
