@@ -7,6 +7,7 @@
 #ifndef BITCOIN_KEY_H
 #define BITCOIN_KEY_H
 
+#include <ecc_context.h>
 #include <pubkey.h>
 #include <script/keyorigin.h>
 #include <serialize.h>
@@ -17,9 +18,6 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
-
-struct secp256k1_context_struct;
-typedef struct secp256k1_context_struct secp256k1_context;
 
 /**
  * CPrivKey is a serialized private key, with all parameters included
@@ -326,28 +324,6 @@ bool ECC_InitSanityCheck();
 
 /** Access the secp256k1 context used for signing and MuSig2 nonce generation. */
 secp256k1_context* GetSecp256k1SignContext();
-
-/**
- * RAII class initializing and deinitializing global state for elliptic curve support.
- * Only one instance may be initialized at a time.
- *
- * In the future global ECC state could be removed, and this class could contain
- * state and be passed as an argument to ECC key functions.
- */
-class ECC_Context
-{
-public:
-    explicit ECC_Context(const std::span<const unsigned char>& rng_seed32);
-    ECC_Context(const ECC_Context&) = delete;
-    ECC_Context& operator=(const ECC_Context&) = delete;
-
-    ~ECC_Context();
-
-    secp256k1_context* GetCtx() const { return m_ctx; }
-
-private:
-    secp256k1_context* m_ctx;
-};
 
 ECC_Context MakeContextECC();
 
