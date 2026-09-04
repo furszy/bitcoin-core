@@ -344,7 +344,7 @@ public:
     ~ECC_Context();
 
 private:
-    secp256k1_context*& ref_ctx;
+    secp256k1_context*& m_ctx;
 };
 
 #endif // BITCOIN_KEY_H

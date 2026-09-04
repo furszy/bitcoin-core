@@ -499,12 +499,12 @@ static std::vector<unsigned char, secure_allocator<unsigned char>> RandSeed32()
     return rng_seed;
 }
 
-ECC_Context::ECC_Context() : ref_ctx(secp256k1_context_sign)
+ECC_Context::ECC_Context() : m_ctx(secp256k1_context_sign)
 {
-    ECC_Start(ref_ctx, RandSeed32());
+    ECC_Start(m_ctx, RandSeed32());
 }
 
 ECC_Context::~ECC_Context()
 {
-    ECC_Stop(ref_ctx);
+    ECC_Stop(m_ctx);
 }
