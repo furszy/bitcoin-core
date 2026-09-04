@@ -3,12 +3,16 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include <ecc_context.h>
+
+#include <crypto/sha256.h>
 #include <secp256k1.h>
 
 #include <cassert>
 #include <span>
+#include <type_traits>
 
-/** Initialize elliptic curve context. Provide rng seed for blinding factor if needed */
+/** Initialize elliptic curve context with our optimized SHA256 plugged in (see SHA256Transform).
+ *  Provide rng seed for blinding factor if needed. */
 static void ECC_Start(secp256k1_context*& ctx_inout, const std::span<const unsigned char>& rng_seed32) {
     assert(ctx_inout == nullptr);
     assert(rng_seed32.empty() || rng_seed32.size() == 32);
@@ -21,6 +25,10 @@ static void ECC_Start(secp256k1_context*& ctx_inout, const std::span<const unsig
         bool ret = secp256k1_context_randomize(ctx, rng_seed32.data());
         assert(ret);
     }
+
+    SHA256AutoDetect();
+    static_assert(std::is_same_v<decltype(&SHA256Transform), secp256k1_sha256_compression_function>);
+    secp256k1_context_set_sha256_compression(ctx, SHA256Transform);
 
     ctx_inout = ctx;
 }
