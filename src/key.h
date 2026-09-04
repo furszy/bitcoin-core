@@ -343,8 +343,10 @@ public:
 
     ~ECC_Context();
 
+    secp256k1_context* GetCtx() const { return m_ctx; }
+
 private:
-    secp256k1_context*& m_ctx;
+    secp256k1_context* m_ctx;
 };
 
 #endif // BITCOIN_KEY_H
