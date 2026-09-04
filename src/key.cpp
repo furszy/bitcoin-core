@@ -17,6 +17,7 @@
 #include <secp256k1_schnorrsig.h>
 
 #include <algorithm>
+#include <span>
 
 static secp256k1_context* secp256k1_context_sign = nullptr;
 
@@ -464,40 +465,46 @@ secp256k1_context* GetSecp256k1SignContext()
     return secp256k1_context_sign;
 }
 
-/** Initialize the elliptic curve support. May not be called twice without calling ECC_Stop first. */
-static void ECC_Start() {
-    assert(secp256k1_context_sign == nullptr);
+/** Initialize elliptic curve context. Provide rng seed for blinding factor if needed */
+static void ECC_Start(secp256k1_context*& ctx_inout, const std::span<const unsigned char>& rng_seed32) {
+    assert(ctx_inout == nullptr);
+    assert(rng_seed32.empty() || rng_seed32.size() == 32);
 
     secp256k1_context *ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
     assert(ctx != nullptr);
 
-    {
+    if (!rng_seed32.empty()){
         // Pass in a random blinding seed to the secp256k1 context.
-        std::vector<unsigned char, secure_allocator<unsigned char>> vseed(32);
-        GetRandBytes(vseed);
-        bool ret = secp256k1_context_randomize(ctx, vseed.data());
+        bool ret = secp256k1_context_randomize(ctx, rng_seed32.data());
         assert(ret);
     }
 
-    secp256k1_context_sign = ctx;
+    ctx_inout = ctx;
 }
 
-/** Deinitialize the elliptic curve support. No-op if ECC_Start wasn't called first. */
-static void ECC_Stop() {
-    secp256k1_context *ctx = secp256k1_context_sign;
-    secp256k1_context_sign = nullptr;
+/** Deinitialize the elliptic curve context. No-op if ECC_Start wasn't called first. */
+static void ECC_Stop(secp256k1_context*& ctx_inout) {
+    secp256k1_context *ctx = ctx_inout;
+    ctx_inout = nullptr;
 
     if (ctx) {
         secp256k1_context_destroy(ctx);
     }
 }
 
-ECC_Context::ECC_Context()
+static std::vector<unsigned char, secure_allocator<unsigned char>> RandSeed32()
 {
-    ECC_Start();
+    std::vector<unsigned char, secure_allocator<unsigned char>> rng_seed(32);
+    GetRandBytes(rng_seed);
+    return rng_seed;
+}
+
+ECC_Context::ECC_Context() : ref_ctx(secp256k1_context_sign)
+{
+    ECC_Start(ref_ctx, RandSeed32());
 }
 
 ECC_Context::~ECC_Context()
 {
-    ECC_Stop();
+    ECC_Stop(ref_ctx);
 }
