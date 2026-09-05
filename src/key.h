@@ -342,6 +342,11 @@ public:
     ECC_Context& operator=(const ECC_Context&) = delete;
 
     ~ECC_Context();
+
+    secp256k1_context* SignContext() const { return m_ctx; }
+
+private:
+    secp256k1_context* m_ctx{nullptr};
 };
 
 #endif // BITCOIN_KEY_H

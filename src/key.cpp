@@ -19,7 +19,7 @@
 #include <algorithm>
 #include <span>
 
-static secp256k1_context* secp256k1_context_sign = nullptr;
+static const ECC_Context* g_ecc_context = nullptr;
 
 /** These functions are taken from the libsecp256k1 distribution and are very ugly. */
 
@@ -462,7 +462,7 @@ bool ECC_InitSanityCheck() {
 
 secp256k1_context* GetSecp256k1SignContext()
 {
-    return secp256k1_context_sign;
+    return g_ecc_context ? g_ecc_context->SignContext() : nullptr;
 }
 
 /** Initialize elliptic curve context. Provide rng seed for blinding factor if needed */
@@ -501,10 +501,14 @@ static std::vector<unsigned char, secure_allocator<unsigned char>> RandSeed32()
 
 ECC_Context::ECC_Context()
 {
-    ECC_Start(secp256k1_context_sign, RandSeed32());
+    assert(g_ecc_context == nullptr);
+    ECC_Start(m_ctx, RandSeed32());
+    g_ecc_context = this;
 }
 
 ECC_Context::~ECC_Context()
 {
-    ECC_Stop(secp256k1_context_sign);
+    assert(g_ecc_context == this);
+    g_ecc_context = nullptr;
+    ECC_Stop(m_ctx);
 }
