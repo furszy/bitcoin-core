@@ -15,7 +15,7 @@
 
 static void EllSwiftCreate(benchmark::Bench& bench)
 {
-    ECC_Context ecc_context{};
+    const auto ecc_context{MakeContextECC()};
 
     CKey key = GenerateRandomKey();
     uint256 entropy = GetRandHash();

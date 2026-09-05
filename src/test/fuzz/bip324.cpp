@@ -18,7 +18,7 @@ namespace {
 
 void Initialize()
 {
-    static ECC_Context ecc_context{};
+    static const auto ecc_context{MakeContextECC()};
     SelectParams(ChainType::MAIN);
 }
 

@@ -17,6 +17,7 @@
 #include <secp256k1_schnorrsig.h>
 
 #include <algorithm>
+#include <memory>
 #include <span>
 
 static const ECC_Context* g_ecc_context = nullptr;
@@ -499,10 +500,10 @@ static std::vector<unsigned char, secure_allocator<unsigned char>> RandSeed32()
     return rng_seed;
 }
 
-ECC_Context::ECC_Context()
+ECC_Context::ECC_Context(const std::span<const unsigned char>& rng_seed32)
 {
     assert(g_ecc_context == nullptr);
-    ECC_Start(m_ctx, RandSeed32());
+    ECC_Start(m_ctx, rng_seed32);
     g_ecc_context = this;
 }
 
@@ -511,4 +512,9 @@ ECC_Context::~ECC_Context()
     assert(g_ecc_context == this);
     g_ecc_context = nullptr;
     ECC_Stop(m_ctx);
+}
+
+std::unique_ptr<ECC_Context> MakeContextECC()
+{
+    return std::make_unique<ECC_Context>(RandSeed32());
 }

@@ -19,7 +19,7 @@
 
 void initialize_message()
 {
-    static ECC_Context ecc_context{};
+    static const auto ecc_context{MakeContextECC()};
     SelectParams(ChainType::REGTEST);
 }
 

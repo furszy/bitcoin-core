@@ -13,6 +13,7 @@
 #include <support/allocators/secure.h>
 #include <uint256.h>
 
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <utility>
@@ -337,7 +338,7 @@ secp256k1_context* GetSecp256k1SignContext();
 class ECC_Context
 {
 public:
-    ECC_Context();
+    explicit ECC_Context(const std::span<const unsigned char>& rng_seed32);
     ECC_Context(const ECC_Context&) = delete;
     ECC_Context& operator=(const ECC_Context&) = delete;
 
@@ -348,5 +349,8 @@ public:
 private:
     secp256k1_context* m_ctx{nullptr};
 };
+
+/** Initialize elliptic curve support with a seed from the RNG. */
+std::unique_ptr<ECC_Context> MakeContextECC();
 
 #endif // BITCOIN_KEY_H

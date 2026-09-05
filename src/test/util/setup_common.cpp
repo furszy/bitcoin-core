@@ -237,7 +237,7 @@ BasicTestingSetup::BasicTestingSetup(const ChainType chainType, TestOpts opts)
     LogInstance().StartLogging();
     m_node.warnings = std::make_unique<node::Warnings>();
     m_node.kernel = std::make_unique<kernel::Context>();
-    m_node.ecc_context = std::make_unique<ECC_Context>();
+    m_node.ecc_context = MakeContextECC();
     SetupEnvironment();
 
     m_node.chain = interfaces::MakeChain(m_node);

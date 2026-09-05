@@ -133,7 +133,7 @@ public:
 
         m_context->warnings = std::make_unique<node::Warnings>();
         m_context->kernel = std::make_unique<kernel::Context>();
-        m_context->ecc_context = std::make_unique<ECC_Context>();
+        m_context->ecc_context = MakeContextECC();
         if (!AppInitSanityChecks(*m_context->kernel)) return false;
 
         if (!AppInitLockDirectories()) return false;

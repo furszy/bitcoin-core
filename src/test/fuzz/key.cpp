@@ -33,7 +33,7 @@
 
 void initialize_key()
 {
-    static ECC_Context ecc_context{};
+    static const auto ecc_context{MakeContextECC()};
     SelectParams(ChainType::REGTEST);
 }
 
