@@ -4,10 +4,12 @@
 
 #include <ecc_context.h>
 
+#include <crypto/sha256.h>
 #include <secp256k1.h>
 
 #include <cassert>
 #include <span>
+#include <type_traits>
 
 static const ECC_Context* g_ecc_context = nullptr;
 
@@ -23,6 +25,10 @@ static void ECC_Start(secp256k1_context*& ctx_inout, const std::span<const unsig
 
     secp256k1_context *ctx = secp256k1_context_create(SECP256K1_CONTEXT_NONE);
     assert(ctx != nullptr);
+
+    SHA256AutoDetect();
+    static_assert(std::is_same_v<decltype(&SHA256Transform), secp256k1_sha256_compression_function>);
+    secp256k1_context_set_sha256_compression(ctx, SHA256Transform);
 
     if (!rng_seed32.empty()){
         // Pass in a random blinding seed to the secp256k1 context.
