@@ -12,6 +12,7 @@
 #include <common/license_info.h>
 #include <common/system.h>
 #include <compat/compat.h>
+#include <crypto/sha256.h>
 #include <interfaces/init.h>
 #include <logging.h>
 #include <pubkey.h>
@@ -104,6 +105,7 @@ MAIN_FUNCTION
 
     SetupEnvironment();
     RandomInit();
+    SHA256AutoDetect();
     try {
         if (const auto maybe_exit{WalletAppInit(args, argc, argv)}) return *maybe_exit;
     } catch (const std::exception& e) {
