@@ -2,6 +2,7 @@
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <common/ecc_init.h>
 #include <consensus/amount.h>
 #include <primitives/transaction.h>
 #include <pubkey.h>
@@ -20,6 +21,7 @@
 
 void initialize_script_sigcache()
 {
+    static const auto ecc_context{MakeContextECC()};
     static const auto testing_setup = MakeNoLogFileContext<>();
 }
 
