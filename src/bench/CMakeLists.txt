@@ -48,6 +48,7 @@ add_executable(bench_bitcoin
   rpc_blockchain.cpp
   rpc_mempool.cpp
   sign_transaction.cpp
+  signature.cpp
   streams_findbyte.cpp
   strencodings.cpp
   txgraph.cpp
