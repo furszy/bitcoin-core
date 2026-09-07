@@ -56,6 +56,7 @@ add_executable(bench_bitcoin
   uint256_blob.cpp
   util_time.cpp
   verify_script.cpp
+  verify_signature.cpp
 )
 
 add_windows_application_manifest(bench_bitcoin)
