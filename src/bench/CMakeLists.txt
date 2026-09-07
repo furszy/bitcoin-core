@@ -47,6 +47,7 @@ add_executable(bench_bitcoin
   rollingbloom.cpp
   rpc_blockchain.cpp
   rpc_mempool.cpp
+  sign_sha256_impl.cpp
   sign_transaction.cpp
   streams_findbyte.cpp
   strencodings.cpp
@@ -69,6 +70,7 @@ target_link_libraries(bench_bitcoin
   test_util
   bitcoin_node
   Boost::headers
+  secp256k1
 )
 
 if(WITH_EMBEDDED_ASMAP)
