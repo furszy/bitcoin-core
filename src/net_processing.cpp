@@ -5118,7 +5118,16 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         const uint256 hash(pblock->GetHash());
         LogDebug(BCLog::NET, "received block %s peer=%d\n", hash.ToString(), pfrom.GetId());
 
-        const CBlockIndex* prev_block{WITH_LOCK(m_chainman.GetMutex(), return m_chainman.m_blockman.LookupBlockIndex(pblock->hashPrevBlock))};
+        const CBlockIndex* prev_block;
+        {
+            LOCK(m_chainman.GetMutex());
+            const CBlockIndex* indexed_block = m_chainman.m_blockman.LookupBlockIndex(hash);
+            if (indexed_block && indexed_block->nStatus & BLOCK_HAVE_DATA) {
+                return; // nothing to do
+            }
+
+            prev_block = m_chainman.m_blockman.LookupBlockIndex(pblock->hashPrevBlock);
+        }
 
         // Check for possible mutation if it connects to something we know so we can check for DEPLOYMENT_SEGWIT being active
         if (prev_block && IsBlockMutated(/*block=*/*pblock,
