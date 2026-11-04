@@ -52,6 +52,22 @@
    fun:_ZN12_GLOBAL__N_115GetKernelLoggerEv
 }
 {
+   Suppress GetSecp256k1SignContext still reachable memory warning
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   ...
+   fun:_Z23GetSecp256k1SignContextv
+}
+{
+   Suppress GetSecp256k1PublicContext still reachable memory warning
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:malloc
+   ...
+   fun:_Z25GetSecp256k1PublicContextv
+}
+{
    Suppress BCLog::Logger::StartLogging() still reachable memory warning
    Memcheck:Leak
    match-leak-kinds: reachable
