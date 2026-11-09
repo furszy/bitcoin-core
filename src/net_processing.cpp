@@ -30,6 +30,7 @@
 #include <netaddress.h>
 #include <netbase.h>
 #include <netmessagemaker.h>
+#include <node/block_wire_check.h>
 #include <node/blockstorage.h>
 #include <node/connection_types.h>
 #include <node/protocol_version.h>
@@ -5213,6 +5214,35 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
             if (prev_block && !min_pow_checked && !IsBlockRequested(hash)) {
                 LogDebug(BCLog::NET, "unrequested block %s with too little work from peer=%d, not deserializing\n", hash.ToString(), pfrom.GetId());
                 return;
+            }
+        }
+
+        // With segwit active, a block's transactions must hash to the header's
+        // merkle root and satisfy the coinbase's witness commitment. Check that
+        // straight from the wire, before deserializing the transactions. Only a
+        // block that actually carries witness data is rejected here: that is the
+        // only case where deserializing an invalid block is expensive, as its
+        // witnesses expand in memory. A mutated witness block would otherwise be
+        // rejected (as "mutated block" below) only after that expansion, and a
+        // malformed one is dropped as the deserializer would drop it. A block
+        // that passes is still re-checked after deserialization, so this only
+        // ever rejects early; blocks without witness are left to the usual
+        // checks, whose deserialization is bounded and cheap.
+        if (prev_block && DeploymentActiveAfter(prev_block, m_chainman, Consensus::DEPLOYMENT_SEGWIT)) {
+            const node::BlockBodyCheck check{node::CheckBlockBodyCommitments(pblock->hashMerkleRoot, std::span{vRecv.data(), vRecv.size()})};
+            if (check.has_witness) {
+                switch (check.status) {
+                case node::BlockBodyStatus::MATCHES:
+                    break;
+                case node::BlockBodyStatus::MUTATED:
+                    LogDebug(BCLog::NET, "mutated block %s from peer=%d, not deserializing\n", hash.ToString(), pfrom.GetId());
+                    Misbehaving(peer, "mutated block");
+                    WITH_LOCK(cs_main, RemoveBlockRequest(hash, pfrom.GetId()));
+                    return;
+                case node::BlockBodyStatus::MALFORMED:
+                    LogDebug(BCLog::NET, "malformed block %s from peer=%d, not deserializing\n", hash.ToString(), pfrom.GetId());
+                    return;
+                }
             }
         }
 

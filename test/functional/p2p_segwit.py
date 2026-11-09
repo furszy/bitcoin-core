@@ -781,7 +781,11 @@ class SegWitTest(BitcoinTestFramework):
         block_3.hashMerkleRoot = block_3.calc_merkle_root()
         block_3.solve()
 
-        self.test_witness_block(self.nodes[0], self.test_node, block_3, accepted=False, reason='bad-witness-merkle-match')
+        # With segwit active, a witness block whose commitments do not match is
+        # caught on the wire and dropped before its transactions are
+        # deserialized (the specific "bad-witness-merkle-match" reason is still
+        # covered via submitblock, which does not go through that path).
+        self.test_witness_block(self.nodes[0], self.test_node, block_3, accepted=False, reason='not deserializing')
 
         # Add a different commitment with different nonce, but in the
         # right location, and with some funds burned(!).
@@ -849,7 +853,7 @@ class SegWitTest(BitcoinTestFramework):
 
         # Send over P2P and expect rejection for the same reason
         self.test_witness_block(self.nodes[0], self.test_node, relayable_block,
-                                accepted=False, reason='bad-witness-nonce-size')
+                                accepted=False, reason='not deserializing')
 
         # Node should still be on the previous tip
         assert_not_equal(self.nodes[0].getbestblockhash(), relayable_block.hash_hex)
@@ -873,7 +877,7 @@ class SegWitTest(BitcoinTestFramework):
         # Change the nonce -- should not cause the block to be permanently
         # failed
         block.vtx[0].wit.vtxinwit[0].scriptWitness.stack = [ser_uint256(1)]
-        self.test_witness_block(self.nodes[0], self.test_node, block, accepted=False, reason='bad-witness-merkle-match')
+        self.test_witness_block(self.nodes[0], self.test_node, block, accepted=False, reason='not deserializing')
 
         # Changing the witness reserved value doesn't change the block hash
         block.vtx[0].wit.vtxinwit[0].scriptWitness.stack = [ser_uint256(0)]
@@ -1190,7 +1194,7 @@ class SegWitTest(BitcoinTestFramework):
 
         block = self.build_next_block()
         self.update_witness_block_with_transactions(block, [tx2])
-        self.test_witness_block(self.nodes[0], self.test_node, block, accepted=False, reason='bad-txnmrklroot')
+        self.test_witness_block(self.nodes[0], self.test_node, block, accepted=False, reason='not deserializing')
 
         # Now try using a too short vtxinwit
         tx2.wit.vtxinwit.pop()
@@ -1198,8 +1202,10 @@ class SegWitTest(BitcoinTestFramework):
 
         block.vtx = [block.vtx[0]]
         self.update_witness_block_with_transactions(block, [tx2])
-        # This block doesn't result in a specific reject reason, but an iostream exception:
-        with self.nodes[0].assert_debug_log(["Exception 'DataStream::read(): end of data"]):
+        # This block's transactions cannot be parsed from the wire (too few
+        # witnesses), so with segwit active it is dropped as malformed before
+        # deserialization rather than throwing an iostream exception during it.
+        with self.nodes[0].assert_debug_log(["malformed block"]):
             self.test_witness_block(self.nodes[0], self.test_node, block, accepted=False)
 
         # Now make one of the intermediate witnesses be incorrect

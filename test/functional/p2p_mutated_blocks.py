@@ -85,8 +85,10 @@ class MutatedBlocksTest(BitcoinTestFramework):
         assert_equal([101], peer_info_prior_to_attack[0]["inflight"])
 
         # Attempt to clear the honest relayer's download request by sending the
-        # mutated block (as the attacker).
-        with self.nodes[0].assert_debug_log(expected_msgs=["Block mutated: bad-txnmrklroot, hashMerkleRoot mismatch"]):
+        # mutated block (as the attacker). The mismatching merkle root is caught
+        # on the wire, before the transactions are deserialized, so the
+        # post-deserialization "bad-txnmrklroot" path is never reached.
+        with self.nodes[0].assert_debug_log(expected_msgs=["mutated block", "not deserializing"], unexpected_msgs=["bad-txnmrklroot"]):
             attacker.send_without_ping(msg_block(mutated_block))
             # Attacker should get disconnected for sending a mutated block
             attacker.wait_for_disconnect(timeout=5)

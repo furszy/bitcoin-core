@@ -306,6 +306,7 @@ BASE_SCRIPTS = [
     'mining_mainnet.py',
     'feature_signet.py',
     'p2p_mutated_blocks.py',
+    'p2p_block_wire_check.py',
     'rpc_named_arguments.py',
     'feature_startupnotify.py',
     'wallet_simulaterawtx.py',
