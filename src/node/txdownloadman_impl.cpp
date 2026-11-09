@@ -67,6 +67,10 @@ std::pair<bool, std::optional<PackageToValidate>> TxDownloadManager::ReceivedTx(
 {
     return m_impl->ReceivedTx(nodeid, ptx);
 }
+void TxDownloadManager::OversizedTxReceived(const Wtxid& wtxid)
+{
+    m_impl->OversizedTxReceived(wtxid);
+}
 bool TxDownloadManager::HaveMoreWork(NodeId nodeid) const
 {
     return m_impl->HaveMoreWork(nodeid);
@@ -295,6 +299,15 @@ void TxDownloadManagerImpl::ReceivedNotFound(NodeId nodeid, const std::vector<Ge
         // completed in TxRequestTracker.
         m_txrequest.ReceivedResponse(nodeid, gtxid.ToUint256());
     }
+}
+
+void TxDownloadManagerImpl::OversizedTxReceived(const Wtxid& wtxid)
+{
+    // The tx was dropped before deserialization (its message exceeds the maximum
+    // standard weight). Forget any request for it so we do not fall back to the
+    // other peers that announced it. We do not add it to the reject filter: it
+    // was never deserialized, so this wtxid came from unparsed wire bytes.
+    m_txrequest.ForgetTxHash(wtxid.ToUint256());
 }
 
 std::optional<PackageToValidate> TxDownloadManagerImpl::Find1P1CPackage(const CTransactionRef& ptx, NodeId nodeid)

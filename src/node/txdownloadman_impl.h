@@ -189,6 +189,8 @@ public:
 
     std::pair<bool, std::optional<PackageToValidate>> ReceivedTx(NodeId nodeid, const CTransactionRef& ptx);
 
+    void OversizedTxReceived(const Wtxid& wtxid);
+
     bool HaveMoreWork(NodeId nodeid);
     CTransactionRef GetTxToReconsider(NodeId nodeid);
 

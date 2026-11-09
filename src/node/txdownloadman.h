@@ -155,6 +155,11 @@ public:
      * PackageToValidate. */
     std::pair<bool, std::optional<PackageToValidate>> ReceivedTx(NodeId nodeid, const CTransactionRef& ptx);
 
+    /** A tx message too large to be a standard transaction was dropped before
+     *  deserialization. Forget any request for it so we do not fall back to
+     *  re-requesting it from the other peers that announced it. */
+    void OversizedTxReceived(const Wtxid& wtxid);
+
     /** Whether there are any orphans to reconsider for this peer. */
     bool HaveMoreWork(NodeId nodeid) const;
 

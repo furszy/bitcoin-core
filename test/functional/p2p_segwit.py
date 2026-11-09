@@ -247,8 +247,6 @@ class SegWitTest(BitcoinTestFramework):
         self.old_node = self.nodes[0].add_p2p_connection(TestP2PConn(), services=NODE_NETWORK)
         # self.std_node is for testing node1 (requires standard txs)
         self.std_node = self.nodes[1].add_p2p_connection(TestP2PConn(), services=P2P_SERVICES)
-        # self.std_wtx_node is for testing node1 with wtxid relay
-        self.std_wtx_node = self.nodes[1].add_p2p_connection(TestP2PConn(wtxidrelay=True), services=P2P_SERVICES)
 
         assert_not_equal(self.test_node.nServices & NODE_WITNESS, 0)
 
@@ -1262,23 +1260,11 @@ class SegWitTest(BitcoinTestFramework):
         tx3.vin.append(CTxIn(COutPoint(tx2.txid_int, 0), b""))
         tx3.wit.vtxinwit.append(CTxInWitness())
 
-        # Add too-large for IsStandard witness and check that it does not enter reject filter
-        p2sh_script = CScript([OP_TRUE])
-        witness_script2 = CScript([b'a' * 400000])
-        tx3.vout.append(CTxOut(tx2.vout[0].nValue - 1000, script_to_p2sh_script(p2sh_script)))
-        tx3.wit.vtxinwit[0].scriptWitness.stack = [witness_script2]
-
-        # Node will not be blinded to the transaction, requesting it any number of times
-        # if it is being announced via txid relay.
-        # Node will be blinded to the transaction via wtxid, however.
-        self.std_node.announce_tx_and_wait_for_getdata(tx3)
-        self.std_wtx_node.announce_tx_and_wait_for_getdata(tx3, use_wtxid=True)
-        test_transaction_acceptance(self.nodes[1], self.std_node, tx3, True, False, 'tx-size')
-        self.std_node.announce_tx_and_wait_for_getdata(tx3)
-        self.std_wtx_node.announce_tx_and_wait_for_getdata(tx3, use_wtxid=True, success=False)
-
-        # Remove witness stuffing, instead add extra witness push on stack
-        tx3.vout[0] = CTxOut(tx2.vout[0].nValue - 1000, CScript([OP_TRUE, OP_DROP] * 15 + [OP_TRUE]))
+        # A witness with an extra stack item fails script verification. (A
+        # transaction whose message exceeds the standard weight is instead
+        # dropped before deserialization by the oversized-tx-message cap, which
+        # is covered by p2p_oversized_messages.py.)
+        tx3.vout.append(CTxOut(tx2.vout[0].nValue - 1000, CScript([OP_TRUE, OP_DROP] * 15 + [OP_TRUE])))
         tx3.wit.vtxinwit[0].scriptWitness.stack = [CScript([CScriptNum(1)]), witness_script]
 
         test_transaction_acceptance(self.nodes[0], self.test_node, tx2, with_witness=True, accepted=True)

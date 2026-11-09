@@ -120,6 +120,7 @@ BASE_SCRIPTS = [
     'wallet_bumpfee.py',
     'wallet_v3_txs.py',
     'p2p_tx_download.py',
+    'p2p_oversized_messages.py',
     'feature_txindex_compatibility.py',
     'wallet_avoidreuse.py',
     'feature_abortnode.py',

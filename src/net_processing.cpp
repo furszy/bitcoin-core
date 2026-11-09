@@ -4715,6 +4715,17 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         // is not considered a protocol violation, so don't punish the peer.
         if (m_chainman.IsInitialBlockDownload()) return;
 
+        // A transaction's weight is at least its serialized size, so a tx message
+        // larger than MAX_STANDARD_TX_WEIGHT cannot be a standard transaction.
+        if (m_mempool.m_opts.require_standard && vRecv.size() > MAX_STANDARD_TX_WEIGHT) {
+            const Wtxid wtxid{Wtxid::FromUint256(Hash(vRecv))};
+            LogDebug(BCLog::NET, "oversized tx message (%u bytes, wtxid=%s) from peer=%d, ignoring\n", vRecv.size(), wtxid.ToString(), pfrom.GetId());
+            // Its wtxid is the hash of the whole message, so we can forget any request
+            // for it without deserializing.
+            WITH_LOCK(m_tx_download_mutex, m_txdownloadman.OversizedTxReceived(wtxid));
+            return;
+        }
+
         CTransactionRef ptx;
         vRecv >> TX_WITH_WITNESS(ptx);
 
