@@ -66,6 +66,17 @@ from test_framework.util import (
 from test_framework.wallet import MiniWallet
 
 
+class msg_cmpctblock_raw:
+    """A cmpctblock message with a raw, possibly-malformed payload."""
+    msgtype = b"cmpctblock"
+
+    def __init__(self, raw):
+        self.raw = raw
+
+    def serialize(self):
+        return self.raw
+
+
 # TestP2PConn: A peer we use to send messages to bitcoind, and store responses.
 class TestP2PConn(P2PInterface):
     def __init__(self):
@@ -781,6 +792,14 @@ class CompactBlocksTest(BitcoinTestFramework):
                 found = True
                 break
         assert not found
+
+        # The low-work header is rejected before the rest of the compact block
+        # is deserialized: a message whose body is truncated is still ignored
+        # from the header alone, instead of erroring on the missing body.
+        raw = msg_cmpctblock_raw(CBlockHeader(block).serialize() + b"\x00")
+        with self.nodes[0].assert_debug_log(['Ignoring low-work compact block']):
+            test_node.send_and_ping(raw)
+        assert test_node.is_connected
 
     def test_compactblocks_not_at_tip(self, test_node):
         node = self.nodes[0]

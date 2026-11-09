@@ -4834,7 +4834,7 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         }
 
         CBlockHeaderAndShortTxIDs cmpctblock;
-        vRecv >> cmpctblock;
+        vRecv >> cmpctblock.header;
 
         bool received_new_header = false;
         const auto blockhash = cmpctblock.header.GetHash();
@@ -4900,6 +4900,21 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
 
         if (pindex->nStatus & BLOCK_HAVE_DATA) // Nothing to do here
             return;
+        }
+
+        // The header is valid and we do not have the block yet; read the rest of
+        // the compact block now, outside cs_main. Deferring it to this point
+        // means a compact block with an invalid header, too little work, an
+        // unknown parent, or one we already have never costs us a full
+        // deserialization of its short ids and prefilled transactions.
+        cmpctblock.UnserializeRest(vRecv);
+
+        {
+        LOCK(cs_main);
+        // We released cs_main to deserialize the body; the block may have arrived
+        // from elsewhere meanwhile, so re-check before reconstructing it.
+        if (pindex->nStatus & BLOCK_HAVE_DATA) return;
+        CNodeState *nodestate = State(pfrom.GetId());
 
         auto range_flight = mapBlocksInFlight.equal_range(pindex->GetBlockHash());
         size_t already_in_flight = std::distance(range_flight.first, range_flight.second);

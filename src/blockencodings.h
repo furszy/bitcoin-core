@@ -137,6 +137,21 @@ public:
             obj.FillShortTxIDSelector();
         }
     }
+
+    // Read everything after the header (see the serialization above), for a
+    // reader that has already read the header. Lets the header be checked
+    // before the bulk of a compact block is deserialized.
+    template <typename Stream>
+    void UnserializeRest(Stream& s)
+    {
+        s >> nonce;
+        s >> Using<VectorFormatter<CustomUintFormatter<SHORTTXIDS_LENGTH>>>(shorttxids);
+        s >> prefilledtxn;
+        if (BlockTxCount() > std::numeric_limits<uint16_t>::max()) {
+            throw std::ios_base::failure("indexes overflowed 16 bits");
+        }
+        FillShortTxIDSelector();
+    }
 };
 
 class PartiallyDownloadedBlock {
