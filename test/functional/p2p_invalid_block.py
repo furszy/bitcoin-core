@@ -21,7 +21,10 @@ from test_framework.blocktools import (
     create_coinbase,
     create_tx_with_script,
 )
-from test_framework.messages import COIN
+from test_framework.messages import (
+    COIN,
+    uint256_from_compact,
+)
 from test_framework.p2p import P2PDataStore
 from test_framework.script import OP_TRUE
 from test_framework.test_framework import BitcoinTestFramework
@@ -135,6 +138,22 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         peer.send_blocks_and_test([block], node, force_send=True, success=False, reject_reason='time-too-new')
         node.setmocktime(t + 1)
         peer.send_blocks_and_test([block], node, success=True)
+
+        self.log.info("Reject a block with invalid proof of work before deserializing it")
+        bad_pow = create_block(
+            int(node.getbestblockhash(), 16),
+            height=node.getblockcount() + 1,
+            ntime=node.getblock(node.getbestblockhash())["time"] + 1,
+        )
+        # Grind the nonce until the header hash exceeds its own target; the block
+        # is then dropped by the proof-of-work check before its transactions are
+        # deserialized. (The peer is discouraged but, with noban granted here, not
+        # disconnected.)
+        target = uint256_from_compact(bad_pow.nBits)
+        while bad_pow.hash_int <= target:
+            bad_pow.nNonce += 1
+        peer.send_blocks_and_test([bad_pow], node, force_send=True, success=False,
+                                  reject_reason="with invalid proof of work")
 
 
 if __name__ == '__main__':

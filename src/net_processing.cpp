@@ -42,6 +42,7 @@
 #include <policy/fees/block_policy_estimator.h>
 #include <policy/packages.h>
 #include <policy/policy.h>
+#include <pow.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
 #include <private_broadcast.h>
@@ -5120,8 +5121,16 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         }
 
         std::shared_ptr<CBlock> pblock = std::make_shared<CBlock>();
-        vRecv >> AsBase<CBlockHeader>(*pblock);
+        CBlockHeader& header = AsBase<CBlockHeader>(*pblock);
+        vRecv >> header;
         const uint256 hash{pblock->GetHash()};
+
+        // Reject block that fails its own PoW target
+        if (!HasValidProofOfWork(std::span<const CBlockHeader>{&header, 1}, m_chainparams.GetConsensus())) {
+            LogDebug(BCLog::NET, "block %s with invalid proof of work from peer=%d, not deserializing\n", hash.ToString(), pfrom.GetId());
+            Misbehaving(peer, "block with invalid proof of work");
+            return;
+        }
         vRecv >> TX_WITH_WITNESS(pblock->vtx);
 
         LogDebug(BCLog::NET, "received block %s peer=%d\n", hash.ToString(), pfrom.GetId());
