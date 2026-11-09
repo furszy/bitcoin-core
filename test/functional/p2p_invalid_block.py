@@ -155,6 +155,24 @@ class InvalidBlockRequestTest(BitcoinTestFramework):
         peer.send_blocks_and_test([bad_pow], node, force_send=True, success=False,
                                   reject_reason="with invalid proof of work")
 
+        self.log.info("Reject a block that builds on a block known to be invalid")
+        tip = int(node.getbestblockhash(), 16)
+        height = node.getblockcount() + 1
+        tip_time = node.getblock(node.getbestblockhash())["time"]
+        node.setmocktime(tip_time + 100)  # so a new block's timestamp is valid
+        # An invalid block: its coinbase claims one satoshi more than allowed.
+        invalid = create_block(tip, height=height, ntime=tip_time + 1)
+        invalid.vtx[0].vout[0].nValue += 1
+        invalid.hashMerkleRoot = invalid.calc_merkle_root()
+        invalid.solve()
+        peer.send_blocks_and_test([invalid], node, force_send=True, success=False, reject_reason="bad-cb-amount")
+        # A block building on it is now dropped before its transactions are
+        # deserialized, since its parent is known to be invalid.
+        child = create_block(invalid.hash_int, height=height + 1, ntime=tip_time + 2)
+        child.solve()
+        peer.send_blocks_and_test([child], node, force_send=True, success=False,
+                                  reject_reason="builds on invalid prev")
+
 
 if __name__ == '__main__':
     InvalidBlockRequestTest(__file__).main()

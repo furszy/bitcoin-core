@@ -5176,6 +5176,17 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
             }
 
             prev_block = m_chainman.m_blockman.LookupBlockIndex(pblock->hashPrevBlock);
+
+            // If this block builds on one we already know is invalid, it can
+            // never be valid either; drop it, punishing the sender as the
+            // header check (AcceptBlockHeader) would, without deserializing its
+            // transactions.
+            if (prev_block && (prev_block->nStatus & BLOCK_FAILED_VALID)) {
+                LogDebug(BCLog::NET, "block %s builds on invalid prev %s, from peer=%d, not deserializing\n", hash.ToString(), pblock->hashPrevBlock.ToString(), pfrom.GetId());
+                Misbehaving(peer, "block with invalid parent");
+                return;
+            }
+
             // Claimed work on this block, measured against our anti-dos threshold.
             min_pow_checked = prev_block && (prev_block->nChainWork + GetBlockProof(*pblock) >= GetAntiDoSWorkThreshold());
 
