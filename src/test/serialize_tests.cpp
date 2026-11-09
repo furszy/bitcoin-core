@@ -12,9 +12,11 @@
 #include <boost/test/unit_test.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <string>
+#include <vector>
 
 BOOST_FIXTURE_TEST_SUITE(serialize_tests, BasicTestingSetup)
 
@@ -569,6 +571,55 @@ BOOST_AUTO_TEST_CASE(with_params_derived)
 
     BOOST_CHECK_EQUAL(stream.str(), "\x0F\x02xy"
                                     "0f\x02XY");
+}
+
+// Helpers for vector_reservation_growth below (member templates are not allowed
+// in function-local classes, so these live at namespace scope).
+namespace {
+struct ReservationByteFormatter {
+    template <typename Stream, typename T> void Ser(Stream& s, const T&) const { s << uint8_t{0}; }
+    template <typename Stream, typename T> void Unser(Stream& s, T&) const { uint8_t b; s >> b; }
+};
+struct ReservationBigElem { char pad[1000]; };
+struct ReservationRecorder {
+    using value_type = ReservationBigElem;
+    size_t count{0};
+    std::vector<size_t> reserves{};
+    ReservationBigElem scratch{};
+    void clear() { count = 0; }
+    size_t size() const { return count; }
+    void reserve(size_t n) { reserves.push_back(n); }
+    void emplace_back() { ++count; }
+    ReservationBigElem& back() { return scratch; }
+    const ReservationBigElem* begin() const { return nullptr; }
+    const ReservationBigElem* end() const { return nullptr; }
+};
+} // namespace
+
+BOOST_AUTO_TEST_CASE(vector_reservation_growth)
+{
+    // Reading a large vector must reserve geometrically, not in fixed
+    // MAX_VECTOR_ALLOCATE steps, so deserializing N elements costs O(N)
+    // reserve/copy cycles rather than O(N^2). Drive VectorFormatter with a
+    // stand-in that records each reservation, and a formatter that consumes one
+    // byte per element.
+    const size_t step{MAX_VECTOR_ALLOCATE / sizeof(ReservationBigElem)};
+    const size_t n{step * 40};  // 40 fixed-size steps, but ~log2(40) geometric ones
+    DataStream ss;
+    WriteCompactSize(ss, n);
+    ss.write(std::vector<std::byte>(n));  // one byte consumed per element
+
+    ReservationRecorder rec;
+    VectorFormatter<ReservationByteFormatter>().Unser(ss, rec);
+
+    BOOST_CHECK_EQUAL(rec.count, n);
+    // Geometric growth: O(log N) reservations, far fewer than the ~40 a fixed
+    // MAX_VECTOR_ALLOCATE step would make.
+    BOOST_CHECK(rec.reserves.size() <= 12);
+    // Bounded over-allocation: never reserve more than twice the previous step.
+    for (size_t i = 1; i < rec.reserves.size(); ++i) {
+        BOOST_CHECK(rec.reserves[i] <= 2 * rec.reserves[i - 1]);
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

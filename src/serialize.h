@@ -683,11 +683,15 @@ struct VectorFormatter
         size_t size = ReadCompactSize(s);
         size_t allocated = 0;
         while (allocated < size) {
-            // For DoS prevention, do not blindly allocate as much as the stream claims to contain.
-            // Instead, allocate in 5MiB batches, so that an attacker actually needs to provide
-            // X MiB of data to make us allocate X+5 Mib.
+            // For DoS prevention, do not blindly allocate as much as the stream
+            // claims to contain. Grow the reservation geometrically, but by at
+            // least MAX_VECTOR_ALLOCATE: an attacker still has to provide the
+            // data (we never reserve more than twice what has already been read),
+            // while a large vector is read in O(n) reserve/copy cycles instead of
+            // O(n^2) -- a witness-stuffed message otherwise recopies the growing
+            // vector many times over.
             static_assert(sizeof(typename V::value_type) <= MAX_VECTOR_ALLOCATE, "Vector element size too large");
-            allocated = std::min(size, allocated + MAX_VECTOR_ALLOCATE / sizeof(typename V::value_type));
+            allocated = std::min(size, allocated + std::max<size_t>(allocated, MAX_VECTOR_ALLOCATE / sizeof(typename V::value_type)));
             v.reserve(allocated);
             while (v.size() < allocated) {
                 v.emplace_back();
