@@ -1107,6 +1107,8 @@ private:
      */
     bool BlockRequestAllowed(const CBlockIndex& block_index) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
     bool AlreadyHaveBlock(const uint256& block_hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
+    /** Whether this block's data is already stored. */
+    bool HaveBlockData(const uint256& block_hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
     void ProcessGetBlockData(CNode& pfrom, Peer& peer, const CInv& inv)
         EXCLUSIVE_LOCKS_REQUIRED(g_msgproc_mutex, !m_most_recent_block_mutex);
 
@@ -2361,6 +2363,12 @@ void PeerManagerImpl::BlockChecked(const std::shared_ptr<const CBlock>& block, c
 bool PeerManagerImpl::AlreadyHaveBlock(const uint256& block_hash)
 {
     return m_chainman.m_blockman.LookupBlockIndex(block_hash) != nullptr;
+}
+
+bool PeerManagerImpl::HaveBlockData(const uint256& block_hash)
+{
+    const CBlockIndex* pindex{m_chainman.m_blockman.LookupBlockIndex(block_hash)};
+    return pindex && (pindex->nStatus & BLOCK_HAVE_DATA);
 }
 
 void PeerManagerImpl::SendPings()
@@ -5135,6 +5143,15 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         bool min_pow_checked{false};
         {
             LOCK(cs_main);
+
+            // If we already have this block's transactions, deserializing them
+            // again gains us nothing; clear any pending request and drop it.
+            if (HaveBlockData(hash)) {
+                LogDebug(BCLog::NET, "already have block %s from peer=%d, not deserializing\n", hash.ToString(), pfrom.GetId());
+                RemoveBlockRequest(hash, pfrom.GetId());
+                return;
+            }
+
             prev_block = m_chainman.m_blockman.LookupBlockIndex(pblock->hashPrevBlock);
             // Claimed work on this block, measured against our anti-dos threshold.
             min_pow_checked = prev_block && (prev_block->nChainWork + GetBlockProof(*pblock) >= GetAntiDoSWorkThreshold());
