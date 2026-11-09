@@ -68,6 +68,15 @@ public:
     {
         READWRITE(obj.blockhash, TX_WITH_WITNESS(Using<VectorFormatter<TransactionCompression>>(obj.txn)));
     }
+
+    // Read the transactions, which follow the (already-read) block hash on the
+    // wire. Lets a reader check the block hash before deserializing the
+    // transactions, which may be large.
+    template <typename Stream>
+    void UnserializeTxn(Stream& s)
+    {
+        s >> TX_WITH_WITNESS(Using<VectorFormatter<TransactionCompression>>(txn));
+    }
 };
 
 // Dumb serialization/storage-helper for CBlockHeaderAndShortTxIDs and PartiallyDownloadedBlock

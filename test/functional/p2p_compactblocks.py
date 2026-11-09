@@ -662,6 +662,19 @@ class CompactBlocksTest(BitcoinTestFramework):
         test_node.send_and_ping(msg_block(block))
         assert_equal(node.getbestblockhash(), block.hash_hex)
 
+    def test_unrequested_blocktxn_ignored(self, test_node):
+        node = self.nodes[0]
+        # A block the node is not reconstructing: it never announced this block
+        # to us as a compact block, so it never asked us for its transactions.
+        block = self.build_block_on_tip(node)
+        msg = msg_blocktxn()
+        msg.block_transactions = BlockTransactions(block.hash_int, block.vtx)
+        # The transactions are dropped before they are deserialized, and an
+        # unexpected blocktxn is not misbehavior, so the peer stays connected.
+        with node.assert_debug_log(["we were not reconstructing"]):
+            test_node.send_and_ping(msg)
+        assert test_node.is_connected
+
     # Multiple blocktxn responses will cause a node to get disconnected.
     def test_multiple_blocktxn_response(self, test_node):
         node = self.nodes[0]
@@ -1144,6 +1157,9 @@ class CompactBlocksTest(BitcoinTestFramework):
 
         self.log.info("Testing handling of incorrect blocktxn responses...")
         self.test_incorrect_blocktxn_response(self.segwit_node)
+
+        self.log.info("Testing that unrequested block transactions are ignored...")
+        self.test_unrequested_blocktxn_ignored(self.segwit_node)
 
         self.log.info("Testing reconstructing compact blocks with a stalling peer...")
         self.test_compactblock_reconstruction_stalling_peer(self.segwit_node, self.additional_segwit_node)

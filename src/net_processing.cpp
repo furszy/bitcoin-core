@@ -979,6 +979,9 @@ private:
 
     /** Have we requested this block from an outbound peer */
     bool IsBlockRequestedFromOutbound(const uint256& hash) EXCLUSIVE_LOCKS_REQUIRED(cs_main, !m_peer_mutex);
+    /** Whether we are reconstructing a compact block with this hash from this peer, i.e. we asked
+     *  this peer for its block transactions and are expecting them. */
+    bool IsCompactBlockTxnRequested(const uint256& block_hash, NodeId nodeid) EXCLUSIVE_LOCKS_REQUIRED(cs_main);
 
     /** Remove this block from our tracked requested blocks. Called if:
      *  - the block has been received from a peer
@@ -3703,6 +3706,17 @@ void PeerManagerImpl::ProcessBlock(CNode& node, const std::shared_ptr<const CBlo
     }
 }
 
+bool PeerManagerImpl::IsCompactBlockTxnRequested(const uint256& block_hash, NodeId nodeid)
+{
+    auto range_flight = mapBlocksInFlight.equal_range(block_hash);
+    while (range_flight.first != range_flight.second) {
+        auto [node_id, block_it] = range_flight.first->second;
+        if (node_id == nodeid && block_it->partialBlock) return true;
+        range_flight.first++;
+    }
+    return false;
+}
+
 void PeerManagerImpl::ProcessCompactBlockTxns(CNode& pfrom, Peer& peer, const BlockTransactions& block_transactions)
 {
     std::shared_ptr<CBlock> pblock = std::make_shared<CBlock>();
@@ -5074,7 +5088,16 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         }
 
         BlockTransactions resp;
-        vRecv >> resp;
+        vRecv >> resp.blockhash;
+        // These transactions are only useful if we are reconstructing a compact
+        // block this peer announced. Otherwise drop the message before
+        // deserializing them -- a witness-heavy payload would otherwise expand
+        // many-fold in memory for nothing.
+        if (!WITH_LOCK(cs_main, return IsCompactBlockTxnRequested(resp.blockhash, pfrom.GetId()))) {
+            LogDebug(BCLog::NET, "peer=%d sent us block transactions for block %s we were not reconstructing, ignoring\n", pfrom.GetId(), resp.blockhash.ToString());
+            return;
+        }
+        resp.UnserializeTxn(vRecv);
 
         return ProcessCompactBlockTxns(pfrom, peer, resp);
     }
