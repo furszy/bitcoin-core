@@ -5131,11 +5131,28 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
             Misbehaving(peer, "block with invalid proof of work");
             return;
         }
+        const CBlockIndex* prev_block{nullptr};
+        bool min_pow_checked{false};
+        {
+            LOCK(cs_main);
+            prev_block = m_chainman.m_blockman.LookupBlockIndex(pblock->hashPrevBlock);
+            // Claimed work on this block, measured against our anti-dos threshold.
+            min_pow_checked = prev_block && (prev_block->nChainWork + GetBlockProof(*pblock) >= GetAntiDoSWorkThreshold());
+
+            // An unrequested block below that threshold would not be accepted
+            // into the block index; drop it before deserializing its
+            // transactions, as we already do for compact blocks. A requested
+            // block, or one whose parent we do not know (left to the
+            // prev-blk-not-found path below), is not gated here.
+            if (prev_block && !min_pow_checked && !IsBlockRequested(hash)) {
+                LogDebug(BCLog::NET, "unrequested block %s with too little work from peer=%d, not deserializing\n", hash.ToString(), pfrom.GetId());
+                return;
+            }
+        }
+
         vRecv >> TX_WITH_WITNESS(pblock->vtx);
 
         LogDebug(BCLog::NET, "received block %s peer=%d\n", hash.ToString(), pfrom.GetId());
-
-        const CBlockIndex* prev_block{WITH_LOCK(m_chainman.GetMutex(), return m_chainman.m_blockman.LookupBlockIndex(pblock->hashPrevBlock))};
 
         // Check for possible mutation if it connects to something we know so we can check for DEPLOYMENT_SEGWIT being active
         if (prev_block && IsBlockMutated(/*block=*/*pblock,
@@ -5147,7 +5164,6 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         }
 
         bool forceProcessing = false;
-        bool min_pow_checked = false;
         {
             LOCK(cs_main);
             // Always process the block if we requested it, since we may
@@ -5158,11 +5174,6 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
             // which peers send us compact blocks, so the race between here and
             // cs_main in ProcessNewBlock is fine.
             mapBlockSource.emplace(hash, std::make_pair(pfrom.GetId(), true));
-
-            // Check claimed work on this block against our anti-dos thresholds.
-            if (prev_block && prev_block->nChainWork + GetBlockProof(*pblock) >= GetAntiDoSWorkThreshold()) {
-                min_pow_checked = true;
-            }
         }
         ProcessBlock(pfrom, pblock, forceProcessing, min_pow_checked);
         return;

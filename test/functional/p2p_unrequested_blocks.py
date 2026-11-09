@@ -97,8 +97,12 @@ class AcceptBlockTest(BitcoinTestFramework):
             block_time += 1
         test_node.send_and_ping(msg_block(blocks_h2[0]))
 
-        with self.nodes[1].assert_debug_log(expected_msgs=[f"AcceptBlockHeader: not adding new block header {blocks_h2[1].hash_hex}, missing anti-dos proof-of-work validation"]):
+        # The block is unrequested and below node1's anti-dos work threshold,
+        # so node1 drops it before deserializing its transactions. Insufficient
+        # work is not by itself misbehavior, so the peer is not disconnected.
+        with self.nodes[1].assert_debug_log(expected_msgs=[f"unrequested block {blocks_h2[1].hash_hex} with too little work"]):
             min_work_node.send_and_ping(msg_block(blocks_h2[1]))
+        assert min_work_node.is_connected
 
         assert_equal(self.nodes[0].getblockcount(), 2)
         assert_equal(self.nodes[1].getblockcount(), 1)
