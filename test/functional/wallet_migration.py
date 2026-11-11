@@ -214,6 +214,42 @@ class WalletMigrationTest(BitcoinTestFramework):
         # Check the wallet we tried to migrate is still BDB
         self.assert_is_bdb(wallet_name)
 
+    def test_stale_journal(self):
+        self.log.info("Test migration removes a leftover database journal from the wallet location")
+        try:
+            import sqlite3  # type: ignore[import]
+        except ImportError:
+            self.log.warning("Skipping stale journal test: sqlite3 module not available")
+            return
+        wallet_name = "stale_journal"
+        wallet = self.create_legacy_wallet(wallet_name)
+        addr = wallet.getnewaddress()
+
+        # Leave the journal of an unrelated sqlite database at the wallet location, as an interrupted write to an
+        # earlier db there would. Copying it while its transaction is still open gives a valid (hot) journal, which
+        # SQLite would roll back into the migrated database when opening it, writing the unrelated db pages into it.
+        src_db = os.path.join(self.options.tmpdir, "stale_journal_src.dat")
+        conn = sqlite3.connect(src_db, isolation_level=None)
+        conn.execute("CREATE TABLE main(key BLOB PRIMARY KEY, value BLOB)")
+        conn.execute("BEGIN")
+        conn.executemany("INSERT INTO main VALUES (?, randomblob(200))", [(i.to_bytes(4, "big"),) for i in range(400)])
+        conn.execute("COMMIT")
+        conn.execute("PRAGMA cache_size=2")  # Make the update spill to disk, writing the journal
+        conn.execute("BEGIN")
+        conn.execute("UPDATE main SET value=randomblob(200)")
+        journal_path = self.master_node.wallets_path / wallet_name / "wallet.dat-journal"
+        journal_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(f"{src_db}-journal", journal_path)
+        conn.execute("ROLLBACK")
+        conn.close()
+
+        # The journal file can't be checked, as the migrated wallet keeps its own while loaded. Check the log instead,
+        # also making sure SQLite did not roll the journal back ("recovered N pages from <journal>").
+        with self.master_node.assert_debug_log([f"Removed db leftover during move: {journal_path}"], unexpected_msgs=["recovered"]):
+            _, wallet = self.migrate_and_get_rpc(wallet_name)
+        assert_equal(wallet.getaddressinfo(addr)["ismine"], True)
+        wallet.unloadwallet()
+
     def test_other_filesystem(self):
         self.log.info("Test migration of a wallet located on a different filesystem than the wallets directory")
         wallets_dev = os.stat(self.master_node.wallets_path).st_dev
@@ -1809,6 +1845,7 @@ class WalletMigrationTest(BitcoinTestFramework):
 
         # TODO: Test the actual records in the wallet for these tests too. The behavior may be correct, but the data written may not be what we actually want
         self.test_unwritable_dir_failure()
+        self.test_stale_journal()
         self.test_other_filesystem()
         self.test_basic()
         self.test_multisig()
